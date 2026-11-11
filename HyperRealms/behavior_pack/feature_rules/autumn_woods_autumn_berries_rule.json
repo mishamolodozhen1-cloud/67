@@ -1,0 +1,41 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:feature_rules": {
+    "description": {
+      "identifier": "hyper:autumn_woods_autumn_berries_rule",
+      "places_feature": "hyper:autumn_berries_feature"
+    },
+    "conditions": {
+      "placement_pass": "after_surface_pass",
+      "minecraft:biome_filter": [
+        {
+          "test": "has_biome_tag",
+          "operator": "==",
+          "value": "hyper_autumn_woods"
+        }
+      ]
+    },
+    "distribution": {
+      "iterations": 5,
+      "x": {
+        "distribution": "gaussian",
+        "extent": [
+          0,
+          15
+        ]
+      },
+      "y": "query.heightmap(variable.worldx, variable.worldz)",
+      "z": {
+        "distribution": "gaussian",
+        "extent": [
+          0,
+          15
+        ]
+      },
+      "scatter_chance": {
+        "numerator": 1,
+        "denominator": 5
+      }
+    }
+  }
+}

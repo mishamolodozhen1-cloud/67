@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:frost_ice_feature"
+    },
+    "features": [
+      [
+        "hyper:frost_packed_blob_feature",
+        4
+      ],
+      [
+        "hyper:frost_blue_blob_feature",
+        2
+      ],
+      [
+        "hyper:frost_snow_blob_feature",
+        1
+      ]
+    ]
+  }
+}

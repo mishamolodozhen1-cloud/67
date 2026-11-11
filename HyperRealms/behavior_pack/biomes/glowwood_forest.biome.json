@@ -1,0 +1,97 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:biome": {
+    "description": {
+      "identifier": "hyper:glowwood_forest"
+    },
+    "components": {
+      "minecraft:climate": {
+        "downfall": 0.9,
+        "temperature": 0.7
+      },
+      "minecraft:surface_builder": {
+        "builder": {
+          "type": "minecraft:overworld",
+          "sea_floor_depth": 7,
+          "sea_floor_material": "minecraft:gravel",
+          "foundation_material": "minecraft:stone",
+          "mid_material": "minecraft:dirt",
+          "top_material": "minecraft:grass_block",
+          "sea_material": "minecraft:water"
+        }
+      },
+      "minecraft:surface_material_adjustments": {
+        "adjustments": [
+          {
+            "materials": {
+              "top_material": "minecraft:moss_block"
+            },
+            "noise_frequency_scale": 0.0625,
+            "noise_range": [
+              0.15,
+              1.0
+            ]
+          },
+          {
+            "materials": {
+              "top_material": "minecraft:podzol"
+            },
+            "noise_frequency_scale": 0.0625,
+            "noise_range": [
+              -1.0,
+              -0.55
+            ]
+          }
+        ]
+      },
+      "minecraft:map_tints": {
+        "grass": {
+          "type": "tint",
+          "tint": "#35b38a"
+        },
+        "foliage": "#249c7c"
+      },
+      "minecraft:humidity": {
+        "is_humid": true
+      },
+      "minecraft:replace_biomes": {
+        "replacements": [
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "forest"
+            ],
+            "amount": 0.3,
+            "noise_frequency_scale": 6.0
+          },
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "roofed_forest"
+            ],
+            "amount": 0.3,
+            "noise_frequency_scale": 6.0
+          },
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "birch_forest"
+            ],
+            "amount": 0.2,
+            "noise_frequency_scale": 6.0
+          }
+        ]
+      },
+      "minecraft:tags": {
+        "tags": [
+          "animal",
+          "forest",
+          "monster",
+          "overworld",
+          "bee_habitat",
+          "hyper_glowwood_forest"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:multipart_block_column_feature": {
+    "description": {
+      "identifier": "hyper:crystal_spike_feature"
+    },
+    "tip_block": {
+      "name": "minecraft:amethyst_cluster",
+      "states": {
+        "minecraft:block_face": "up"
+      }
+    },
+    "frustum_block": "minecraft:amethyst_block",
+    "middle_block": "minecraft:amethyst_block",
+    "base_block": "minecraft:calcite",
+    "height_range": {
+      "range_min": 2,
+      "range_max": 7
+    },
+    "direction": "UP",
+    "may_place_on": [
+      "minecraft:grass_block",
+      "minecraft:dirt",
+      "minecraft:calcite",
+      "minecraft:stone",
+      "minecraft:amethyst_block",
+      "minecraft:smooth_basalt"
+    ],
+    "may_replace": [
+      "minecraft:air",
+      "minecraft:short_grass",
+      "minecraft:fern",
+      "minecraft:snow_layer",
+      "minecraft:moss_carpet",
+      "minecraft:leaf_litter",
+      "minecraft:pink_petals",
+      "minecraft:wildflowers",
+      "minecraft:dandelion",
+      "minecraft:poppy",
+      "minecraft:deadbush",
+      "minecraft:bush"
+    ]
+  }
+}

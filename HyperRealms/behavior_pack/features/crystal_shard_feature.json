@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:crystal_shard_feature"
+    },
+    "features": [
+      [
+        "hyper:crystal_shard_1_feature",
+        1
+      ],
+      [
+        "hyper:crystal_shard_2_feature",
+        1
+      ],
+      [
+        "hyper:crystal_shard_3_feature",
+        1
+      ]
+    ]
+  }
+}

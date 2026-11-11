@@ -1,0 +1,101 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:biome": {
+    "description": {
+      "identifier": "hyper:frostfang_slopes"
+    },
+    "components": {
+      "minecraft:climate": {
+        "downfall": 0.9,
+        "snow_accumulation": [
+          0.25,
+          0.75
+        ],
+        "temperature": -0.5
+      },
+      "minecraft:surface_builder": {
+        "builder": {
+          "type": "minecraft:overworld",
+          "sea_floor_depth": 7,
+          "sea_floor_material": "minecraft:gravel",
+          "foundation_material": "minecraft:stone",
+          "mid_material": "minecraft:snow",
+          "top_material": "minecraft:snow",
+          "sea_material": "minecraft:water"
+        }
+      },
+      "minecraft:surface_material_adjustments": {
+        "adjustments": [
+          {
+            "materials": {
+              "top_material": "minecraft:packed_ice",
+              "mid_material": "minecraft:packed_ice"
+            },
+            "noise_frequency_scale": 0.0625,
+            "noise_range": [
+              0.3,
+              1.0
+            ]
+          },
+          {
+            "materials": {
+              "top_material": "minecraft:blue_ice",
+              "mid_material": "minecraft:packed_ice"
+            },
+            "noise_frequency_scale": 0.0625,
+            "noise_range": [
+              0.62,
+              1.0
+            ]
+          }
+        ]
+      },
+      "minecraft:mountain_parameters": {
+        "steep_material_adjustment": {
+          "material": "minecraft:packed_ice",
+          "north_slopes": true,
+          "east_slopes": true,
+          "south_slopes": true,
+          "west_slopes": true
+        },
+        "top_slide": {
+          "enabled": false
+        }
+      },
+      "minecraft:replace_biomes": {
+        "replacements": [
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "snowy_slopes"
+            ],
+            "amount": 0.55,
+            "noise_frequency_scale": 4.0
+          },
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "grove"
+            ],
+            "amount": 0.25,
+            "noise_frequency_scale": 4.0
+          }
+        ]
+      },
+      "minecraft:tags": {
+        "tags": [
+          "frozen",
+          "mountains",
+          "monster",
+          "overworld",
+          "snowy_slopes",
+          "spawns_cold_variant_frogs",
+          "spawns_snow_foxes",
+          "spawns_white_rabbits",
+          "spawns_cold_variant_farm_animals",
+          "hyper_frostfang_slopes"
+        ]
+      }
+    }
+  }
+}

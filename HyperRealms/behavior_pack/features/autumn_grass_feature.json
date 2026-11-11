@@ -1,0 +1,14 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:single_block_feature": {
+    "description": {
+      "identifier": "hyper:autumn_grass_feature"
+    },
+    "places_block": "minecraft:short_grass",
+    "enforce_placement_rules": true,
+    "enforce_survivability_rules": true,
+    "may_replace": [
+      "minecraft:air"
+    ]
+  }
+}

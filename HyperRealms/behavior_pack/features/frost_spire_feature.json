@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:frost_spire_feature"
+    },
+    "features": [
+      [
+        "hyper:frost_spire_1_feature",
+        1
+      ],
+      [
+        "hyper:frost_spire_2_feature",
+        1
+      ],
+      [
+        "hyper:frost_spire_3_feature",
+        1
+      ]
+    ]
+  }
+}

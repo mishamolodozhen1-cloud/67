@@ -1,0 +1,50 @@
+{
+  "format_version": "1.21.120",
+  "minecraft:client_biome": {
+    "description": {
+      "identifier": "hyper:sunset_crags"
+    },
+    "components": {
+      "minecraft:sky_color": {
+        "sky_color": "#7FB2F0"
+      },
+      "minecraft:fog_appearance": {
+        "fog_identifier": "hyper:fog_sunset_crags"
+      },
+      "minecraft:water_appearance": {
+        "surface_color": "#3FB5C9"
+      },
+      "minecraft:grass_appearance": {
+        "color": "#B7A04A"
+      },
+      "minecraft:foliage_appearance": {
+        "color": "#A9953B"
+      },
+      "minecraft:atmosphere_identifier": {
+        "atmosphere_identifier": "hyper:sunset_crags_atmospherics"
+      },
+      "minecraft:color_grading_identifier": {
+        "color_grading_identifier": "hyper:sunset_crags_color_grading"
+      },
+      "minecraft:lighting_identifier": {
+        "lighting_identifier": "minecraft:default_lighting"
+      },
+      "minecraft:water_identifier": {
+        "water_identifier": "hyper:sunset_crags_water"
+      },
+      "minecraft:ambient_sounds": {
+        "underwater_addition": {
+          "asset": "ambient.underwater.additions",
+          "chance": 0.01
+        },
+        "underwater_loop": "ambient.underwater.loop"
+      },
+      "minecraft:biome_music": {
+        "music_definition": "stony_peaks"
+      },
+      "minecraft:precipitation": {
+        "ash": 0.04
+      }
+    }
+  }
+}

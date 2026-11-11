@@ -1,0 +1,45 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:color_grading_settings": {
+    "description": {
+      "identifier": "hyper:crystal_fields_color_grading"
+    },
+    "color_grading": {
+      "midtones": {
+        "contrast": [
+          1.22,
+          1.22,
+          1.22
+        ],
+        "gain": [
+          1.02,
+          0.98,
+          1.04
+        ],
+        "gamma": [
+          2.2,
+          2.2,
+          2.2
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "saturation": [
+          1.32,
+          1.32,
+          1.32
+        ]
+      },
+      "temperature": {
+        "enabled": true,
+        "temperature": 6900,
+        "type": "color_temperature"
+      }
+    },
+    "tone_mapping": {
+      "operator": "generic"
+    }
+  }
+}

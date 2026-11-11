@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:mossy_rock_feature"
+    },
+    "features": [
+      [
+        "hyper:mossy_cobble_blob_feature",
+        3
+      ],
+      [
+        "hyper:mossy_stone_blob_feature",
+        2
+      ],
+      [
+        "hyper:mossy_andesite_blob_feature",
+        1
+      ]
+    ]
+  }
+}

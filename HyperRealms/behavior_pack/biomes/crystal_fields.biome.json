@@ -1,0 +1,80 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:biome": {
+    "description": {
+      "identifier": "hyper:crystal_fields"
+    },
+    "components": {
+      "minecraft:climate": {
+        "downfall": 0.5,
+        "temperature": 0.8
+      },
+      "minecraft:surface_builder": {
+        "builder": {
+          "type": "minecraft:overworld",
+          "sea_floor_depth": 7,
+          "sea_floor_material": "minecraft:gravel",
+          "foundation_material": "minecraft:stone",
+          "mid_material": "minecraft:dirt",
+          "top_material": "minecraft:grass_block",
+          "sea_material": "minecraft:water"
+        }
+      },
+      "minecraft:surface_material_adjustments": {
+        "adjustments": [
+          {
+            "materials": {
+              "top_material": "minecraft:calcite",
+              "mid_material": "minecraft:calcite"
+            },
+            "noise_frequency_scale": 0.0625,
+            "noise_range": [
+              0.6,
+              1.0
+            ]
+          }
+        ]
+      },
+      "minecraft:map_tints": {
+        "grass": {
+          "type": "tint",
+          "tint": "#6fd8b4"
+        },
+        "foliage": "#58c7a6"
+      },
+      "minecraft:village_type": {
+        "type": "default"
+      },
+      "minecraft:replace_biomes": {
+        "replacements": [
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "plains"
+            ],
+            "amount": 0.25,
+            "noise_frequency_scale": 6.0
+          },
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "sunflower_plains"
+            ],
+            "amount": 0.4,
+            "noise_frequency_scale": 6.0
+          }
+        ]
+      },
+      "minecraft:tags": {
+        "tags": [
+          "animal",
+          "monster",
+          "overworld",
+          "plains",
+          "bee_habitat",
+          "hyper_crystal_fields"
+        ]
+      }
+    }
+  }
+}

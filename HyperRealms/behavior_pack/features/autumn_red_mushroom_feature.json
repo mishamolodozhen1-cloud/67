@@ -1,0 +1,14 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:single_block_feature": {
+    "description": {
+      "identifier": "hyper:autumn_red_mushroom_feature"
+    },
+    "places_block": "minecraft:red_mushroom",
+    "enforce_placement_rules": true,
+    "enforce_survivability_rules": true,
+    "may_replace": [
+      "minecraft:air"
+    ]
+  }
+}

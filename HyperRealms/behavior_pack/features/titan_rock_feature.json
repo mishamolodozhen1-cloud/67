@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:titan_rock_feature"
+    },
+    "features": [
+      [
+        "hyper:titan_deepslate_blob_feature",
+        4
+      ],
+      [
+        "hyper:titan_tuff_blob_feature",
+        1
+      ],
+      [
+        "hyper:titan_cobbled_blob_feature",
+        1
+      ]
+    ]
+  }
+}

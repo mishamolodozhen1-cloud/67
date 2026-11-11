@@ -1,0 +1,10 @@
+pack.name=Hyper Realms - Hyper Shaders
+pack.description=Vibrant Visuals tuning: sky, sun, soft shadows, waves, god rays.
+hyper.welcome=§bHyper Realms§r is active. Find a biome: §e/locate biome hyper:titan_peaks
+hyper.biome.titan_peaks=§lTitan Peaks
+hyper.biome.frostfang_slopes=§lFrostfang Slopes
+hyper.biome.sunset_crags=§lSunset Crags
+hyper.biome.emerald_highlands=§lEmerald Highlands
+hyper.biome.glowwood_forest=§lGlowwood Forest
+hyper.biome.autumn_woods=§lAutumn Woods
+hyper.biome.crystal_fields=§lCrystal Fields

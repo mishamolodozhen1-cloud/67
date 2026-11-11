@@ -1,0 +1,31 @@
+{
+  "format_version": "1.21.120",
+  "minecraft:water_settings": {
+    "description": {
+      "identifier": "hyper:emerald_highlands_water"
+    },
+    "particle_concentrations": {
+      "chlorophyll": 0.6,
+      "suspended_sediment": 0.05,
+      "cdom": 0.05
+    },
+    "caustics": {
+      "enabled": true,
+      "frame_length": 0.07,
+      "scale": 0.6,
+      "power": 2
+    },
+    "waves": {
+      "enabled": true,
+      "frequency": 1,
+      "octaves": 16,
+      "depth": 1.2,
+      "speed": 2,
+      "shape": 1.5,
+      "pull": 0.38,
+      "mix": 0.2,
+      "frequency_scaling": 1.2,
+      "speed_scaling": 1.03
+    }
+  }
+}

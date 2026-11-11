@@ -1,0 +1,26 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:titan_spire_feature"
+    },
+    "features": [
+      [
+        "hyper:titan_spire_1_feature",
+        1
+      ],
+      [
+        "hyper:titan_spire_2_feature",
+        1
+      ],
+      [
+        "hyper:titan_spire_3_feature",
+        1
+      ],
+      [
+        "hyper:titan_spire_4_feature",
+        1
+      ]
+    ]
+  }
+}

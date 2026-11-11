@@ -1,0 +1,10 @@
+pack.name=Hyper Realms - Гипер-шейдеры
+pack.description=Настройка «Ярких визуальных эффектов»: небо, солнце, мягкие тени, волны, лучи.
+hyper.welcome=§bHyper Realms§r работает. Найти биом: §e/locate biome hyper:titan_peaks
+hyper.biome.titan_peaks=§lПики Титанов
+hyper.biome.frostfang_slopes=§lЛедяные Клыки
+hyper.biome.sunset_crags=§lЗакатные Утёсы
+hyper.biome.emerald_highlands=§lИзумрудное Нагорье
+hyper.biome.glowwood_forest=§lСияющий Лес
+hyper.biome.autumn_woods=§lОсенняя Роща
+hyper.biome.crystal_fields=§lКристальные Поля

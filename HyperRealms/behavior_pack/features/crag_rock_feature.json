@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:crag_rock_feature"
+    },
+    "features": [
+      [
+        "hyper:crag_granite_blob_feature",
+        3
+      ],
+      [
+        "hyper:crag_orange_blob_feature",
+        2
+      ],
+      [
+        "hyper:crag_clay_blob_feature",
+        2
+      ]
+    ]
+  }
+}

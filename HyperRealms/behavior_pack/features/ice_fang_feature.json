@@ -1,0 +1,40 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:multipart_block_column_feature": {
+    "description": {
+      "identifier": "hyper:ice_fang_feature"
+    },
+    "tip_block": "minecraft:ice",
+    "frustum_block": "minecraft:packed_ice",
+    "middle_block": "minecraft:packed_ice",
+    "base_block": "minecraft:packed_ice",
+    "height_range": {
+      "range_min": 3,
+      "range_max": 9
+    },
+    "direction": "UP",
+    "may_place_on": [
+      "minecraft:snow",
+      "minecraft:packed_ice",
+      "minecraft:blue_ice",
+      "minecraft:stone",
+      "minecraft:deepslate",
+      "minecraft:tuff",
+      "minecraft:powder_snow"
+    ],
+    "may_replace": [
+      "minecraft:air",
+      "minecraft:short_grass",
+      "minecraft:fern",
+      "minecraft:snow_layer",
+      "minecraft:moss_carpet",
+      "minecraft:leaf_litter",
+      "minecraft:pink_petals",
+      "minecraft:wildflowers",
+      "minecraft:dandelion",
+      "minecraft:poppy",
+      "minecraft:deadbush",
+      "minecraft:bush"
+    ]
+  }
+}

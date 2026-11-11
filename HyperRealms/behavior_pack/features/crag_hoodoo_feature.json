@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:crag_hoodoo_feature"
+    },
+    "features": [
+      [
+        "hyper:crag_hoodoo_1_feature",
+        1
+      ],
+      [
+        "hyper:crag_hoodoo_2_feature",
+        1
+      ],
+      [
+        "hyper:crag_hoodoo_3_feature",
+        1
+      ]
+    ]
+  }
+}

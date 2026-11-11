@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:weighted_random_feature": {
+    "description": {
+      "identifier": "hyper:crystal_rock_feature"
+    },
+    "features": [
+      [
+        "hyper:crystal_amethyst_blob_feature",
+        3
+      ],
+      [
+        "hyper:crystal_calcite_blob_feature",
+        2
+      ],
+      [
+        "hyper:crystal_basalt_blob_feature",
+        1
+      ]
+    ]
+  }
+}
