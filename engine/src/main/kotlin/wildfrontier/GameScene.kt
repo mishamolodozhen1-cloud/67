@@ -6,6 +6,7 @@ import wildcore.world.VoxelWorld
 import wildfrontier.content.B
 import wildfrontier.env.DayNight
 import wildfrontier.gen.WorldGen
+import wildfrontier.render.FarTerrain
 import wildfrontier.render.WorldRenderer
 
 /** Gameplay scene: owns the world, simulation systems and the render pipeline. */
@@ -16,6 +17,7 @@ class GameScene(private val game: WildFrontierGame, val seed: Long) : Scene {
     val dayNight = DayNight()
     var overcast = 0.2f
     var ready = false; private set
+    private var farTerrain: FarTerrain? = null
     private var loadStart = 0L
 
     override fun onEnter(engine: Engine) {
@@ -33,6 +35,10 @@ class GameScene(private val game: WildFrontierGame, val seed: Long) : Scene {
     override fun onContextCreated(engine: Engine) {
         renderer.init()
         world.remeshAll()
+        val p = engine.settings.profile
+        var ft = farTerrain
+        if (ft == null && p.farTerrainRings > 0) { ft = FarTerrain(engine, renderer, gen); farTerrain = ft; renderer.layers.add(ft) }
+        if (ft != null) { ft.radiusTiles = p.viewDistance / 4 + p.farTerrainRings; ft.init() }
     }
 
     override fun onResize(engine: Engine, width: Int, height: Int) = renderer.resize(width, height)
@@ -41,10 +47,15 @@ class GameScene(private val game: WildFrontierGame, val seed: Long) : Scene {
         val cam = renderer.camera
         world.update(cam.pos.x, cam.pos.z)
         dayNight.update(dt)
-        val far = (engine.settings.profile.viewDistance * 16f)
-        dayNight.apply(renderer.env, overcast, 0f, far * 2.2f)
+        val ft = farTerrain
+        val far = ft?.farDistance ?: (engine.settings.profile.viewDistance * 16f)
+        if (ft != null) {
+            ft.update(cam.pos.x, cam.pos.z)
+            if (engine.time.frame % 10L == 0L) ft.nearRadius = maxOf(0f, world.meshedRadius() - 12f)
+        }
+        dayNight.apply(renderer.env, overcast, 0f, far)
         renderer.env.time = engine.time.elapsed.toFloat()
-        cam.far = far * 3f
+        cam.far = far * 1.35f
         if (!ready && world.isAreaReady(cam.pos.x, cam.pos.z, minOf(3, world.viewDistance - 1))) {
             ready = true
             engine.profiler.worldLoadMs = (System.nanoTime() - loadStart) / 1_000_000f
@@ -56,6 +67,7 @@ class GameScene(private val game: WildFrontierGame, val seed: Long) : Scene {
     }
 
     override fun onExit(engine: Engine) {
+        farTerrain?.dispose()
         renderer.dispose()
     }
 }

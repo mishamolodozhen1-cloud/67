@@ -34,6 +34,8 @@ interface Platform {
     fun log(level: Int, tag: String, msg: String)
     /** Ask host to close the app (main menu "exit"). */
     fun requestExit() {}
+    /** Display cut-out / system bar insets in pixels: left, top, right, bottom. */
+    fun safeInsets(): IntArray = intArrayOf(0, 0, 0, 0)
     /** Tell the host which frame rate we are targeting (0 = display default). */
     fun setTargetFrameRate(fps: Int) {}
 }

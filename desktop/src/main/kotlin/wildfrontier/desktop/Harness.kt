@@ -57,9 +57,11 @@ class Harness(val width: Int, val height: Int, val outDir: File, quality: Qualit
     fun frames(n: Int, dt: Float = 1f / 30f) { for (i in 0 until n) game.engine.frame(dt) }
 
     /** Runs frames until [cond] holds (or the limit is hit). Returns frames used. */
-    fun until(limit: Int, dt: Float = 1f / 30f, cond: () -> Boolean): Int {
+    fun until(limit: Int, dt: Float = 1f / 30f, render: Boolean = false, cond: () -> Boolean): Int {
         var n = 0
-        while (n < limit && !cond()) { game.engine.frame(dt); n++; if (n % 4 == 0) Thread.sleep(2) }
+        game.engine.renderEnabled = render
+        while (n < limit && !cond()) { game.engine.frame(dt); n++; if (!render) Thread.sleep(1) }
+        game.engine.renderEnabled = true
         return n
     }
 

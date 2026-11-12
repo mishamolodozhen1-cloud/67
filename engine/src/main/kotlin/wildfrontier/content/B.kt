@@ -42,13 +42,13 @@ object B {
         fun t(n: String) = Tex.of(n)
         fun cube(id: Int, key: String, name: String, top: String, side: String = top, bottom: String = side,
                  hard: Float, tool: Int = ToolKind.NONE, tier: Int = 0, drop: Int = id, dropMin: Int = 1, dropMax: Int = 1,
-                 uv: Int = 2, sound: Int = SoundMat.STONE, emission: Int = 0, flags: Int = 0, axis: Int = 1) {
+                 uv: Int = 1, sound: Int = SoundMat.STONE, emission: Int = 0, flags: Int = 0, axis: Int = 1) {
             Blocks.register(BlockDef(id, key, name, Shape.CUBE, t(top), t(side), t(bottom), hardness = hard, tool = tool,
                 requiredTier = tier, dropItem = drop, dropMin = dropMin, dropMax = dropMax, flags = uv or flags,
                 sound = sound, emission = emission, axis = axis))
         }
         fun leaves(id: Int, key: String, name: String, tex: String, drop: Int, dropMax: Int = 1) {
-            Blocks.register(BlockDef(id, key, name, Shape.CUTOUT, t(tex), t(tex), t(tex), lightOpacity = 2, hardness = 0.35f,
+            Blocks.register(BlockDef(id, key, name, Shape.CUTOUT, t(tex), t(tex), t(tex), lightOpacity = 1, hardness = 0.35f,
                 tool = ToolKind.SICKLE, dropItem = drop, dropMin = 0, dropMax = dropMax, flags = 1 or VFlag.FLUTTER, sound = SoundMat.LEAVES))
         }
         fun plant(id: Int, key: String, name: String, tex: String, drop: Int, height: Float = 0.9f, dropMin: Int = 1, dropMax: Int = 1, sway: Boolean = true) {

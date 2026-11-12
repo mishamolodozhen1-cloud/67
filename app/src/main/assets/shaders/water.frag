@@ -41,12 +41,12 @@ void main() {
     bool under = !gl_FrontFacing && top > 0.5;
     float ndv = max(dot(N, V), 0.0);
     if (under) ndv = max(dot(-N, V), 0.0);
-    float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+    float fres = min(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.7);
 
     float sky = vLight.y;
     float skyLit = sky * sky;
     vec3 R = reflect(-V, N);
-    R.y = abs(R.y);
+    R = normalize(vec3(R.x, max(abs(R.y), 0.14), R.z));
     vec3 refl = skyColor(R) * skyLit;
     float sunVis = smoothstep(0.55, 0.95, sky);
     float spec = pow(max(dot(R, uSunDir), 0.0), 260.0);
@@ -65,15 +65,16 @@ void main() {
     float z2 = linearDepth(texture(uSceneDepth, duv).r);
     if (z2 < waterZ) duv = suv; else depth = max(z2 - waterZ, 0.0);
     vec3 scene = texture(uSceneColor, duv).rgb;          // display space
-    vec3 trans = exp(-depth * vec3(0.42, 0.13, 0.09));
-    vec3 waterCol = toDisplay(mix(deep, shallow, exp(-depth * 0.35)));
+    vec3 trans = exp(-depth * vec3(0.75, 0.26, 0.20));
+    vec3 waterCol = toDisplay(mix(deep, shallow, exp(-depth * 0.5)));
     vec3 body = scene * trans + waterCol * (1.0 - trans.g);
     vec3 surface = toDisplay(applyFog(refl + sunSpec, vRel));
     vec3 col = mix(body, surface, under ? 0.15 : fres);
-    // shoreline foam
+    // shoreline foam: based on the vertical water depth so it hugs the shore as a thin ragged line
+    float vdepth = max(-vRel.y * (sceneZ / max(waterZ, 0.001) - 1.0), 0.0);
     float foamN = texture(uWaterNormal, wxz * 0.35 + vec2(uTime * 0.03, 0.0)).b;
-    float foam = smoothstep(0.55, 0.0, depth) * smoothstep(0.35, 0.75, foamN + (0.45 - depth)) * top;
-    col = mix(col, vec3(0.92, 0.95, 0.96) * min(1.0, 0.35 + skyLit), foam * 0.85 * (1.0 - float(under)));
+    float foam = (1.0 - smoothstep(0.0, 0.32, vdepth)) * smoothstep(0.3, 0.6, foamN + 0.25 - vdepth) * top;
+    col = mix(col, vec3(0.9, 0.94, 0.95) * min(1.0, 0.3 + skyLit), foam * 0.7 * (1.0 - float(under)));
     // far water fades into the fog like everything else
     float x = dist * uFog.x;
     float f = clamp(1.0 - exp(-x * sqrt(x)), 0.0, 1.0);

@@ -158,7 +158,7 @@ object VoxelPhysics {
      * Voxel ray cast (Amanatides-Woo DDA). Hits any non-air, non-liquid block
      * (plants included, so they can be harvested).
      */
-    fun raycast(w: BlockQuery, ox: Float, oy: Float, oz: Float, dx: Float, dy: Float, dz: Float, maxDist: Float, out: RayHit, hitLiquid: Boolean = false): Boolean {
+    fun raycast(w: BlockQuery, ox: Float, oy: Float, oz: Float, dx: Float, dy: Float, dz: Float, maxDist: Float, out: RayHit, hitLiquid: Boolean = false, solidOnly: Boolean = false): Boolean {
         out.hit = false
         var x = floorInt(ox); var y = floorInt(oy); var z = floorInt(oz)
         val stepX = if (dx > 0f) 1 else -1
@@ -174,7 +174,7 @@ object VoxelPhysics {
         var nx = 0; var ny = 0; var nz = 0
         while (t <= maxDist) {
             val id = w.getBlock(x, y, z)
-            if (id != 0 && (hitLiquid || !Blocks.liquid[id])) {
+            if (id != 0 && (hitLiquid || !Blocks.liquid[id]) && (!solidOnly || Blocks.solid[id])) {
                 // partial-height boxes: only hit if the ray actually passes below the top
                 val def = Blocks.get(id)
                 var ok = true

@@ -22,6 +22,8 @@ class Engine(val platform: Platform) {
     var width = 1; private set
     var height = 1; private set
     @Volatile var paused = false; private set
+    /** When false, frames only simulate (used while the surface is unavailable and by the test harness). */
+    var renderEnabled = true
 
     init {
         Log.platform = platform
@@ -51,7 +53,7 @@ class Engine(val platform: Platform) {
         val scene = scenes.current
         if (scene != null) {
             scene.update(this, time.dt)
-            scene.render(this)
+            if (renderEnabled) scene.render(this)
         }
         profiler.endFrame(time.rawDt)
     }

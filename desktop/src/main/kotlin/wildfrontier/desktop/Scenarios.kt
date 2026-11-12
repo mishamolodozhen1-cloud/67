@@ -15,7 +15,8 @@ object Scenarios {
         h.frames(2)
         val scene = h.game.gameScene!!
         val t0 = System.nanoTime()
-        val used = h.until(4000) { scene.world.pendingJobs == 0 && scene.ready }
+        val used = h.until(6000) { scene.world.pendingJobs == 0 && scene.ready }
+        h.frames(12)
         println("world ready after $used frames, ${(System.nanoTime() - t0) / 1_000_000} ms; chunks=${scene.world.loadedCount}")
         val cam = scene.renderer.camera
         println("spawn camera at ${cam.pos}")

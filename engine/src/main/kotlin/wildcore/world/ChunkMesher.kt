@@ -409,15 +409,15 @@ class ChunkMesher {
         val def = Blocks.get(block)
         val h = Hash.hash3(x, y, z, 7919)
         // random offset within the cell keeps meadows from looking like a grid
-        val ox = ((h and 7) - 3)
-        val oz = (((h shr 3) and 7) - 3)
-        val height = (def.boxMaxY * 16f).toInt() + ((h shr 6) and 3) - 1
+        val ox = (h and 0xFF) % 5 - 2
+        val oz = ((h shr 8) and 0xFF) % 5 - 2
+        val height = (def.boxMaxY * 16f).toInt() + ((h shr 16) and 3) - 1
         val flags = def.flags or VFlag.SPRITE_UV
         val sky = l and 15; val bl = (l shr 4) and 15
         val w1base = def.texSide or (flags shl 8) or (NORMAL_UP_FOLIAGE shl 16) or (3 shl 19) or (sky shl 21) or (bl shl 25)
         val x0 = x * 16 + 8 + ox; val z0 = z * 16 + 8 + oz
         val y0 = y * 16; val y1 = y0 + height
-        val r = 7
+        val r = 6   // offset (<=2) + half-width (6) keeps the sprite inside its cell (and the 9-bit position range)
         // two diagonal quads; corner order (0,0) (1,0) (1,1) (0,1) => bottom-left, bottom-right, top-right, top-left
         for (q in 0 until 2) {
             val ax = x0 - r; val bx = x0 + r

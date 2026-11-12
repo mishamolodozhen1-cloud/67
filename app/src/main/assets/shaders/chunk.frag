@@ -5,6 +5,9 @@ precision mediump sampler2DArray;
 #include "shadow.glsl"
 
 uniform sampler2DArray uAlbedo;
+#ifdef DETAIL
+uniform sampler2D uNoise;
+#endif
 #ifdef NORMAL_MAP
 uniform sampler2DArray uNormalMap;
 #endif
@@ -39,6 +42,13 @@ void main() {
         vec3 B = abs(N.y) > 0.5 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, -1.0, 0.0);
         N = normalize(N + T * t.x + B * t.y);
         rough = nm.b;
+    }
+#endif
+#ifdef DETAIL
+    // close-range micro detail keeps large tiles crisp without storing bigger textures
+    if (vFoliage < 0.5 && dist < 14.0) {
+        float dn = texture(uNoise, vUvw.xy * 3.7).b + texture(uNoise, vUvw.xy * 9.1).g - 1.0;
+        albedo *= 1.0 + dn * 0.22 * (1.0 - dist / 14.0);
     }
 #endif
     float ao = 0.35 + 0.65 * vLight.x;

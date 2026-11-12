@@ -2,6 +2,7 @@ precision highp float;
 precision mediump sampler2DArray;
 #include "common.glsl"
 uniform sampler2DArray uAlbedo;
+uniform sampler2D uIcons;
 in vec2 vUv;
 in vec4 vColor;
 in vec3 vMisc;
@@ -20,14 +21,19 @@ void main() {
         vec4 t = texture(uAlbedo, vec3(vUv * 0.12 + vec2(vMisc.y), vMisc.z));
         if (t.a < 0.4) discard;
         c.rgb *= t.rgb;
+    } else if (kind == 4) {
+        // item icon from the 16x16 icon atlas; vMisc.y = cell index
+        float cell = floor(vMisc.y + 0.5);
+        vec2 origin = vec2(mod(cell, 16.0), floor(cell / 16.0));
+        vec4 t = texture(uIcons, (origin + vec2(vUv.x, 1.0 - vUv.y) * 0.97 + 0.015) / 16.0);
+        if (t.a < 0.3) discard;
+        c *= t;
     } else {
         float g = max(1.0 - length(q), 0.0);
         c.a *= g * g;
         fragColor = vec4(c.rgb * c.a, 0.0);   // additive glow (premultiplied, alpha 0)
         return;
     }
-    if (kind != 3) {
-        c.rgb = toDisplay(applyFog(c.rgb, vRel));
-    }
+    c.rgb = toDisplay(applyFog(c.rgb, vRel));
     fragColor = vec4(c.rgb * c.a, c.a);        // premultiplied alpha
 }

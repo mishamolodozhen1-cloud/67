@@ -254,6 +254,7 @@ class WorldGen(val seed: Long) : ChunkGenerator {
         val c0x = Math.floorDiv(wx0 - margin, TREE_CELL); val c1x = Math.floorDiv(wx0 + 15 + margin, TREE_CELL)
         val c0z = Math.floorDiv(wz0 - margin, TREE_CELL); val c1z = Math.floorDiv(wz0 + 15 + margin, TREE_CELL)
         val col = s.col
+        val sink = Trees.ChunkSink(chunk)
         for (cz in c0z..c1z) for (cx in c0x..c1x) {
             val h = Hash.hash2(cx, cz, iseed + 99)
             val tx = cx * TREE_CELL + (h and 3)
@@ -266,7 +267,7 @@ class WorldGen(val seed: Long) : ChunkGenerator {
             if (structures.blocksVegetation(tx, tz)) continue
             val r = ((h ushr 8) and 0xFFFF) / 65536f
             val kind = treeKind(c, r, h, ground) ?: continue
-            Trees.place(chunk, tx, ground, tz, kind, h ushr 4)
+            Trees.place(sink, tx, ground, tz, kind, h ushr 4)
         }
         // ground cover
         for (z in 0 until 16) for (x in 0 until 16) {

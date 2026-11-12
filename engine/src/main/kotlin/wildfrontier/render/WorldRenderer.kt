@@ -102,7 +102,7 @@ class WorldRenderer(private val engine: Engine) : ChunkMeshSink {
         textures = BlockTextures(gl, engine.platform, engine.caps, profile.textureSize, profile.normalMapping)
         val defs = ArrayList<String>()
         if (profile.shadowMapSize > 0) { defs.add("SHADOWS"); defs.add("SHADOW_TAPS ${profile.shadowPcfTaps}") }
-        if (profile.normalMapping) defs.add("NORMAL_MAP")
+        if (profile.normalMapping) { defs.add("NORMAL_MAP"); defs.add("DETAIL") }
         if (profile.vegetationSway) defs.add("SWAY")
         defs.add("WATER_QUALITY ${profile.waterQuality}")
         defs.add("CLOUD_OCTAVES ${profile.cloudOctaves}")
@@ -250,7 +250,7 @@ class WorldRenderer(private val engine: Engine) : ChunkMeshSink {
         // --- opaque voxels, front to back
         bindLit(sChunk)
         sChunk.set1i("uAlbedo", 0)
-        if (profile.normalMapping) sChunk.set1i("uNormalMap", 1)
+        if (profile.normalMapping) { sChunk.set1i("uNormalMap", 1); sChunk.set1i("uNoise", 3) }
         drawChunks(sChunk, 0, false)
 
         for (l in layers) l.drawOpaque(this)
@@ -259,7 +259,7 @@ class WorldRenderer(private val engine: Engine) : ChunkMeshSink {
         gl.disable(GL.CULL_FACE)
         bindLit(sCutout)
         sCutout.set1i("uAlbedo", 0)
-        if (profile.normalMapping) sCutout.set1i("uNormalMap", 1)
+        if (profile.normalMapping) { sCutout.set1i("uNormalMap", 1); sCutout.set1i("uNoise", 3) }
         drawChunks(sCutout, 1, false)
         gl.enable(GL.CULL_FACE)
 

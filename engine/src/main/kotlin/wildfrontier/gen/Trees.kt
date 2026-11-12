@@ -8,20 +8,36 @@ import wildfrontier.content.B
 object Trees {
     enum class Kind { OAK, BIRCH, SPRUCE, PINE, PALM, JUNGLE, JUNGLE_BIG, SWAMP, APPLE, ANCIENT }
 
-    private fun put(c: Chunk, wx: Int, y: Int, wz: Int, id: Int, replaceSoft: Boolean) {
-        val lx = wx - c.cx * 16; val lz = wz - c.cz * 16
-        if (lx !in 0..15 || lz !in 0..15 || y !in 1 until Chunk.HEIGHT) return
-        val idx = Chunk.index(lx, y, lz)
-        val cur = c.blocks[idx].toInt() and 255
-        if (cur == B.AIR || (replaceSoft && (B.isLeaves(cur) || cur >= B.TALL_GRASS))) c.blocks[idx] = id.toByte()
+    /** Where tree blocks are written: a chunk during generation, the live world when a sapling grows. */
+    interface Sink {
+        /** Current block id, or -1 if the position is outside the sink. */
+        fun get(wx: Int, y: Int, wz: Int): Int
+        fun set(wx: Int, y: Int, wz: Int, id: Int)
     }
 
-    private fun trunk(c: Chunk, x: Int, y0: Int, z: Int, h: Int, log: Int) {
+    class ChunkSink(private val c: Chunk) : Sink {
+        override fun get(wx: Int, y: Int, wz: Int): Int {
+            val lx = wx - c.cx * 16; val lz = wz - c.cz * 16
+            if (lx !in 0..15 || lz !in 0..15 || y !in 1 until Chunk.HEIGHT) return -1
+            return c.blocks[Chunk.index(lx, y, lz)].toInt() and 255
+        }
+        override fun set(wx: Int, y: Int, wz: Int, id: Int) {
+            c.blocks[Chunk.index(wx - c.cx * 16, y, wz - c.cz * 16)] = id.toByte()
+        }
+    }
+
+    private fun put(c: Sink, wx: Int, y: Int, wz: Int, id: Int, replaceSoft: Boolean) {
+        val cur = c.get(wx, y, wz)
+        if (cur < 0) return
+        if (cur == B.AIR || (replaceSoft && (B.isLeaves(cur) || cur >= B.TALL_GRASS))) c.set(wx, y, wz, id)
+    }
+
+    private fun trunk(c: Sink, x: Int, y0: Int, z: Int, h: Int, log: Int) {
         for (y in y0 until y0 + h) put(c, x, y, z, log, true)
     }
 
     /** Leaf blob: horizontal discs with per-layer radius, ragged edge from a position hash. */
-    private fun disc(c: Chunk, x: Int, y: Int, z: Int, r: Float, leaf: Int, seed: Int, alt: Int = 0, altChance: Float = 0f) {
+    private fun disc(c: Sink, x: Int, y: Int, z: Int, r: Float, leaf: Int, seed: Int, alt: Int = 0, altChance: Float = 0f) {
         val ir = r.toInt() + 1
         for (dz in -ir..ir) for (dx in -ir..ir) {
             val d2 = dx * dx + dz * dz
@@ -33,7 +49,7 @@ object Trees {
         }
     }
 
-    fun place(c: Chunk, x: Int, ground: Int, z: Int, kind: Kind, h: Int) {
+    fun place(c: Sink, x: Int, ground: Int, z: Int, kind: Kind, h: Int) {
         when (kind) {
             Kind.OAK -> {
                 val th = 4 + (h and 3) % 3

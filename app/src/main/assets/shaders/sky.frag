@@ -45,7 +45,7 @@ void main() {
     if (d.y > 0.015) {
         vec2 p = (d.xz / d.y) * 0.035 + uCloudOffset + vec2(uCloud.y, uCloud.y * 0.35);
         float den = cloudDensity(p);
-        float cover = smoothstep(1.0 - uCloud.x, 1.0 - uCloud.x + 0.22, den + 0.18);
+        float cover = smoothstep(1.0 - uCloud.x, 1.0 - uCloud.x + 0.2, den + 0.05);
         // cheap self-shadowing: density sampled toward the light
         float lit = clamp(den - cloudDensity(p + uSunDir.xz * 0.02) + 0.5, 0.0, 1.0);
         vec3 bright = uSunColor * 0.42 + uAmbientSky * 1.6;

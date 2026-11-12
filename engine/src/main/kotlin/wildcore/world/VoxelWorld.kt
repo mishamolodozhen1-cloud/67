@@ -50,7 +50,8 @@ class VoxelWorld(
     private var meshCount = 0
 
     val loadedCount: Int get() = chunks.size
-    val pendingJobs: Int get() = pendingLoad.size + loadsInFlight + meshesInFlight + needMesh.size
+    private var meshBacklog = 0
+    val pendingJobs: Int get() = pendingLoad.size + loadsInFlight + meshesInFlight + meshBacklog
 
     // ------------------------------------------------------------ block access
 
@@ -160,8 +161,11 @@ class VoxelWorld(
     private fun rebuildLoadList() {
         pendingLoad.clear()
         val r = dataRadius()
+        val vd2 = viewDistance * viewDistance + viewDistance
         for (dz in -r..r) for (dx in -r..r) {
-            if (dx * dx + dz * dz > r * r + r) continue
+            // needed when the chunk itself or any of its 8 neighbours is inside the meshed circle
+            val ax = maxOf(kotlin.math.abs(dx) - 1, 0); val az = maxOf(kotlin.math.abs(dz) - 1, 0)
+            if (ax * ax + az * az > vd2) continue
             val key = Chunk.key(centerCx + dx, centerCz + dz)
             if (chunks.get(key) == null) pendingLoad.add(key)
         }
@@ -214,8 +218,16 @@ class VoxelWorld(
     private val neighbourScratch = arrayOfNulls<Chunk>(9)
 
     private fun scheduleMeshes() {
-        if (needMesh.isEmpty()) return
+        if (needMesh.isEmpty()) { meshBacklog = 0; return }
         val maxInFlight = jobs.workerCount + 1
+        var backlog = 0
+        val vd2 = viewDistance * viewDistance + viewDistance
+        for (i in 0 until needMesh.size) {
+            val c = needMesh[i]
+            val dx = c.cx - centerCx; val dz = c.cz - centerCz
+            if (dx * dx + dz * dz <= vd2) backlog++
+        }
+        meshBacklog = backlog
         // pick the best candidates: urgent first, then nearest
         var guard = 0
         while (meshesInFlight < maxInFlight && guard++ < 8) {
@@ -326,6 +338,21 @@ class VoxelWorld(
             if (c.state != Chunk.STATE_READY || c.meshedRevision < 0) return false
         }
         return true
+    }
+
+    /** Radius (in blocks) around the focus inside which every chunk already has geometry. */
+    fun meshedRadius(): Float {
+        var r = 0
+        while (r <= viewDistance) {
+            for (dz in -r..r) for (dx in -r..r) {
+                if (maxOf(kotlin.math.abs(dx), kotlin.math.abs(dz)) != r) continue
+                if (dx * dx + dz * dz > viewDistance * viewDistance + viewDistance) continue
+                val c = chunks.get(Chunk.key(centerCx + dx, centerCz + dz))
+                if (c == null || c.meshedRevision < 0) return maxOf(0f, r * 16f - 8f)
+            }
+            r++
+        }
+        return viewDistance * 16f - 8f
     }
 
     /** Forces every loaded chunk to be re-meshed (graphics tier change, GL context loss). */

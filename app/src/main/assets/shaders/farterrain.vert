@@ -6,11 +6,11 @@ uniform mat4 uViewProj;
 uniform vec3 uOffset;
 out highp vec3 vRel;
 out mediump vec3 vNormal;
-out mediump vec3 vColor;
+out mediump vec4 vColor;
 void main() {
     vec3 rel = aPos + uOffset;
     vRel = rel;
     vNormal = aNormal.xyz;
-    vColor = aColor.rgb;
+    vColor = aColor;
     gl_Position = uViewProj * vec4(rel, 1.0);
 }

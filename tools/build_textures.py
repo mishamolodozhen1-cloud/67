@@ -143,7 +143,7 @@ photo("grass_lush", "leafy_grass", sat=1.35, mean=(52, 116, 44))
 photo("grass_dry", "withered_grass", sat=1.05, mean=(146, 138, 76))
 dirt = photo("dirt", "brown_mud_dry", bright=0.95, sat=0.95, tint=(1.0, 0.93, 0.84))
 stone = photo("stone", "rock_05", gray=0.6, contrast=1.05, mean=(122, 124, 126))
-photo("sand", "sand_02", sat=0.8, mean=(206, 190, 148))
+photo("sand", "sand_02", sat=0.8, mean=(190, 172, 130))
 photo("gravel", "gravel_ground_01", gray=0.35, mean=(134, 130, 122))
 photo("clay", "clay_floor_001", sat=0.8, mean=(168, 132, 112))
 snow = photo("snow", "snow_02", bright=1.04, tint=(0.97, 0.99, 1.0), flat=0.8, rough_scale=0.8)
@@ -446,10 +446,10 @@ def apples(d, x, y, T):
             d.ellipse((x + ox - r, y + oy - r, x + ox + r, y + oy + r), fill=(196, 34, 30, 255))
             d.ellipse((x + ox - r * 0.5, y + oy - r * 0.6, x + ox, y + oy - r * 0.1), fill=(240, 120, 100, 255))
 
-leaves_tex("oak_leaves", (38, 84, 26), (96, 150, 52), 420, 44, 24)
-leaves_tex("birch_leaves", (66, 112, 30), (150, 186, 62), 620, 28, 20)
-leaves_tex("jungle_leaves", (18, 70, 22), (60, 140, 50), 240, 74, 34)
-leaves_tex("fruit_leaves", (40, 90, 28), (100, 156, 56), 420, 44, 24, extra=apples)
+leaves_tex("oak_leaves", (34, 74, 24), (78, 128, 44), 620, 44, 24)
+leaves_tex("birch_leaves", (58, 100, 28), (124, 160, 54), 900, 28, 20)
+leaves_tex("jungle_leaves", (18, 64, 22), (52, 122, 44), 340, 74, 34)
+leaves_tex("fruit_leaves", (36, 80, 26), (84, 136, 48), 620, 44, 24, extra=apples)
 
 def needles_tex(name, base, light, twigs):
     W = 512; T = W * SS
@@ -477,7 +477,7 @@ def needles_tex(name, base, light, twigs):
     r, g, b, a = img.split(); a = a.point(lambda v: 255 if v > 90 else 0)
     save_albedo(name, Image.merge("RGBA", (r, g, b, a)), alpha=True); flat_normal(name, 205)
 
-needles_tex("pine_leaves", (22, 62, 34), (54, 108, 58), 170)
+needles_tex("pine_leaves", (20, 56, 32), (46, 94, 52), 260)
 
 def palm_tex(name):
     W = 512; T = W * SS
