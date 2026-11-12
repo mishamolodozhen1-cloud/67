@@ -108,7 +108,6 @@ object Items {
         add(ItemDef(I.WATERSKIN_FULL, "waterskin_full", "Бурдюк с водой", "waterskin_full", Cat.FOOD, maxStack = 1, water = 45f, description = "Запас воды в дорогу."))
         add(ItemDef(I.BUCKET, "bucket", "Ведро", "bucket", Cat.FARMING, maxStack = 1, description = "Зачерпните воды для полива."))
         add(ItemDef(I.BUCKET_WATER, "bucket_water", "Ведро воды", "bucket_water", Cat.FARMING, maxStack = 1, description = "Полейте грядку."))
-        tool(I.FLINT_STRIKER, "flint_striker", "Огниво", ToolKind.NONE, 1, 60, 1f, "Разжигает костёр.")
 
         add(ItemDef(I.FIBER_SHIRT, "fiber_shirt", "Рубаха из волокна", "fiber_shirt", Cat.CLOTHING, maxStack = 1, equipSlot = Equip.BODY, warmth = 4f, armor = 0.05f, description = "Немного греет."))
         add(ItemDef(I.LEATHER_JACKET, "leather_jacket", "Кожаная куртка", "leather_jacket", Cat.CLOTHING, maxStack = 1, equipSlot = Equip.BODY, warmth = 9f, armor = 0.2f, description = "Защищает от ветра и зубов."))

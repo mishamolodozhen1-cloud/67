@@ -60,7 +60,6 @@ object Recipes {
         r(I.BOW, 1, W, Cat.TOOLS, I.STICK, 3, I.ROPE, 2)
         r(I.ARROW, 4, W, Cat.TOOLS, I.STICK, 1, I.FLINT, 1, I.FEATHER, 1)
         r(I.FISHING_ROD, 1, W, Cat.TOOLS, I.STICK, 3, I.ROPE, 2)
-        r(I.FLINT_STRIKER, 1, W, Cat.TOOLS, I.FLINT, 1, I.IRON_INGOT, 1)
         r(I.WATERSKIN, 1, W, Cat.TOOLS, I.LEATHER, 2, I.ROPE, 1)
         r(I.COPPER_AXE, 1, W, Cat.TOOLS, I.COPPER_INGOT, 3, I.STICK, 2)
         r(I.COPPER_PICKAXE, 1, W, Cat.TOOLS, I.COPPER_INGOT, 3, I.STICK, 2)

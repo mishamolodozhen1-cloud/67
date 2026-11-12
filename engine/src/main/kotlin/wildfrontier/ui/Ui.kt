@@ -152,6 +152,42 @@ class Ui(private val engine: Engine) {
 
     fun pointerOwnedBy(id: Int): Pointer? { for (p in pointers) if (p.active && p.owner == id) return p; return null }
 
+    /**
+     * Tap test for items inside a scroll area: true when the pointer captured by [areaId] was released
+     * over the rectangle without having been dragged.
+     */
+    fun tapIn(areaId: Int, x: Float, y: Float, w: Float, h: Float): Boolean {
+        for (p in pointers) if (p.active && p.owner == areaId && p.up && p.travel < 16f && p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) return true
+        return false
+    }
+
+    fun hoverIn(areaId: Int, x: Float, y: Float, w: Float, h: Float): Boolean {
+        for (p in pointers) if (p.active && p.owner == areaId && !p.up && p.travel < 16f && p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) return true
+        return false
+    }
+
+    /** Drag-to-scroll region. Captures pointers inside it and returns the updated scroll offset. */
+    fun scroll(id: Int, x: Float, y: Float, w: Float, h: Float, contentH: Float, offset: Float): Float {
+        press(id, x, y, w, h)
+        var o = offset
+        val p = pointerOwnedBy(id)
+        if (p != null && !p.up) o -= p.dy
+        return o.coerceIn(0f, maxOf(0f, contentH - h))
+    }
+
+    /** Restricts drawing to a rectangle (virtual units) until [unclip]. */
+    fun clip(x: Float, y: Float, w: Float, h: Float) {
+        batch.flush()
+        val gl = engine.gl
+        gl.enable(wildcore.gfx.GL.SCISSOR_TEST)
+        gl.scissor((x * scale).toInt(), engine.height - ((y + h) * scale).toInt(), (w * scale).toInt(), (h * scale).toInt())
+    }
+
+    fun unclip() {
+        batch.flush()
+        engine.gl.disable(wildcore.gfx.GL.SCISSOR_TEST)
+    }
+
     // ------------------------------------------------------------------ drawing (virtual units)
 
     fun rect(x: Float, y: Float, w: Float, h: Float, color: Int, radius: Float = 0f) =

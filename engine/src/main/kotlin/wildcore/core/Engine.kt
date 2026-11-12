@@ -24,6 +24,9 @@ class Engine(val platform: Platform) {
     @Volatile var paused = false; private set
     /** When false, frames only simulate (used while the surface is unavailable and by the test harness). */
     var renderEnabled = true
+    /** Invoked right after a GL context is (re)created, before the current scene is notified. */
+    var contextHook: (() -> Unit)? = null
+    var resizeHook: ((Int, Int) -> Unit)? = null
 
     init {
         Log.platform = platform
@@ -36,11 +39,13 @@ class Engine(val platform: Platform) {
         hasContext = true
         Log.i("Engine", "GL context: ${caps.renderer} / ${caps.version} maxTex=${caps.maxTextureSize}")
         settings.autoDetectIfNeeded(platform.deviceInfo, caps)
+        contextHook?.invoke()
         scenes.current?.onContextCreated(this)
     }
 
     fun onResize(w: Int, h: Int) {
         width = maxOf(1, w); height = maxOf(1, h)
+        resizeHook?.invoke(width, height)
         scenes.current?.onResize(this, width, height)
     }
 
