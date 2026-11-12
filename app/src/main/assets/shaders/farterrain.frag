@@ -14,12 +14,12 @@ void main() {
     if (vColor.a < 0.5) {
         // distant water: sky reflection by fresnel over a deep-water body colour
         vec3 V = normalize(-vRel);
-        float fres = min(0.02 + 0.98 * pow(1.0 - max(V.y, 0.0), 5.0), 0.7);
+        float fres = min(0.02 + 0.98 * pow(1.0 - max(V.y, 0.0), 5.0), 0.86);
         vec3 R = reflect(-V, vec3(0.0, 1.0, 0.0));
-        R = normalize(vec3(R.x, max(R.y, 0.14), R.z));   // rough water never mirrors the exact horizon
-        vec3 body = base * (uAmbientSky * 2.0 + uSunColor * 0.27);
-        float spec = pow(max(dot(R, uSunDir), 0.0), 180.0);
-        color = mix(body, skyColor(R), fres) + uSunColor * spec * 1.5;
+        R = normalize(vec3(R.x, max(R.y, 0.06), R.z));
+        vec3 body = base * (uAmbientSky * 1.7 + uSunColor * 0.42 * max(uSunDir.y, 0.0));
+        float spec = pow(max(dot(R, uSunDir), 0.0), 90.0);
+        color = mix(body, skyColor(R), fres) + uSunColor * spec * 0.9;
     } else {
         float ndl = max(dot(N, uSunDir), 0.0);
         vec3 light = uSunColor * ndl + mix(uAmbientGround, uAmbientSky, N.y * 0.5 + 0.5);

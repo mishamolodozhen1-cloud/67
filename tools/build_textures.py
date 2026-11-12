@@ -143,7 +143,7 @@ photo("grass_lush", "leafy_grass", sat=1.35, mean=(52, 116, 44))
 photo("grass_dry", "withered_grass", sat=1.05, mean=(146, 138, 76))
 dirt = photo("dirt", "brown_mud_dry", bright=0.95, sat=0.95, tint=(1.0, 0.93, 0.84))
 stone = photo("stone", "rock_05", gray=0.6, contrast=1.05, mean=(122, 124, 126))
-photo("sand", "sand_02", sat=0.8, mean=(190, 172, 130))
+photo("sand", "sand_02", sat=0.8, mean=(178, 160, 120), rough_scale=1.7)
 photo("gravel", "gravel_ground_01", gray=0.35, mean=(134, 130, 122))
 photo("clay", "clay_floor_001", sat=0.8, mean=(168, 132, 112))
 snow = photo("snow", "snow_02", bright=1.04, tint=(0.97, 0.99, 1.0), flat=0.8, rough_scale=0.8)
@@ -152,7 +152,7 @@ photo("sandstone", "sandstone_cracks", bright=1.0, sat=0.9)
 photo("mud", "brown_mud_02", bright=0.85, sat=0.9, rough_scale=0.55)
 photo("forest_floor", "forest_ground_04", bright=0.9, sat=1.05)
 photo("bedrock", "dark_rock", bright=0.7)
-photo("planks_oak", "wood_planks", bright=0.82, sat=0.95, flat=0.3)
+photo("planks_oak", "wood_planks", bright=1.0, sat=0.95, flat=0.3)
 photo("planks_pine", "hinoki_planks", bright=0.95, sat=0.9, flat=0.3)
 photo("cobblestone", "cobblestone_05", gray=0.35, bright=0.95, flat=0.4)
 photo("stone_bricks", "mossy_cobblestone", gray=0.25, bright=0.95, flat=0.4)
@@ -720,8 +720,18 @@ nz = np.stack([fbm(256, 4, 5, rng), fbm(256, 8, 4, rng), fbm(256, 16, 4, rng)], 
 nz = (nz - nz.min()) / (nz.max() - nz.min())
 Image.fromarray((nz * 255).astype(np.uint8)).save(os.path.join(OUT, "textures", "noise.png"), optimize=True)
 
-wh = fbm(256, 4, 5, rng, gain=0.55)
-wn = normal_from_height(wh, 9.0)
+# water height field: many directional waves with sharpened crests (integer wave vectors => tileable) + fine noise
+yy, xx = np.mgrid[0:256, 0:256].astype(np.float32)
+wh = np.zeros((256, 256), np.float32)
+for _ in range(22):
+    kx = rng.integers(-9, 10); ky = rng.integers(-9, 10)
+    k = math.hypot(kx, ky)
+    if k < 1.5: continue
+    ph = rng.random() * math.tau
+    w = np.sin((kx * xx + ky * yy) * (math.tau / 256.0) + ph)
+    wh += (1.0 - np.abs(w)) ** 1.6 / (k ** 1.15)
+wh = wh / wh.max() + fbm(256, 16, 3, rng) * 0.12
+wn = normal_from_height(wh, 11.0)
 foam = fbm(256, 8, 4, rng)
 foam = (foam - foam.min()) / (foam.max() - foam.min())
 r, g, _ = wn.split()

@@ -138,8 +138,11 @@ class Hud(val scene: GameScene) {
             u.rect(R - 250f - 54f - w, B - 232f - 20f, w, 40f, 0xAA101510.toInt(), 12f)
             u.text(hint, R - 250f - 54f - w * 0.5f, B - 232f - 13f, 22f, Ui.TEXT, 1)
         }
-        if (u.roundButton(ID_CROUCH, R - 392f, B - 66f, 36f, "ui_crouch", active = p.crouching) and Ui.CLICKED != 0) p.crouching = !p.crouching
-        if (u.roundButton(ID_SPRINT, u.safeL + 318f, B - 76f, 36f, "ui_run", active = p.sprintToggle) and Ui.CLICKED != 0) p.sprintToggle = !p.sprintToggle
+        // secondary toggles sit in a column beside the joystick, clear of the hotbar
+        val lx = u.safeL + 322f
+        if (u.roundButton(ID_SPRINT, lx, B - 110f, 34f, "ui_run", active = p.sprintToggle) and Ui.CLICKED != 0) p.sprintToggle = !p.sprintToggle
+        if (u.roundButton(ID_CROUCH, lx, B - 190f, 34f, "ui_crouch", active = p.crouching) and Ui.CLICKED != 0) p.crouching = !p.crouching
+        if (u.roundButton(ID_CAMERA, lx, B - 270f, 34f, "ui_camera", active = p.firstPerson) and Ui.CLICKED != 0) p.firstPerson = !p.firstPerson
         // holding the break button also steers the camera, so the player can mine and aim with one thumb
         u.pointerOwnedBy(ID_BREAK)?.let { lookDx += it.dx; lookDy += it.dy }
 
@@ -206,17 +209,17 @@ class Hud(val scene: GameScene) {
         val u = ui
         val R = u.vw - u.safeR
         val y = 44f + u.safeT
-        val names = arrayOf("ui_pause", "ui_map", "ui_journal", "ui_paw", "ui_craft", "ui_home", "ui_bag", "ui_camera")
+        val names = arrayOf("ui_pause", "ui_map", "ui_journal", "ui_paw", "ui_craft", "ui_home", "ui_bag")
         for (i in names.indices) {
-            val cx = R - 44f - i * 66f
+            val cx = R - 42f - i * 62f
             if (u.roundButton(ID_TOP + i, cx, y, 28f, names[i], alpha = 0x77) and Ui.CLICKED != 0) when (i) {
                 0 -> open(PAUSE); 1 -> open(MAP); 2 -> open(JOURNAL); 3 -> open(ENCYCLOPEDIA); 4 -> { screens.forcedStation = -1; open(CRAFTING) }
-                5 -> open(BUILD); 6 -> open(INVENTORY); 7 -> scene.player.firstPerson = !scene.player.firstPerson
+                5 -> open(BUILD); 6 -> open(INVENTORY)
             }
         }
         // clock, weather, compass
         val dn = scene.dayNight
-        val cx = u.vw * 0.5f
+        val cx = minOf(u.vw * 0.5f, R - 7 * 62f - 190f)
         val h = dn.hour.toInt(); val m = ((dn.hour - h) * 60f).toInt()
         sb.setLength(0); sb.append("День ").append(dn.day).append("  ").append(if (h < 10) "0" else "").append(h).append(':').append(if (m < 10) "0" else "").append(m)
         val tw = u.textWidth(sb, 22f)

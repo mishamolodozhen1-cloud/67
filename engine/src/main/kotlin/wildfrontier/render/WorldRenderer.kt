@@ -250,7 +250,10 @@ class WorldRenderer(private val engine: Engine) : ChunkMeshSink {
         // --- opaque voxels, front to back
         bindLit(sChunk)
         sChunk.set1i("uAlbedo", 0)
-        if (profile.normalMapping) { sChunk.set1i("uNormalMap", 1); sChunk.set1i("uNoise", 3) }
+        val seaRel = wildfrontier.gen.WorldGen.SEA - 0.125f - camera.pos.y
+        val camModX = camera.pos.x - Math.floor(camera.pos.x / 64.0).toFloat() * 64f
+        val camModZ = camera.pos.z - Math.floor(camera.pos.z / 64.0).toFloat() * 64f
+        if (profile.normalMapping) { sChunk.set1i("uNormalMap", 1); sChunk.set1i("uNoise", 3); sChunk.set4f("uSea", seaRel, camModX, camModZ, env.time) }
         drawChunks(sChunk, 0, false)
 
         for (l in layers) l.drawOpaque(this)
@@ -259,7 +262,7 @@ class WorldRenderer(private val engine: Engine) : ChunkMeshSink {
         gl.disable(GL.CULL_FACE)
         bindLit(sCutout)
         sCutout.set1i("uAlbedo", 0)
-        if (profile.normalMapping) { sCutout.set1i("uNormalMap", 1); sCutout.set1i("uNoise", 3) }
+        if (profile.normalMapping) { sCutout.set1i("uNormalMap", 1); sCutout.set1i("uNoise", 3); sCutout.set4f("uSea", seaRel, camModX, camModZ, env.time) }
         drawChunks(sCutout, 1, false)
         gl.enable(GL.CULL_FACE)
 
@@ -388,6 +391,9 @@ class WorldRenderer(private val engine: Engine) : ChunkMeshSink {
         bindLit(sWater)
         textures.waterNormal.bind(4)
         sWater.set1i("uWaterNormal", 4)
+        sWater.set1i("uNoise", 3)
+        sWater.set4f("uCloud", env.cloudCover, env.time * 0.0035f * env.windStrength, env.cloudDark, env.stars)
+        sWater.set2f("uCloudOffset", ((camera.pos.x * 0.00012f) % 1f), ((camera.pos.z * 0.00012f) % 1f))
         if (copy != null) {
             copy.colorTex!!.bind(5); copy.depthTex!!.bind(6)
             sWater.set1i("uSceneColor", 5); sWater.set1i("uSceneDepth", 6)

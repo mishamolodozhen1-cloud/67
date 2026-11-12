@@ -83,6 +83,7 @@ class Ui(private val engine: Engine) {
         batch.iconTex = icons
     }
 
+    val iconTexture: Texture2D get() = icons
     fun iconId(name: String): Int = iconIndex[name] ?: 0
     fun hasIcon(name: String): Boolean = iconIndex.containsKey(name)
 

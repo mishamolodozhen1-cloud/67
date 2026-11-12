@@ -42,8 +42,8 @@ class DayNight {
         val sunI = smoothstep(-0.03f, 0.14f, e)
         if (sunI > 0.02f) {
             env.keyDir.set(env.sunDir)
-            mix3(env.keyColor, 1.0f, 0.95f, 0.86f, 1.0f, 0.52f, 0.24f, lowSun)
-            env.keyColor.scale(1.75f * sunI * (1f - 0.85f * overcast))
+            mix3(env.keyColor, 1.0f, 0.95f, 0.86f, 1.0f, 0.64f, 0.38f, lowSun)
+            env.keyColor.scale(1.6f * sunI * (1f - 0.85f * overcast))
         } else {
             env.keyDir.set(env.moonDir)
             if (env.keyDir.y < 0.1f) { env.keyDir.y = 0.1f; env.keyDir.normalize() }
@@ -66,12 +66,13 @@ class DayNight {
 
         // ambient follows the sky
         env.ambientSky.set(env.skyZenith).scale(0.5f).addScaled(env.skyHorizon, 0.5f).scale(0.62f - 0.12f * overcast)
-        env.ambientSky.add(0.006f, 0.008f, 0.014f)
-        env.ambientGround.set(env.ambientSky).scale(0.42f)
-        env.ambientGround.x *= 1.08f; env.ambientGround.z *= 0.86f
+        env.ambientSky.add(0.006f + 0.05f * lowSun, 0.008f + 0.04f * lowSun, 0.014f + 0.04f * lowSun)
+        // light bounced off the sunlit ground fills the shaded sides of objects
+        env.ambientGround.set(env.ambientSky).scale(0.38f).addScaled(env.keyColor, 0.15f)
+        env.ambientGround.x *= 1.06f; env.ambientGround.z *= 0.88f
 
-        env.stars = (1f - dayK) * (1f - overcast)
-        env.exposure = lerp(2.3f, 1.0f, dayK)
+        env.stars = (1f - smoothstep(-0.2f, -0.03f, e)) * (1f - overcast)
+        env.exposure = lerp(2.2f, 0.78f, dayK)
         env.fogDensity = (2.1f / farDistance) * (1f + fogBoost * 5f + overcast * 0.6f)
         env.fogTint.set(1f, 1f, 1f)
     }

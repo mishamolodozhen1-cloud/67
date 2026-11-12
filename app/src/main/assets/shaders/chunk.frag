@@ -7,6 +7,7 @@ precision mediump sampler2DArray;
 uniform sampler2DArray uAlbedo;
 #ifdef DETAIL
 uniform sampler2D uNoise;
+uniform vec4 uSea;        // x: sea surface height relative to the camera, yz: camera xz mod 64, w: time
 #endif
 #ifdef NORMAL_MAP
 uniform sampler2DArray uNormalMap;
@@ -71,13 +72,29 @@ void main() {
     light += vec3(0.012, 0.013, 0.016) * ao;          // never fully black underground
     light += uFog.w * skyLit * 0.8;                    // lightning flash
     float wet = uFog.z * skyLit * max(N.y, 0.0);
+#ifdef DETAIL
+    float below = uSea.x - vRel.y;
+    if (sky > 0.25) {
+        // band of damp sand just above the waterline
+        wet = max(wet, (1.0 - smoothstep(0.0, 0.55, -below)) * step(below, 0.0) * 0.85 * max(N.y, 0.0));
+        if (below > 0.0 && N.y > 0.3) {
+            // caustics: two drifting noise fields whose difference forms bright moving filaments
+            vec2 cw = vRel.xz + uSea.yz;
+            float c1 = texture(uNoise, cw * 0.109375 + vec2(uSea.w * 0.021, uSea.w * 0.013)).r;
+            float c2 = texture(uNoise, cw * 0.140625 - vec2(uSea.w * 0.017, uSea.w * 0.024)).g;
+            float ca = 1.0 - abs(c1 - c2) * 5.5;
+            ca = max(ca, 0.0); ca = ca * ca * ca;
+            light += uSunColor * (ca * 0.85 * exp(-below * 0.16) * sunVis * smoothstep(0.0, 0.6, below) * max(uSunDir.y, 0.0));
+        }
+    }
+#endif
     albedo *= 1.0 - 0.3 * wet;
     vec3 color = albedo * light;
 #ifdef NORMAL_MAP
     vec3 V = normalize(-vRel);
     vec3 H = normalize(V + uSunDir);
     float gloss = (1.0 - rough) + wet * 0.5;
-    float spec = pow(max(dot(N, H), 0.0), 8.0 + gloss * 90.0) * gloss * gloss * 1.2;
+    float spec = pow(max(dot(N, H), 0.0), 8.0 + gloss * 90.0) * gloss * gloss * 0.7;
     color += uSunColor * (spec * sunVis * ndl);
 #endif
     color = mix(color, tex.rgb * 2.2, vLight.w);       // emissive surfaces

@@ -6,8 +6,8 @@ out vec4 fragColor;
 void main() {
     // distance to the nearest cube edge on this face
     vec3 q = min(vLocal, 1.0 - vLocal);
-    float a = min(q.x, q.y), b = min(q.y, q.z), c = min(q.x, q.z);
-    float e = max(max(min(a, b), min(b, c)), min(a, c));
+    // on a face one component is ~0; the middle component is the distance to the face border
+    float e = max(min(q.x, q.y), min(max(q.x, q.y), q.z));
     float edge = 1.0 - smoothstep(0.012, 0.03, e);
     // procedural cracks that spread with break progress
     vec2 uv = vLocal.xy + vLocal.zz * vec2(0.73, 0.41) + vLocal.yx * 0.31;

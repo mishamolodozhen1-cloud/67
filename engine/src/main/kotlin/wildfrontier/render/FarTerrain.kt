@@ -144,7 +144,7 @@ class FarTerrain(private val engine: Engine, private val renderer: WorldRenderer
         for (j in 1..CELLS + 1) for (i in 1..CELLS + 1) {
             val k = j * n + i
             val hh = h[k]
-            val water = hh < WorldGen.SEA - 0.3f
+            val water = hh < WorldGen.SEA + 0.25f   // shoals and the wet shoreline read as water from afar
             val wx = x0 + (i - 1) * STEP; val wz = z0 + (j - 1) * STEP
             val r = wildcore.math.Hash.f2(wx, wz, 91)
             var y: Float
@@ -153,7 +153,7 @@ class FarTerrain(private val engine: Engine, private val renderer: WorldRenderer
             if (water) {
                 y = WorldGen.SEA - 0.55f   // kept below the voxel water surface where the two overlap
                 val depth = ((WorldGen.SEA - hh) / 14f).coerceIn(0f, 1f)
-                c[0] = 0.034f - 0.022f * depth; c[1] = 0.19f - 0.105f * depth; c[2] = 0.19f - 0.08f * depth
+                c[0] = 0.030f - 0.020f * depth; c[1] = 0.18f - 0.12f * depth; c[2] = 0.19f - 0.095f * depth
             } else {
                 val slope = maxOf(kotlin.math.abs(h[k + 1] - h[k - 1]), kotlin.math.abs(h[k + n] - h[k - n])) / (2f * STEP)
                 when (biome[k]) {

@@ -60,11 +60,6 @@ void main() {
         }
 #endif
     }
-#ifdef WATER_PASS
-    if (fract(p.y) > 0.5) {
-        p.y += (sin(uTime * 1.4 + wp.x * 0.8 + wp.z * 0.6) + sin(uTime * 1.9 - wp.z * 1.1)) * 0.025;
-    }
-#endif
     vec3 rel = p + uChunkOffset;
     vRel = rel;
     vUvw = vec3(uv, layer);
