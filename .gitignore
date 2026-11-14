@@ -43,3 +43,4 @@ luac.out
 # Сборка плейса: XML-вариант не публикуется, храним только .rbxl
 chronarch/build/*.rbxlx
 __pycache__/
+kazan/build/
