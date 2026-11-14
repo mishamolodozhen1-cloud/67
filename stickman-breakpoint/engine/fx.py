@@ -243,3 +243,68 @@ def credits_block(cv, lines_, x, y, a=1.0, size=34, align='left', gap=1.45, colo
         yy = y + i * size * gap * 1.6
         draw_text(cv, k, x, yy, font('Inter-SemiBold', size * 0.62), calpha(hexc('#c8c0d8'), a * 0.85), align)
         draw_text(cv, v, x, yy + size * 1.0, font('Unbounded-Medium', size), calpha(color, a), align)
+
+def bubble(cv, t_local, text, x, y, dur=2.6, size=40, tail=(-60, 70), kind='speech', fontname='Neucha', maxw=620):
+    """Манга-пузырь с репликой без голоса (сонное бормотание, мысль, язвительная ремарка)."""
+    if t_local < 0 or t_local > dur:
+        return
+    k = back_out(clamp(t_local / 0.22))
+    a = clamp((dur - t_local) / 0.25)
+    fnt = font(fontname, size)
+    words = text.split(' ')
+    lines_, cur = [], ''
+    for w_ in words:
+        tr = (cur + ' ' + w_).strip()
+        if fnt.measureText(tr) <= maxw:
+            cur = tr
+        else:
+            lines_.append(cur); cur = w_
+    if cur:
+        lines_.append(cur)
+    tw = max(fnt.measureText(l) for l in lines_)
+    th = len(lines_) * size * 1.15
+    pw, ph = tw + size * 1.4, th + size * 0.9
+    cv.save(); cv.translate(x, y); cv.scale(k, k)
+    cv.saveLayerAlpha(None, int(255 * a))
+    if kind == 'thought':
+        pts = []
+        for i in range(16):
+            ang = i / 16 * 2 * math.pi
+            rr = 1.0 + 0.07 * math.sin(i * 2.3)
+            pts.append((math.cos(ang) * pw / 2 * 1.08 * rr, math.sin(ang) * ph / 2 * 1.15 * rr))
+        path = smooth_path(pts, True)
+        cv.drawPath(path, P(PAPER)); cv.drawPath(path, P(INK, 4))
+        for i, (bx, by, br) in enumerate([(tail[0] * 0.55, ph / 2 + 18, 12), (tail[0] * 0.85, ph / 2 + 42, 7)]):
+            cv.drawCircle(bx, by, br, P(PAPER)); cv.drawCircle(bx, by, br, P(INK, 3))
+    else:
+        r = skia.RRect.MakeRectXY(skia.Rect(-pw / 2, -ph / 2, pw / 2, ph / 2), ph * 0.45, ph * 0.45)
+        tailp = poly([(tail[0] * 0.3 - 18, ph / 2 - 6), (tail[0], ph / 2 + tail[1]), (tail[0] * 0.3 + 18, ph / 2 - 6)])
+        cv.drawPath(tailp, P(PAPER)); cv.drawPath(tailp, P(INK, 4))
+        cv.drawRRect(r, P(PAPER)); cv.drawRRect(r, P(INK, 4))
+        cv.drawRect(skia.Rect(tail[0] * 0.3 - 16, ph / 2 - 10, tail[0] * 0.3 + 16, ph / 2 - 1), P(PAPER))
+    yy = -th / 2 + size * 0.9
+    for l in lines_:
+        draw_text(cv, l, 0, yy, fnt, INK, 'center')
+        yy += size * 1.15
+    cv.restore()
+    cv.restore()
+
+def drift_words(cv, t_local, words, x, y, dur=4.0, size=54, color=None, fontname='Unbounded-Medium', dy=-40, alpha=0.9):
+    """Кинетическая типографика мыслей: слова проявляются по одному и плывут в тумане."""
+    if t_local < 0 or t_local > dur:
+        return
+    color = color or PAPER
+    fnt = font(fontname, size)
+    n = len(words)
+    total_w = sum(fnt.measureText(w) for w in words) + 18 * (n - 1)
+    xx = x - total_w / 2
+    for i, w in enumerate(words):
+        ti = t_local - i * 0.22
+        a = clamp(ti / 0.5) * clamp((dur - t_local) / 0.6) * alpha
+        if a <= 0:
+            xx += fnt.measureText(w) + 18
+            continue
+        off = (1 - ease_out(clamp(ti / 0.8), 3)) * 26
+        yy = y + dy * (t_local / dur) + off
+        draw_text(cv, w, xx, yy, fnt, calpha(color, a), 'left', shadow=(rgba(0, 0, 0, 0.5 * a), 0, 3, 6))
+        xx += fnt.measureText(w) + 18

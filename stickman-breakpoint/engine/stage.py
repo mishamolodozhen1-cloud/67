@@ -51,3 +51,43 @@ def freeze(sh, t0, t1):
 def mblur(sh, t0, t1, n=5):
     """Включить motion blur (n подкадров) в окне локального времени шота."""
     sh.mblur_ranges.append((t0, t1, n))
+
+def follow(actors, y, z0, z1, ap=0.5, tau=0.9, dx=0.0, roll=0.8, focus=0.0):
+    """Камера-«оператор»: плавно ведёт к говорящему (зум z1) и к группе в паузах (зум z0).
+    Возвращает фабрику камеры (вызывается с длительностью шота)."""
+    import numpy as np
+    def make(dur):
+        n = int(dur * 30) + 3
+        xs = np.zeros(n); zs = np.zeros(n)
+        for i in range(n):
+            t = i / 30.0
+            spk = [a for a in actors if any(t0 - 0.2 <= t <= t0 + d for (t0, env, d) in a.talks)]
+            grp = spk if spk else actors
+            xs[i] = sum(a.x_at(t) for a in grp) / len(grp) + dx
+            zs[i] = z1 if spk else z0
+        # двусторонний экспоненциальный фильтр (без запаздывания)
+        k = 1.0 - math.exp(-1.0 / (30.0 * tau))
+        def smooth2(v):
+            f = v.copy()
+            for i in range(1, n):
+                f[i] = f[i - 1] + k * (f[i] - f[i - 1])
+            for i in range(n - 2, -1, -1):
+                f[i] = f[i + 1] + k * (f[i] - f[i + 1])
+            return f
+        xs2, zs2 = smooth2(xs), smooth2(smooth2(zs))
+        def cam(t):
+            i = t * 30.0
+            j = int(min(max(i, 0), n - 2)); u = min(max(i - j, 0), 1)
+            x = xs2[j] * (1 - u) + xs2[j + 1] * u
+            z = zs2[j] * (1 - u) + zs2[j + 1] * u
+            return Cam(x=x + math.sin(t * 0.21) * 0.04, y=y + math.sin(t * 0.17 + 1) * 0.015, zoom=z * (1 + 0.02 * math.sin(t * 0.13)),
+                       roll=roll * math.sin(t * 0.11), aperture=ap, focus=focus)
+        return cam
+    make.is_factory = True
+    return make
+
+def mix_cam(a, b, u):
+    c = Cam()
+    for k in ('x', 'y', 'zoom', 'roll', 'D', 'focus', 'aperture', 'shake'):
+        setattr(c, k, getattr(a, k) + (getattr(b, k) - getattr(a, k)) * u)
+    return c

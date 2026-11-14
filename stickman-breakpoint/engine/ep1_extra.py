@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Серия 1: коридор (перемена), установочные планы, монолог на мосту, эпилог Сол, сцена после титров."""
-import math
+import math, os
 import gfx as skia
 from core import *
 from sets import *
@@ -72,7 +72,7 @@ SCN = {'1': ('Комната Рэя', 'Квартира Рэя, утро'), '4':
        '7': ('Набережная, лестница', 'Набережная'), '8': ('Мост в тумане', 'Большой мост'), '9': ('Ужин', 'Кухня, вечер'),
        '10': ('Институт «Вертекс»', 'Лаборатория, ночь')}
 
-def est(ep, tod, layers, cam0, cam1, label, dur=7.0, amb=None, gain=0.5, sub=None, sid=None):
+def est(ep, tod, layers, cam0, cam1, label, dur=7.0, amb=None, gain=0.5, sub=None, sid=None, extra=None):
     """Установочный план с плашкой места/времени."""
     if sid:
         ep.scene(sid, SCN[sid][0], SCN[sid][1])
@@ -92,6 +92,8 @@ def est(ep, tod, layers, cam0, cam1, label, dur=7.0, amb=None, gain=0.5, sub=Non
         if sub:
             draw_text(cv, sub, x, y + 52, font('Inter-SemiBold', 26), calpha(hexc('#d8d0e8'), a), 'left')
     screen(sh, lab_)
+    if extra:
+        extra(sh, b)
     b.t = dur
     sh.cam = C([(0, dict(x=cam0[0], y=cam0[1], zoom=cam0[2], roll=cam0[3] if len(cam0) > 3 else 0)),
                 (dur, dict(x=cam1[0], y=cam1[1], zoom=cam1[2], roll=cam1[3] if len(cam1) > 3 else 0))])
@@ -125,7 +127,7 @@ def est_school(ep):
         draw_text(cv, 'ШКОЛА № 3', 0, -3.95, font('RussoOne', 0.42), PAPER, 'center')
         cv.drawRect(skia.Rect(-20, 0.0, 20, 3), P(hexc('#8d8a84')))
     l.append(Layer(3.0, school, name='school'))
-    est(ep, 'morning', l, (-0.5, -2.4, 300), (0.5, -2.0, 330), 'ШКОЛА № 3 · 08:00', 6.5, amb=['amb_city_far'], gain=0.4, sid='4')
+    est(ep, 'morning', l, (-0.5, -2.4, 300), (0.5, -2.0, 330), 'ШКОЛА № 3 · 08:01', 6.5, amb=['amb_city_far'], gain=0.4, sid='4')
 
 def est_lunch(ep):
     est(ep, 'noon', school_roof('noon'), (-2.0, -2.6, 300), (0.0, -1.6, 360), 'БОЛЬШАЯ ПЕРЕМЕНА · 12:40', 5.5, amb=['wind_roof'], gain=0.4, sid='5')
@@ -181,13 +183,13 @@ def sc45_corridor(ep):
     kos.face(b.t, -1).move(b.t + 0.2, -8.0, dur=4.0, ease='in')
     leon.pose(b.t, 'point', 0.3).expr(b.t, eyes='angry', mouth='teeth').set(b.t, 'vein', 1.0, dur=0.2)
     b.say(leon, 'k04', gap=0.3)
-    ray.expr(b.t, eyes='lazy', mouth='flat')
+    ray.pose(b.t, 'shrug', 0.35).expr(b.t, eyes='lazy', mouth='flat')
     b.say(ray, 'k05', gap=0.3)
+    ray.pose(b.t - 0.3, 'pockets', 0.4)
     leon.pose(b.t, 'cross', 0.4).expr(b.t, eyes='sad', mouth='frown').set(b.t, 'vein', 0.0, dur=0.3)
     b.say(leon, 'k06', gap=0.4)
     ray.pose(b.t, 'pockets', 0.4, head=14).expr(b.t, eyes='normal', mouth='flat')
     t7, t7e = b.say(ray, 'k07', gap=0.3)
-    # кулак в кармане сжимается: крупно
     tfist = b.t
     sfx(sh, 'fist_clench', tfist + 0.2, gain=0.6)
     b.wait(1.6)
@@ -217,7 +219,7 @@ def sc45_corridor(ep):
     leon.move(b.t - 0.8, 7.0, dur=1.8, ease='in').gait(b.t - 0.8, b.t + 2, 'run')
     sfx(sh, 'run_steps', b.t - 0.8, gain=0.5, dur=1.6)
     b.wait(1.0)
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=-0.3, y=-0.9, zoom=560, aperture=0.4)), (60, dict(x=0.4, y=-0.9, zoom=640, aperture=0.4))]))
+    done(ep, sh, b, tail=0.0, cam=follow([ray, leon, mira], -0.9, 560, 720, ap=0.4))
     # ── лестничный пролёт: карандаш ───────────────────────────────
     sh = mk('noon', stairwell())
     ray = sh.add(Actor('RAY', x=-0.55, face=1, pose_='pockets', eyes='lazy'))
@@ -229,6 +231,7 @@ def sc45_corridor(ep):
     b.sfx('corridor_amb', 0.0, gain=0.3)
     b.wait(0.5)
     b.say(mira, 'k12', gap=0.3)
+    ray.expr(b.t, eyes='lazy', mouth='smirk')
     b.say(ray, 'k13', gap=0.3)
     mira.face(b.t, 1).pose(b.t, 'reach', 0.4, lean=8, rs=95, re=0)
     td = b.t + 0.7
@@ -243,12 +246,14 @@ def sc45_corridor(ep):
     b.t = t_land + 1.4
     mira.pose(b.t - 0.6, 'think', 0.4)
     b.say(mira, 'k14', gap=0.3)
-    ray.expr(b.t, eyes='wide', mouth='o').set(b.t, 'sweat', 1.0, dur=0.3)
+    ray.expr(b.t, eyes='shock', mouth='o').set(b.t, 'sweat', 1.0, dur=0.3)
+    sfxt(sh, b.t, '?!', W * 0.16, H * 0.42, 130, color=RED, rot=-8, dur=1.0)
     b.say(ray, 'k15', gap=0.3)
     mira.expr(b.t, eyes='normal', mouth='smile')
     b.say(mira, 'k16', gap=0.3)
-    ray.expr(b.t, eyes='lazy', mouth='flat').set(b.t, 'sweat', 0.0, dur=0.3)
+    ray.expr(b.t, eyes='lazy', mouth='flat').set(b.t, 'sweat', 0.0, dur=0.3).pose(b.t, 'facepalm', 0.3)
     b.say(ray, 'k17', gap=0.3)
+    ray.pose(b.t - 0.3, 'pockets', 0.4)
     mira.set(b.t, 'glint', 1.0, dur=0.1).set(b.t + 0.4, 'glint', 0.0, dur=0.3)
     b.say(mira, 'k18', gap=0.3)
     mira.face(b.t, -1).move(b.t + 0.2, -4.0, dur=2.6, ease='in')
@@ -280,12 +285,12 @@ def bridge_vo(ep):
     world(sh, 1.39, lamps, 'lamps')
     for k in range(6):
         sfx(sh, 'lamp_buzz', 0.8 + k * 0.9, gain=0.25)
-    ray.move(0.0, -3.4, dur=14.0, ease='lin')
+    ray.move(0.0, -3.0, dur=14.0, ease='lin')
     sfx(sh, 'steps_walk', 0.0, gain=0.25, dur=13.0)
     b.wait(2.0)
     b.say(None, 's02', gap=0.8)
     b.say(None, 's03', gap=0.8)
-    b.t = max(b.t, 12.0)
+    b.t = max(b.t, 13.4)
     done(ep, sh, b, tail=0.0, cam=lambda t: Cam(x=Track([(0, -9.5), (14, -3.8)])(t), y=-0.98, zoom=Track([(0, 900), (14, 760)])(t),
                                                  roll=-1.0, aperture=0.6))
 
@@ -547,12 +552,29 @@ def bus(ep):
     b = Beat(sh)
     b.sfx('bus_interior', 0.0, gain=0.55)
     b.wait(0.6)
-    b.say(None, 'n01', gap=0.3, fx='tv', style='normal')
+    # экран новостей в автобусе: голос диктора через «телевизор» + бегущая строка
+    tn = b.t
+    if os.path.exists(os.path.join('build', 'voice', 'n01.wav')):
+        t0n, t1n = b.say(None, 'n01', gap=0.3, fx='tv', style='normal')
+        span = t1n - tn + 0.5
+    else:
+        # голоса диктора нет: только бегущая строка (звук ТВ тонет в шуме мотора)
+        span = 6.0
+        b.wait(5.6)
+    def tv(cv, t, a=tn, span=span):
+        u = t - a
+        if 0 <= u <= span:
+            k = clamp(u / 0.4) * clamp((span - u) / 0.4)
+            cv.drawRect(skia.Rect(0, H * 0.06, W, H * 0.16), P(rgba(0.75, 0.15, 0.12, 0.9 * k)))
+            txt = 'НОВОСТИ НОРДЕНА · «ВЕРТЕКС»: НОЧЬЮ СНОВА ПЕРЕБОИ ЭЛЕКТРИЧЕСТВА · В ИНСТИТУТЕ: «ПРИЧИН ДЛЯ БЕСПОКОЙСТВА НЕТ» · '
+            draw_text(cv, txt + txt, W - u * 380, H * 0.125, font('Oswald-Bold', 52), calpha(PAPER, k), 'left')
+    screen(sh, tv)
     leon.expr(b.t, eyes='wide', mouth='grin')
     b.say(leon, 'n02', gap=0.3)
     b.say(ray, 'n03', gap=0.3)
     leon.expr(b.t, eyes='happy', mouth='smirk')
     b.say(leon, 'n04', gap=0.2)
+    ray.pose(b.t, pose('stand', rs=172, re=4, ls=40, le=60, head=12), 0.3)
     b.say(ray, 'n05', gap=0.0)
     # поворот: всех кренит, Рэй падает на соседа
     tt = b.t
@@ -583,11 +605,29 @@ def witness(ep):
     mira.move(0.0, -1.0, dur=1.6, ease='out')
     b.wait(1.6)
     b.say(mira, 'w01', gap=0.3)
-    tim.expr(b.t, eyes='happy', mouth='grin_open').pose(b.t, 'arms_out', 0.3)
+    tim.expr(b.t, eyes='happy', mouth='grin_open').pose(b.t, 'present', 0.3, rs=80, re=40)
+    tph = b.t
+    def phonepic(cv, t, a=tph):
+        u = t - a
+        if 0 <= u <= 4.2:
+            k = back_out(clamp(u / 0.3)) * clamp((4.2 - u) / 0.3)
+            cv.save(); cv.translate(W * 0.62, H * 0.42); cv.scale(k, k); cv.rotate(-4)
+            cv.drawRoundRect(skia.Rect(-170, -300, 170, 300), 36, 36, P(hexc('#1e2430')))
+            cv.drawRect(skia.Rect(-150, -260, 150, 260), P(hexc('#d8a878')))
+            # размытый снимок: силуэт на лестнице и красный шарф
+            cv.drawCircle(-10, -80, 40, P(rgba(1, 1, 1, 0.8), blur=12))
+            cv.drawLine(-10, -40, -20, 90, P(rgba(0.1, 0.1, 0.1, 0.8), 14))
+            cv.drawLine(-14, -30, -120, 10, P(hexc('#e8402f'), 22))
+            cv.drawLine(-60, -10, -140, 40, P(hexc('#e8402f', 0.6), 16))
+            draw_text(cv, 'фото: 16:43', 0, 230, font('Inter-SemiBold', 26), PAPER, 'center')
+            cv.restore()
+    screen(sh, phonepic)
+    sfx(sh, 'phone_on', tph + 0.1, gain=0.6)
+    sfxt(sh, tph + 0.3, 'вот!', W * 0.38, H * 0.3, 90, color=hexc('#f2c230'), rot=-6, dur=1.2, fontname='Neucha')
     b.say(tim, 'w02', gap=0.3)
     mira.expr(b.t, eyes='wide', mouth='flat')
     b.say(mira, 'w03', gap=0.2)
-    tim.pose(b.t, 'wave', 0.3)
+    tim.pose(b.t, 'wave', 0.3).expr(b.t, eyes='happy', mouth='grin_open')
     b.say(tim, 'w04', gap=0.2)
     tim.face(b.t, 1).move(b.t + 0.1, 6.0, dur=2.4, ease='in').gait(b.t, b.t + 3, 'run')
     tw = b.t + 0.4
@@ -595,17 +635,25 @@ def witness(ep):
     sfx(sh, 'pen_write', tw + 0.4, gain=0.5)
     def nb(cv, t):
         a = clamp((t - tw - 0.4) / 0.3) * clamp((tw + 4.8 - t) / 0.4)
-        notebook_panel(cv, (t - tw) * 1.2, ['16:42 — набережная, лестница.', 'Свидетель: Тим (5-й класс).', 'Телефон: разбит → целый.',
+        notebook_panel(cv, (t - tw) * 1.2, ['16:42 — набережная, лестница.', 'Свидетель: Тим (5-й класс).', 'Телефон: разбит, потом целый.',
                                             'Красный шарф = Рэй?'], title='Наблюдения', a=a, x=W * 0.5, y=H * 0.5, rot=-2,
                        underline=(3, (t - tw - 3.4) / 0.8))
     screen(sh, nb)
     b.wait(5.2)
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=-1.6, y=-0.9, zoom=600, aperture=0.4)), (60, dict(x=-0.8, y=-0.9, zoom=700, aperture=0.4))]))
+    done(ep, sh, b, tail=0.0, cam=follow([mira, tim], -0.8, 600, 760, ap=0.4))
 
 def bedtime_vo(sh, b, ray):
-    """Вставляется в сцену 12 перед «Ладно. Давай проверим»."""
-    b.say(None, 'r01', gap=0.6)
-    b.say(None, 'r02', gap=0.6)
+    """Вставляется в сцену 12 перед «Ладно. Давай проверим»: мысли Рэя на потолке."""
+    ta0, ta1 = b.say(None, 'r01', gap=0.6)
+    tb0, tb1 = b.say(None, 'r02', gap=0.6)
+    da = (ta1 - ta0) / 3.0
+    def th(cv, t, ta0=ta0, da=da, tb0=tb0, tb1=tb1):
+        FX.drift_words(cv, t - ta0, ['Мира', '—', 'блокнот.'], W * 0.5, H * 0.22, dur=da + 0.6, size=50, color=hexc('#c8b8ff'))
+        FX.drift_words(cv, t - ta0 - da, ['Леон', '—', 'споры.'], W * 0.5, H * 0.32, dur=da + 0.6, size=50, color=hexc('#ffc890'))
+        FX.drift_words(cv, t - ta0 - 2 * da, ['Мама', '—', 'рамка.'], W * 0.5, H * 0.42, dur=da + 0.8, size=50, color=hexc('#9fe0d0'))
+        FX.drift_words(cv, t - tb0, ['Человек', 'в', 'плаще'], W * 0.5, H * 0.3, dur=max(2.0, tb1 - tb0 - 1.6), size=50, color=hexc('#9fe8ff'))
+        FX.drift_words(cv, t - (tb1 - 1.5), ['Обычный', 'вторник,', 'да?'], W * 0.5, H * 0.3, dur=2.6, size=62, color=hexc('#ff9a8a'))
+    sh.screen_fx.append(th)
 
 def vertex_morning(ep):
     ep.scene('3.7', '«Вертекс», утро', 'Лаборатория института, утро', 'Сол объясняет Нильсу, что такое «заусенцы» — и почему их отсутствие пугает.')
@@ -623,7 +671,7 @@ def vertex_morning(ep):
         a = clamp((t - t0 - 1.0) / 0.4) * clamp((t1 + 0.6 - t) / 0.4)
         if a <= 0:
             return
-        cv.save(); cv.translate(W * 0.68, H * 0.38)
+        cv.save(); cv.translate(W * 0.52, H * 0.66)
         cv.drawRect(skia.Rect(-280, -150, 280, 150), P(rgba(0.02, 0.05, 0.12, 0.8 * a)))
         cv.drawRect(skia.Rect(-280, -150, 280, 150), P(hexc('#4fb0ff', a), 3))
         # «ткань» и разрыв с заусенцами
@@ -647,5 +695,4 @@ def vertex_morning(ep):
     b.say(nils, 'v03', gap=0.4)
     sol.pose(b.t, 'hold_front', 0.4).expr(b.t, eyes='cold', mouth='flat')
     b.say(sol, 'v04', gap=0.8)
-    done(ep, sh, b, tail=0.2, cam=C([(0, dict(x=-1.0, y=-1.0, zoom=640, aperture=0.6)), (t0, dict(x=-0.2, y=-1.0, zoom=600, aperture=0.6)),
-                                       (60, dict(x=0.6, y=-1.0, zoom=900, aperture=0.7))]))
+    done(ep, sh, b, tail=0.2, cam=follow([nils, sol], -1.0, 520, 780, ap=0.6, tau=0.6))

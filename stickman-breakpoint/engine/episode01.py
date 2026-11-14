@@ -7,6 +7,7 @@ import ep1_cold as A0
 import ep1_a as A
 import ep1_b as B
 import ep1_extra as X
+import ep1_more as Y
 
 M = 'build/music/'
 
@@ -24,8 +25,9 @@ def build():
     A.sc3_street(ep)
     X.bus(ep)
     X.vertex_morning(ep)
-    t_class = ep.t
+    Y.race(ep)
     X.est_school(ep)
+    t_class = ep.t
     A.sc4_class(ep)
     t_corr = ep.t
     X.sc45_corridor(ep)
@@ -35,9 +37,12 @@ def build():
     X.est_lunch(ep)
     B.sc5_roof(ep)
     t_gate = ep.t
+    Y.norden_day(ep)
     B.sc6_gate(ep)
     X.practice(ep)
     X.library(ep)
+    t_obs = ep.t
+    Y.observer(ep)
     t_stairs = ep.t
     X.est_evening(ep)
     B.sc7_stairs(ep)
@@ -54,6 +59,8 @@ def build():
     X.sol_epilogue(ep)
     t_roof = ep.t
     B.sc11_rooftop(ep)
+    t_mean = ep.t
+    Y.meanwhile(ep)
     t_night = ep.t
     B.sc12_night(ep)
     t_final = ep.shots[-1].start
@@ -72,7 +79,8 @@ def build():
     cue(M + 'bgm_school.wav', t_class + 1.0, t_corr + 1.0, gain=0.26, fade_in=2.0, fade_out=1.2)
     cue(M + 'bgm_mystery.wav', t_corr + 50.0, t_eye, gain=0.0, fade_in=2.0, fade_out=0.6)
     cue(M + 'bgm_lunch.wav', t_b + 0.3, t_gate, gain=0.27, fade_in=1.5, fade_out=1.5, duck_window=None)
-    cue(M + 'bgm_walk.wav', t_gate, t_stairs + 6.0, gain=0.28, fade_in=1.5, fade_out=2.5)
+    cue(M + 'bgm_walk.wav', t_gate, t_obs + 0.5, gain=0.28, fade_in=1.5, fade_out=1.5)
+    cue(M + 'bgm_mystery.wav', t_obs, t_stairs + 6.0, gain=0.28, fade_in=1.5, fade_out=2.5)
     sc7 = next(s for s in ep.scenes if s['id'] == '7')
     g2 = sc7['shots'][1].start
     cut = getattr(ep, 'music_cut', g2 + 20)
@@ -80,8 +88,8 @@ def build():
     g7 = sc7['shots'][6].start
     cue(M + 'bgm_mystery.wav', g7 + 6.0, t_dinner, gain=0.26, fade_in=4.0, fade_out=2.0)
     cue(M + 'bgm_home.wav', t_dinner + 0.8, t_lab, gain=0.30, fade_in=2.5, fade_out=1.5)
-    cue(M + 'bgm_mystery.wav', t_lab, t_night + 2.0, gain=0.32, fade_in=1.5, fade_out=3.0)
-    cue(M + 'bgm_home.wav', t_night + 1.0, t_final + 0.5, gain=0.22, fade_in=3.0, fade_out=2.0)
+    cue(M + 'bgm_mystery.wav', t_lab, t_mean + 1.5, gain=0.32, fade_in=1.5, fade_out=2.0)
+    cue(M + 'bgm_home.wav', t_mean + 0.5, t_final + 0.5, gain=0.22, fade_in=2.0, fade_out=2.0)
     # эндинг: вступление начинается под финальный закадровый голос
     for m in ep.music:
         if m['file'].endswith('ed_theme.wav'):

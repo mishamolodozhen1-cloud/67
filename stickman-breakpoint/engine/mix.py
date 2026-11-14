@@ -116,6 +116,7 @@ S = {
     'amb_bridge_fog': ('amb_beach', A, dict(lp=900, extra=('wind', 0.5))),
     'amb_city_far': ('amb_night', A, dict(lp=2500)),
     'amb_harbor': ('amb_beach', A, {}),
+    'amb_schoolyard': ('amb_schoolyard', A, dict(g=0.8)),
     'amb_night': ('amb_night', A, {}),
     'amb_room_night': ('amb_kitchen', A, dict(lp=3000)),
     'amb_street_eve': ('amb_night', A, {}),

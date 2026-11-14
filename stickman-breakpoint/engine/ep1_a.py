@@ -446,6 +446,7 @@ def sc4_class(ep):
                                        (tw + 3.4, dict(x=4.1, y=-1.75, zoom=520, aperture=0.0))]))
 
 def eyecatch(ep):
+    ep.scene('EYE', 'Айкатч', '—', 'Заставка между частями A и B.')
     sh = mk('night', [], sky=False, vignette=0.4)
     sh.bg = lambda cv, t: None
     d = 6.5

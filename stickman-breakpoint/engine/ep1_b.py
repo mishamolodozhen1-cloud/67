@@ -74,7 +74,7 @@ def sc5_roof(ep):
     tn = b.t
     t0, t1 = b.say(mira, 'b09', gap=0.3)
     # вставка: страница блокнота с тремя случаями
-    page = ['• Аптека на Портовой: витрина разбита ночью →', '   утром целая. Ни следа.', '• Горшок с 5-го этажа: ни одной трещины.',
+    page = ['• Аптека на Портовой: витрина разбита ночью —', '   утром целая. Ни следа.', '• Горшок с 5-го этажа: ни одной трещины.',
             '• Велосипед под грузовиком — ездит.', '• ...и ещё четыре.']
     def sk(cv, t, w, h):
         # маленькие наброски: окно, горшок, велосипед
@@ -224,8 +224,7 @@ def sc6_gate(ep):
     ray.pose(b.t + 2.2, 'pockets', 0.4)
     ray.move(b.t + 2.6, 4.0, dur=3.4, ease='in')
     b.wait(4.6)
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=0.0, y=-0.95, zoom=560, aperture=0.4)), (20, dict(x=0.3, y=-0.95, zoom=620, aperture=0.4)),
-                                       (60, dict(x=1.8, y=-1.0, zoom=520, aperture=0.4))]))
+    done(ep, sh, b, tail=0.0, cam=follow([ray, leon, mira], -0.95, 540, 680, ap=0.4))
 
 def sc7_stairs(ep):
     ep.scene('7', 'Набережная, лестница', 'Лестница к воде под мостом, закат',
@@ -600,8 +599,7 @@ def sc9_dinner(ep):
     sfx(sh, 'gull_call', tg0 + 1.0, gain=0.45)
     ray.expr(b.t, eyes='happy', mouth='smile')
     b.say(ray, 'b54', gap=0.6)
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=0.0, y=-0.85, zoom=620, aperture=0.5)), (tg0, dict(x=0.2, y=-0.85, zoom=660, aperture=0.5)),
-                                       (60, dict(x=-0.1, y=-0.85, zoom=700, aperture=0.5))]))
+    done(ep, sh, b, tail=0.0, cam=follow([mom, ray], -0.85, 620, 820, ap=0.5))
     # ── K2: разрешение на экскурсию ───────────────────────────────
     sh = base()
     mom = sh.add(Actor('MOM', x=0.6, face=-1, pose_='sit_eat', eyes='happy', mouth='smile', prop='spoon', z=0.1))
@@ -681,8 +679,13 @@ def sc10_vertex(ep):
     nils.expr(b.t, eyes='normal', mouth='o')
     b.say(nils, 'b65', gap=0.2)
     b.say(sol, 'b66', gap=0.5)
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=0.0, y=-1.35, zoom=1300, aperture=0.6, focus=-0.15)), (3.0, dict(x=-0.3, y=-1.2, zoom=900, aperture=0.6)),
-                                       (60, dict(x=0.3, y=-1.05, zoom=700, aperture=0.6))]))
+    _f = follow([nils, sol], -1.05, 520, 780, ap=0.6, tau=0.6)
+    def _cam(dur, _f=_f):
+        base = _f(dur)
+        intro = C([(0, dict(x=0.0, y=-1.35, zoom=1300, aperture=0.6, focus=-0.15)), (2.5, dict(x=-0.3, y=-1.1, zoom=760, aperture=0.6))])
+        return lambda t: intro(t) if t < 2.5 else base(t) if t > 4.0 else mix_cam(intro(2.5), base(t), smooth((t - 2.5) / 1.5))
+    _cam.is_factory = True
+    done(ep, sh, b, tail=0.0, cam=_cam)
     # ── директор ──────────────────────────────────────────────────
     sh = mk('night', lab() + [holo_map(0.2, -1.35, -0.15, s=1.25, dot=(-0.35, 0.02), label='16:42')])
     sol = sh.add(Actor('SOL', x=-0.6, face=1, pose_='stand', eyes='normal', mouth='flat', prop='clipboard', z=0.3))
@@ -810,7 +813,7 @@ def sc12_night(ep):
 def ending(ep):
     ep.scene('ED', 'Эндинг', '—', 'Финальные титры под спокойную тему.')
     T0 = ep.t
-    D = 86.0
+    D = 90.0
     stills = [
         ('night', lambda: room_ray('night'), [('RAY', dict(x=-1.55, y=-0.55, face=-1, pose_='lie', eyes='closed', z=0.25))], (-1.2, -0.9, 650), (-0.9, -0.95, 760)),
         ('dusk', lambda: street_embank('dusk'), [('LEON', dict(x=0.0, face=1, pose_='fist_up', eyes='happy', mouth='grin', wind=0.6))], (-0.5, -1.0, 600), (0.4, -0.95, 700)),
@@ -823,7 +826,7 @@ def ending(ep):
         [('РЭЙ', 'Kup (ElevenLabs)'), ('ЛЕОН', 'Evgeniy Rybakov'), ('МИРА', 'Kate')],
         [('НЕЗНАКОМЕЦ', 'Maxim'), ('МАМА', 'Elena'), ('ВИКТОР ПАЛЫЧ', 'Dima Cernousov')],
         [('ДОКТОР СОЛ', 'Serafima Voloshina'), ('НИЛЬС', 'danik'), ('ДИРЕКТОР', 'Ivan')],
-        [('МУЗЫКА', 'Soundza · AI (Lyria / Stable)'), ('ЗВУКИ', 'Soundza'), ('ГОЛОСА', 'ElevenLabs eleven_v4')],
+        [('МУЗЫКА', 'Soundza · AI (Lyria / Stable)'), ('ЗВУКИ', 'Soundza'), ('ГОЛОСА', 'ElevenLabs · v4 / Flash v2.5')],
     ]
     seg = D / len(stills)
     for i, (tod, setf, acts, c0, c1) in enumerate(stills):

@@ -58,6 +58,7 @@ class Beat:
         return self
 
     EXTRA_GAP = 0.3
+    SILENT_FALLBACK = True
 
     def say(self, actor, lid, gap=0.35, lead=0.0, style=None, fx=None, gain=1.0, talk=True, pan=0.0):
         """Реплика: звук + субтитр + липсинк персонажа. Возвращает (t0, t1)."""
@@ -67,6 +68,25 @@ class Beat:
         who = LN.speaker(lid)
         if style is None:
             style = 'vo' if actor is None else 'normal'
+        if info['path'] is None and Beat.SILENT_FALLBACK and actor is not None:
+            # озвучки нет (кончилась квота): реплика становится манга-пузырём, без звука и субтитра
+            import fx as FX
+            from stickman import SPECS
+            text = LN.clean(LN.L[lid][1])
+            dur = max(1.8, len(text) / 11.0)
+            hy = -0.965 * SPECS.get(actor.who, SPECS['EXTRA']).get('scale', 1.0)
+            shot = self.shot
+            def fn(cv, t, a=actor, t0=t0, d=dur, text=text):
+                if t < t0 or t > t0 + d:
+                    return
+                x, y = shot.cam(t).to_screen(a.x_at(t), hy, a.z)
+                bx = min(max(x + 160 * (1 if Track(a.fk)(t) >= 0 else -1), 380), W - 380)
+                by = max(y - 300, 150)
+                FX.bubble(cv, t - t0, text, bx, by, dur=d, size=46, tail=((x - bx) * 0.6, 70), maxw=640)
+            shot.screen_fx.append(fn)
+            actor.talk(t0, lambda u: 0.0, dur)   # камера-«оператор» знает, кто «говорит»; рот не двигается
+            self.t = t0 + dur + gap + Beat.EXTRA_GAP
+            return (t0, t0 + dur)
         self.shot.audio.append(dict(kind='voice', lid=lid, t=t0, gain=gain, fx=fx, pan=pan))
         self.shot.subs.append((t0, t0 + dur + 0.25, who, LN.clean(LN.L[lid][1]), style))
         if actor is not None and talk:

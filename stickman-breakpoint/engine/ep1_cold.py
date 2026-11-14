@@ -361,5 +361,5 @@ def opening(ep):
         screen(sh, f)
         return sh
     seg(rest / BAR, s13)
-    ep.cue(M + 'op_theme.wav', T0, T0 + 72.0, gain=0.85, fade_in=0.0, fade_out=0.8, loop=False, offset=0.0, duck=False)
-    ep.cue(M + 'op_theme.wav', T0 + 71.6, ep.t, gain=0.85, fade_in=0.4, fade_out=0.3, loop=False, offset=140.4, duck=False)
+    ep.cue(M + 'op_theme.wav', T0, T0 + 72.0, gain=0.85, fade_in=0.0, fade_out=0.8, loop=False, offset=0.53, duck=False)
+    ep.cue(M + 'op_theme.wav', T0 + 71.6, ep.t, gain=0.85, fade_in=0.4, fade_out=0.3, loop=False, offset=140.93, duck=False)
