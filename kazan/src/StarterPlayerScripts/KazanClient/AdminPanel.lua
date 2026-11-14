@@ -285,6 +285,14 @@ function builders.self()
 end
 
 function builders.teleport()
+	button(content, "📍 Телепорт к метке навигатора", ACCENT, function()
+		local x, z = player:GetAttribute("NavX"), player:GetAttribute("NavZ")
+		if not x then
+			toast("Сначала выбери место в навигаторе 🗺")
+			return
+		end
+		call("TeleportPos", x, z)
+	end)
 	header("Достопримечательности Казани")
 	for i, place in ipairs(Places.List) do
 		button(content, place.name, BTN, function()

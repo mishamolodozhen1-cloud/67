@@ -113,6 +113,10 @@ task.spawn(function()
 	end)
 end)
 
+-- Светофоры и навигатор
+require(script:WaitForChild("TrafficLights")).Start()
+require(script:WaitForChild("Navigator")).Start(gui)
+
 -- Админ-панель
 local function tryAdmin()
 	if player:GetAttribute("IsAdmin") == true and not gui:GetAttribute("AdminStarted") then

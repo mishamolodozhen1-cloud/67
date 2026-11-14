@@ -10,7 +10,13 @@ local CityBuilder = {}
 
 local SMOOTH = Enum.SurfaceType.Smooth
 local CYL_UP = CFrame.Angles(0, 0, math.rad(90))
-local WINDOW = Settings.WindowTexture
+local TEX = Settings.Textures
+-- Стиль окон: c — классика, m — современное остекление, p — панельный дом
+local WINDOW_STYLES = {
+	c = { TEX.WindowClassic, 10.5, 11 },
+	m = { TEX.WindowModern, 12, 12 },
+	p = { TEX.WindowPanel, 10, 9.4 },
+}
 
 local created = 0
 local function tick()
@@ -84,6 +90,8 @@ function CityBuilder.BuildTerrain()
 			T:FillBlock(CFrame.new(x, -2, z), Vector3.new(size, 4, depth), Enum.Material.Grass)
 		elseif code == "f" then
 			T:FillBlock(CFrame.new(x, -2, z), Vector3.new(size, 4, depth), Enum.Material.LeafyGrass)
+		elseif code == "k" then
+			T:FillBlock(CFrame.new(x, -2, z), Vector3.new(size, 4, depth), Enum.Material.Asphalt)
 		end
 		n = n + 1
 		if n % 150 == 0 then
@@ -189,15 +197,16 @@ local MATERIALS = {
 }
 local FACES = { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
 
-local function addWindows(part, w, d)
+local function addWindows(part, w, d, style)
+	local spec = WINDOW_STYLES[style] or WINDOW_STYLES.c
 	for _, face in ipairs(FACES) do
 		local faceWidth = (face == Enum.NormalId.Left or face == Enum.NormalId.Right) and d or w
 		if faceWidth >= 8 then
 			local tex = Instance.new("Texture")
-			tex.Texture = WINDOW
+			tex.Texture = spec[1]
 			tex.Face = face
-			tex.StudsPerTileU = 10.5
-			tex.StudsPerTileV = 11
+			tex.StudsPerTileU = spec[2]
+			tex.StudsPerTileV = spec[3]
 			tex.Parent = part
 		end
 	end
@@ -227,8 +236,8 @@ function CityBuilder.BuildBuildings(root)
 		if mat == "g" then
 			body.Reflectance = 0.12
 		end
-		if flags % 2 == 1 and mat ~= "g" then
-			addWindows(body, w, d)
+		if flags % 2 == 1 then
+			addWindows(body, w, d, (mat == "g") and "m" or f[12])
 		end
 		if flags >= 2 then
 			gableRoof(houses, base, w, d, y0 + h, Color3.fromHex(roof))

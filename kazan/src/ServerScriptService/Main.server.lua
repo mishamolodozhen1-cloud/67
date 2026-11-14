@@ -42,6 +42,7 @@ require(ServerScriptService:WaitForChild("AdminService")).Start()
 
 local CityBuilder = require(ServerScriptService:WaitForChild("CityBuilder"))
 local Landmarks = require(ServerScriptService:WaitForChild("Landmarks"))
+local Infrastructure = require(ServerScriptService:WaitForChild("Infrastructure"))
 
 local started = os.clock()
 local root = Instance.new("Folder")
@@ -53,6 +54,7 @@ local landmarkData = CityBuilder.BuildMisc(root)
 Landmarks.BuildAll(root, landmarkData)
 CityBuilder.BuildRoads(root)
 CityBuilder.BuildBuildings(root)
+Infrastructure.Build(root)
 
 workspace:SetAttribute("CityReady", true)
 print(string.format("[Казань] город построен за %.1f с", os.clock() - started))

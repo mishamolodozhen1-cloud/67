@@ -150,6 +150,15 @@ function HANDLERS.Teleport(player, index)
 	return "Телепорт: " .. place.name
 end
 
+function HANDLERS.TeleportPos(player, x, z)
+	x, z = tonumber(x), tonumber(z)
+	if not x or not z or math.abs(x) > 20000 or math.abs(z) > 20000 then
+		return "Неверная точка"
+	end
+	teleport(player, Vector3.new(x, 6, z))
+	return "Телепорт к метке навигатора"
+end
+
 function HANDLERS.GotoPlayer(player, userId)
 	local hrp = rootPart(findPlayer(userId))
 	if not hrp then

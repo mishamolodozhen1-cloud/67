@@ -468,8 +468,17 @@ def main(merged):
     green &= ~water
     forest &= ~water
 
+    def is_parking(t):
+        return t.get("amenity") == "parking" and t.get("parking") not in ("underground", "multi-storey", "rooftop")
+
+    parking = np.zeros((nz, nx), dtype=bool)
+    for pid, t, outer, inner in polygons(ways, rels, nodes, proj, is_parking):
+        parking |= scan_fill(outer + inner, x_min, zc, nx, CELL)
+    parking &= ~water
+    green &= ~parking
+
     terrain = []
-    for code, grid in (("w", water), ("g", green), ("f", forest)):
+    for code, grid in (("w", water), ("g", green), ("f", forest), ("k", parking)):
         for r in range(nz):
             row = grid[r]
             c = 0
@@ -528,6 +537,8 @@ def main(merged):
     boxes, wedges = [], []
     skipped = 0
     rng = random.Random(7)
+    box_geom = []
+    bld_records = []
 
     def emit(pid, t, outer, inner, is_part_poly):
         nonlocal skipped
@@ -554,6 +565,15 @@ def main(merged):
             mat = "g"
             wall = ["8fa0b0", "a8b4bc", "7d90a4"][seed % 3]
         windows = btype not in ("garage", "garages", "shed", "roof", "service", "kiosk", "transformer_tower", "hut") and h > 12
+        levels = parse_m(t.get("building:levels")) or 0
+        if mat == "g" or (btype in ("office", "commercial", "retail", "hotel") and h_m >= 18):
+            style = "m"
+        elif levels >= 7 and btype in ("apartments", "residential", "yes", "dormitory"):
+            style = "p"
+        else:
+            style = "c"
+        record = {"tags": t, "boxes": [], "ring": main_ring, "y0": y0}
+        bld_records.append(record)
         gable = (not is_part_poly and t.get("roof:shape") in ("gabled", "hipped", "pitched")) or (
             not is_part_poly and t.get("roof:shape") is None and h_m <= 14 and btype in ("yes", "house", "residential", "apartments", "commercial") and seed % 3 == 0)
 
@@ -591,7 +611,9 @@ def main(merged):
                 wx = cx + rx * ca - rz * sa
                 wz = cz + rx * sa + rz * ca
                 flags = (1 if windows else 0) | (2 if (gable and single and w * d < 9000) else 0)
-                boxes.append(f"{fmt(wx)},{fmt(wz)},{fmt(w)},{fmt(d)},{fmt(-ang, 4)},{fmt(y0)},{fmt(h)},{wall},{roof},{mat},{flags}")
+                boxes.append(f"{fmt(wx)},{fmt(wz)},{fmt(w)},{fmt(d)},{fmt(-ang, 4)},{fmt(y0)},{fmt(h)},{wall},{roof},{mat},{flags},{style}")
+                record["boxes"].append(len(box_geom))
+                box_geom.append((wx, wz, w, d, -ang, y0, h))
         else:
             ring = simplify(main_ring, 5.0)
             for tri in ear_clip(ring):
@@ -678,6 +700,11 @@ def main(merged):
     tree_out = [f"{fmt(x)},{fmt(z)},{fmt(0.8 + rng.random() * 0.5, 2)}" for x, z in trees if in_area(x, z)]
     print("trees", len(tree_out))
 
+    # ---------------- Инфраструктура для РП
+    sys.path.insert(0, HERE)
+    import infra
+    infra_data = infra.build(nodes, ways, proj, in_area, box_geom, bld_records, WIDTH, KIND, simplify, parse_m, fmt)
+
     # ---------------- Точки для телепортов
     places = []
     lm = {r.split(",")[0]: [float(v) for v in r.split(",")[1:]] for r in lm_out}
@@ -735,6 +762,13 @@ def main(merged):
     write("Roads", [("Segments", roads)])
     write("Terrain", [("Spans", terrain)])
     write("Misc", [("Walls", walls), ("Trees", tree_out), ("Landmarks", lm_out)])
+    write("Infra", [(k, v) for k, v in infra_data.items() if k != "Navigator"])
+    with open(os.path.join(shared, "Poi.lua"), "w", encoding="utf-8") as f:
+        f.write(header + "-- Места для навигатора: категория, название, координаты.\nreturn {\n")
+        for cat, name, x, z in infra_data["Navigator"]:
+            safe = name.replace("\\", "").replace('"', "'")
+            f.write(f'\t{{ "{cat}", "{safe}", {fmt(x)}, {fmt(z)} }},\n')
+        f.write("}\n")
 
 
 if __name__ == "__main__":
