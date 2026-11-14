@@ -671,7 +671,7 @@ def vertex_morning(ep):
         a = clamp((t - t0 - 1.0) / 0.4) * clamp((t1 + 0.6 - t) / 0.4)
         if a <= 0:
             return
-        cv.save(); cv.translate(W * 0.52, H * 0.66)
+        cv.save(); cv.translate(W * 0.68, H * 0.38)
         cv.drawRect(skia.Rect(-280, -150, 280, 150), P(rgba(0.02, 0.05, 0.12, 0.8 * a)))
         cv.drawRect(skia.Rect(-280, -150, 280, 150), P(hexc('#4fb0ff', a), 3))
         # «ткань» и разрыв с заусенцами

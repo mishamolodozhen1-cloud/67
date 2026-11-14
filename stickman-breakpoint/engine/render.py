@@ -123,15 +123,11 @@ def main():
     if a.frames is None:
         stems = build_mix(EP, wav)
         print('stems dB RMS', json.dumps(stems), flush=True)
-        # громкость: двухпроходный loudnorm к −16 LUFS
-        r = subprocess.run(['ffmpeg', '-v', 'info', '-i', wav, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-'],
-                           capture_output=True, text=True)
-        js = r.stderr[r.stderr.rfind('{'):r.stderr.rfind('}') + 1]
-        m = json.loads(js)
-        af = ('loudnorm=I=-16:TP=-1.5:LRA=11:measured_I=%s:measured_TP=%s:measured_LRA=%s:measured_thresh=%s:offset=%s:linear=true'
-              % (m['input_i'], m['input_tp'], m['input_lra'], m['input_thresh'], m['target_offset']))
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', video, '-i', wav, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy',
-                        '-af', af, '-ar', '48000', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', a.out], check=True)
+        # громкость: −16 LUFS, лимитер по истинному пику, затем проверка перелётов после AAC
+        from master_audio import master, fix_overshoots
+        mw = 'build/master.wav'
+        master(wav, mw, -16.0, -1.5)
+        fix_overshoots(mw, video, a.out)
     else:
         os.replace(video, a.out)
     print('wrote', a.out, flush=True)
