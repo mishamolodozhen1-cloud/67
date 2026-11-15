@@ -39,3 +39,7 @@ luac.out
 *.x86_64
 *.hex
 
+
+# Bot runtime data
+antispam.db*
+__pycache__/
