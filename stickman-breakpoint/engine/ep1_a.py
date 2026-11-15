@@ -19,12 +19,14 @@ def sc1_room(ep):
     sh = mk('morning', room)
     sh.grade = dict(light=(W * 0.62, H * 0.2, 1300, hexc('#fff0c8'), 0.35))
     # кровать: Рэй лежит под одеялом, рука высовывается
-    ray = sh.add(Actor('RAY', x=-1.55, y=-0.55, face=-1, pose_='lie', eyes='closed', mouth='flat', z=0.25))
-    ray.pose(0, pose('lie', rs=-90, re=10))
-    blanket = Obj(0.24, lambda cv, t: d_blanket(cv, t), x=-1.95, y=-0.52)
+    # лежит на спине под одеялом, голова на подушке справа, рука поверх одеяла
+    ray = sh.add(Actor('RAY', x=-1.5, y=-0.30, face=-1, pose_='lie', eyes='closed', mouth='flat', z=0.25))
+    ray.pose(0, pose('lie', rs=40, re=30))
+    emp = [(0.0, 0.0)]
+    blanket = Obj(0.24, lambda cv, t: d_blanket(cv, t, empty=Track(emp)(t)), x=-2.14, y=-0.27, scale=0.85)
     sh.layers.append(blanket)
     ring = [0.0]
-    alarm = Obj(0.24, lambda cv, t: d_alarm(cv, t, ring=1.0 if 0.8 < t < T_off else 0.0), x=-0.58, y=-0.5)
+    alarm = Obj(0.24, lambda cv, t: d_alarm(cv, t, ring=1.0 if 0.8 < t < T_off else 0.0), x=-0.74, y=-0.5)
     sh.layers.append(alarm)
     b = Beat(sh)
     b.sfx('room_morning', 0.0, gain=0.5)
@@ -32,14 +34,15 @@ def sc1_room(ep):
     sfx(sh, 'alarm_clock', 0.8, gain=0.8, dur=9.5, fade=0.2)
     sfxt(sh, 1.0, 'ДЗЫНЬ!', W * 0.7, H * 0.32, 110, color=hexc('#ffe14a'), rot=8, dur=1.4)
     # шлепок мимо, шлепок мимо, будильник падает
+    # рука вслепую тянется за голову к будильнику: мимо, потом шлепок
     t1 = 2.6
-    ray.pose(t1, pose('lie', rs=-20, re=20), 0.25, 'back')
+    ray.pose(t1, pose('lie', rs=150, re=40), 0.25, 'back')
     sfx(sh, 'whoosh_small', t1, gain=0.5)
-    ray.pose(t1 + 0.5, pose('lie', rs=-60, re=10), 0.3)
+    ray.pose(t1 + 0.5, pose('lie', rs=110, re=30), 0.3)
     t2 = 3.8
-    ray.pose(t2, pose('lie', rs=5, re=10), 0.2, 'back')
+    ray.pose(t2, pose('lie', rs=172, re=8), 0.2, 'back')
     sfx(sh, 'slap', t2 + 0.18, gain=0.7)
-    alarm.custom = ballistic(-0.58, -0.5, 0.9, -1.4, t2 + 0.2, g=7.0, floor=0.0, spin=-260)
+    alarm.custom = ballistic(-0.74, -0.5, 0.9, -1.4, t2 + 0.2, g=7.0, floor=0.0, spin=-260)
     sfx(sh, 'thud', t2 + 0.65, gain=0.8)
     sfxt(sh, t2 + 0.62, 'БАМ', W * 0.62, H * 0.75, 90, color=hexc('#ffffff'), rot=-6, dur=0.8)
     T_off = 12.5
@@ -54,9 +57,11 @@ def sc1_room(ep):
     T_off = b.t - 0.3
     ray.expr(b.t, eyes='lazy', mouth='flat')
     b.say(ray, 'a05', gap=0.2)
+    # сползает из-под одеяла на пол перед кроватью; одеяло остаётся на кровати
     ts = b.t
-    ray.move(ts, -0.9, dur=0.9, ease='in', y=0.0)
-    blanket.key(ts, x=-1.4, y=-0.35, dur=0.9, ease='in')
+    ray.pose(ts, pose('lie', rs=-10, re=10, ls=-20, le=10), 0.3)
+    ray.move(ts, -1.35, dur=0.8, ease='in', y=0.0)
+    emp += [(ts + 0.2, 0.0, 'hold'), (ts + 0.8, 1.0, 'io')]
     sfx(sh, 'slide_flop', ts + 0.6, gain=0.7)
     b.wait(1.2)
     tf = b.t
@@ -64,8 +69,8 @@ def sc1_room(ep):
     sfx(sh, 'card_whoosh', tf, gain=0.8)
     card(sh, tf, 'РЭЙ', '17 лет · чемпион Нордена по откладыванию на потом', RED, dur=3.2)
     b.wait(3.3)
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=-0.6, y=-1.15, zoom=330)), (3.5, dict(x=-1.1, y=-0.85, zoom=620)),
-                                       (9.0, dict(x=-1.2, y=-0.8, zoom=700)), (22.0, dict(x=-1.0, y=-0.7, zoom=560)),
+    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=-0.6, y=-1.0, zoom=330)), (3.5, dict(x=-1.05, y=-0.62, zoom=620)),
+                                       (9.0, dict(x=-1.15, y=-0.6, zoom=700)), (22.0, dict(x=-1.0, y=-0.55, zoom=560)),
                                        (40.0, dict(x=-0.9, y=-0.6, zoom=520))]))
     # ── R2: встаёт, рамка на полке ────────────────────────────────
     sh = mk('morning', room_ray('morning'))
@@ -329,13 +334,17 @@ def sc4_class(ep):
     te.face(3.0, 1)
     te.pose(3.2, 'throw', 0.15)
     tt = 3.35
+    ray.pose(tt + 0.3, pose('sit_sleep', rs=150, re=10), 0.1)
+    # мел летит точно в поднятую руку (цель — кисть в момент поимки)
+    from stickman import hand_world
+    hx, hy = hand_world(ray, tt + 0.4)
+    T, g_ = 0.4, 4.0
     chalk = Obj(0.03, d_chalk, x=0, y=0)
-    chalk.custom = ballistic(-1.9, -1.35, 3.6, -1.2, tt, g=4.0, spin=1400)
+    chalk.custom = ballistic(-1.9, -1.35, (hx + 1.9) / T, (hy + 1.35 - 0.5 * g_ * T * T) / T, tt, g=g_, spin=1400)
     chalk.ak = [(0, 0.0), (tt - 0.01, 0.0, 'hold'), (tt, 1.0, 'lin'), (tt + 0.4, 1.0, 'hold'), (tt + 0.41, 0.0, 'lin')]
     sh.layers.append(chalk)
     sfx(sh, 'whoosh_small', tt, gain=0.6)
     mblur(sh, tt - 0.2, tt + 0.5, 5)
-    ray.pose(tt + 0.3, pose('sit_sleep', rs=150, re=10), 0.1)
     ray.prop(tt + 0.4, 'chalk')
     sfx(sh, 'catch', tt + 0.4, gain=0.7)
     sfx(sh, 'class_ooh', tt + 0.6, gain=0.6)
@@ -378,7 +387,7 @@ def sc4_class(ep):
     b = Beat(sh)
     b.sfx('class_amb', 0.0, gain=0.4)
     b.wait(0.3)
-    ray.pose(b.t, 'raise_hand', 0.6, rs=120, re=40, lean=20, head=20, sit=0.47, lh=86, lk=86, rh=90, rk=90)
+    ray.pose(b.t, 'raise_hand', 0.6, rs=120, re=40, lean=20, head=20, sit=0.27, lh=88, lk=88, rh=90, rk=90)
     b.say(ray, 'a33', gap=0.2)
     sfx(sh, 'class_laugh', b.t, gain=0.6)
     b.wait(0.6)

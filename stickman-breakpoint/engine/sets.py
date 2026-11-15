@@ -24,10 +24,12 @@ def pal(tod):
     return TOD[tod]
 
 class Layer:
-    __slots__ = ('z', 'fn', 'static', 'pic', 'blur', 'name', 'soft')
+    __slots__ = ('z', 'fn', 'static', 'pic', 'blur', 'name', 'soft', 'seat', 'span', '__dict__')
     def __init__(self, z, fn, static=False, blur=True, name='', soft=0.0):
         self.z, self.fn, self.static, self.blur, self.name = z, fn, static, blur, name
         self.pic = None
+        self.seat = None   # (x0, x1): на этом слое можно сидеть (скамья, стул)
+        self.span = None   # (x0, x1): поверхность стола/парты
         self.soft = soft   # >0: слой всегда мягкий (рендер в 1/4 разрешения с размытием soft px)
     def draw(self, cv, t):
         if self.static:
@@ -361,10 +363,12 @@ def room_ray(tod='morning'):
     L.append(Layer(0.0, floor_fn, name='floor'))
     def furniture(cv, t):
         # кровать (слева)
-        cv.drawRect(skia.Rect(-3.2, -0.55, -0.9, -0.25), P(hexc('#e9e2d4') if not night else hexc('#3a4060')))
-        cv.drawRect(skia.Rect(-3.25, -0.28, -0.85, 0.0), P(hexc('#6a4a32') if not night else hexc('#1a1d30')))
-        cv.drawRect(skia.Rect(-3.3, -0.95, -3.15, 0.0), P(hexc('#6a4a32') if not night else hexc('#1a1d30')))
-        cv.drawRoundRect(skia.Rect(-1.5, -0.68, -0.95, -0.5), 0.08, 0.08, P(hexc('#ffffff') if not night else hexc('#4a5070')))
+        cv.drawRect(skia.Rect(-3.2, -0.30, -0.9, -0.12), P(hexc('#e9e2d4') if not night else hexc('#3a4060')))
+        cv.drawRect(skia.Rect(-3.25, -0.14, -0.85, -0.03), P(hexc('#6a4a32') if not night else hexc('#1a1d30')))
+        for lx in (-3.22, -0.92):
+            cv.drawRect(skia.Rect(lx, -0.04, lx + 0.07, 0.0), P(hexc('#4a3422') if not night else hexc('#14172a')))
+        cv.drawRect(skia.Rect(-3.3, -0.62, -3.15, 0.0), P(hexc('#6a4a32') if not night else hexc('#1a1d30')))
+        cv.drawRoundRect(skia.Rect(-1.48, -0.42, -0.95, -0.27), 0.07, 0.07, P(hexc('#ffffff') if not night else hexc('#4a5070')))
         # тумбочка
         cv.drawRect(skia.Rect(-0.8, -0.5, -0.35, 0.0), P(hexc('#7a5a3a') if not night else hexc('#22263c')))
         # стол (справа)
@@ -480,14 +484,16 @@ def classroom(tod='morning'):
     L.append(Layer(0.0, floor_fn, name='cfloor'))
     return L
 
-def desk(x, z, w=0.9, y=-0.62, color='#c79a62'):
+def desk(x, z, w=0.9, y=-0.45, color='#c79a62'):
     def fn(cv, t):
         c = hexc(color)
         cv.drawRect(skia.Rect(x - w / 2, y, x + w / 2, y + 0.06), P(cmix(c, hexc('#ffffff'), 0.15)))
         cv.drawRect(skia.Rect(x - w / 2 + 0.03, y + 0.06, x + w / 2 - 0.03, y + 0.22), P(c))
         cv.drawRect(skia.Rect(x - w / 2 + 0.06, y + 0.22, x - w / 2 + 0.11, 0.0), P(hexc('#555555')))
         cv.drawRect(skia.Rect(x + w / 2 - 0.11, y + 0.22, x + w / 2 - 0.06, 0.0), P(hexc('#555555')))
-    return Layer(z, fn, name='desk')
+    L = Layer(z, fn, name='desk')
+    L.span = (x - w / 2, x + w / 2)
+    return L
 
 def street_embank(tod='morning'):
     """Набережная: перила за героями, море, город на том берегу, холм с институтом."""
@@ -602,24 +608,42 @@ def stairs_embank(tod='golden'):
         sc = hexc('#9a8a7c') if tod != 'night' else hexc('#3a3a48')
         dk = cmix(sc, hexc('#000000'), 0.25)
         cv.drawRect(skia.Rect(-12, 0.0, -0.2, 3), P(sc))
-        for k in range(8):
+        # ступень k: проступь на высоте (k+1)·0.12 при x ∈ [−0.2+0.32k, −0.2+0.32(k+1)); под ступенями — сплошной массив
+        for k in range(7):
             x0 = -0.2 + k * 0.32
-            y0 = k * 0.12
-            cv.drawRect(skia.Rect(x0, y0, 12, y0 + 0.12), P(sc if k % 2 == 0 else cmix(sc, dk, 0.4)))
+            y0 = (k + 1) * 0.12
+            cv.drawRect(skia.Rect(x0, y0, 12, 3), P(sc if k % 2 == 0 else cmix(sc, dk, 0.4)))
             cv.drawLine(x0, y0, 12, y0, P(dk, 0.015))
-        cv.drawRect(skia.Rect(2.36, 0.96, 12, 3), P(cmix(sc, dk, 0.6)))
+            cv.drawLine(x0, y0 - 0.12 if k else 0.0, x0, y0, P(dk, 0.012))
+        cv.drawRect(skia.Rect(2.04, 0.96, 12, 3), P(cmix(sc, dk, 0.6)))
+        cv.drawLine(2.04, 0.96, 12, 0.96, P(dk, 0.015))
         # перила вдоль лестницы
         rc = hexc('#2a2a36')
         cv.drawLine(-12, -0.85, -0.2, -0.85, P(rc, 0.04))
-        cv.drawLine(-0.2, -0.85, 2.4, 0.1, P(rc, 0.04))
+        cv.drawLine(-0.2, -0.85, 2.1, 0.12, P(rc, 0.04))
         for k in range(-24, 0):
             cv.drawLine(k * 0.5, -0.85, k * 0.5, 0.0, P(rc, 0.02))
         # скамейка
         cv.drawRect(skia.Rect(-3.6, -0.47, -2.4, -0.4), P(hexc('#7a5032')))
         cv.drawRect(skia.Rect(-3.6, -0.8, -2.4, -0.72), P(hexc('#7a5032')))
         cv.drawLine(-3.5, -0.4, -3.5, 0.0, P(rc, 0.03)); cv.drawLine(-2.5, -0.4, -2.5, 0.0, P(rc, 0.03))
-    L.append(Layer(0.0, steps, name='steps'))
+    st = Layer(0.0, steps, name='steps')
+    st.ground_fn = stairs_ground
+    L.append(st)
     return L
+
+def stairs_ground(x):
+    """Высота проступи под точкой x на лестнице набережной (y вниз). Сходя со ступени, тело опускается за 0.04."""
+    if x < -0.2:
+        return 0.0
+    u = (x + 0.2) / 0.32
+    k = int(u)
+    if k >= 7:
+        return 0.96
+    f = u - k
+    if f < 0.12:
+        return k * 0.12 + 0.12 * smooth(f / 0.12)
+    return (k + 1) * 0.12
 
 def bridge_deck(tod='dusk'):
     p = pal(tod)
@@ -688,7 +712,7 @@ def monitors(x, z, t_offset=0.0, alarm=0.0):
     def fn(cv, t):
         for k in range(3):
             mx = x + k * 0.75
-            r = skia.Rect(mx - 0.33, -1.35, mx + 0.33, -0.92)
+            r = skia.Rect(mx - 0.33, -1.09, mx + 0.33, -0.66)
             cv.drawRect(r, P(hexc('#0b1226')))
             cv.drawRect(r, P(hexc('#2f7bff', 0.6), 0.015))
             pth = skia.Path()
@@ -696,15 +720,17 @@ def monitors(x, z, t_offset=0.0, alarm=0.0):
                 u = i / 59
                 xx = mx - 0.3 + u * 0.6
                 amp = 0.04 + (0.12 * alarm * math.exp(-((u - 0.6) * 9) ** 2) if k == 1 else 0)
-                yy = -1.13 + math.sin(u * 30 + t * 4 + k) * amp * (0.5 + 0.5 * math.sin(u * 7 + t))
+                yy = -0.87 + math.sin(u * 30 + t * 4 + k) * amp * (0.5 + 0.5 * math.sin(u * 7 + t))
                 if i == 0:
                     pth.moveTo(xx, yy)
                 else:
                     pth.lineTo(xx, yy)
             cv.drawPath(pth, P(hexc('#5fe0ff' if k != 1 or alarm < 0.5 else '#ff5a4a', 0.9), 0.008))
-            cv.drawRect(skia.Rect(mx - 0.04, -0.92, mx + 0.04, -0.7), P(hexc('#1a2240')))
-        cv.drawRect(skia.Rect(x - 0.5, -0.72, x + 2.0, -0.66), P(hexc('#1a2240')))
-        cv.drawRect(skia.Rect(x - 0.45, -0.66, x + 1.95, 0.0), P(hexc('#0e1428')))
+            cv.drawRect(skia.Rect(mx - 0.04, -0.66, mx + 0.04, -0.46), P(hexc('#1a2240')))
+        cv.drawRect(skia.Rect(x - 0.5, -0.47, x + 2.0, -0.41), P(hexc('#1a2240')))
+        cv.drawRect(skia.Rect(x - 0.45, -0.41, x + 1.95, -0.33), P(hexc('#0e1428')))
+        for lx in (x - 0.42, x + 1.88):
+            cv.drawRect(skia.Rect(lx, -0.33, lx + 0.05, 0.0), P(hexc('#0e1428')))
     return Layer(z, fn, name='monitors')
 
 def holo_map(x, y, z, s=1.0, dot=None, dot_on=1.0, label=None):

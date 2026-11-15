@@ -68,6 +68,11 @@ def build():
     X.post_credits(ep)
     B.preview(ep)
     ep.end_scenes()
+    import seats
+    seats.apply_terrain(ep)
+    ep.seats_added = seats.add_seats(ep)
+    ep.reframed = seats.reframe_seated(ep)
+    ep.floors_filled = seats.fill_floor_gaps(ep)
 
     # ── музыка (кроме опенинга/эндинга, которые ставятся в своих сценах) ──
     ep.music = [m for m in ep.music if m['file'].endswith(('op_theme.wav', 'ed_theme.wav'))]

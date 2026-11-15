@@ -12,13 +12,18 @@ from stickman import Actor, pose, draw_char, Look
 M = 'build/music/'
 
 def bench(x, z=0.08, w=1.9):
+    """Скамейка: верх сиденья на высоте SEAT_Y (под сидящего стикмена ступни стоят на земле)."""
+    from stickman import SEAT_Y
+    y0 = SEAT_Y
     def fn(cv, t):
         c = hexc('#7a5032')
-        cv.drawRect(skia.Rect(x - w / 2, -0.5, x + w / 2, -0.43), P(c))
-        cv.drawRect(skia.Rect(x - w / 2, -0.5, x + w / 2, -0.43), P(INK, 0.012))
+        cv.drawRect(skia.Rect(x - w / 2, y0, x + w / 2, y0 + 0.06), P(c))
+        cv.drawRect(skia.Rect(x - w / 2, y0, x + w / 2, y0 + 0.06), P(INK, 0.012))
         for lx in (x - w / 2 + 0.1, x + w / 2 - 0.1):
-            cv.drawLine(lx, -0.43, lx, 0.0, P(hexc('#3a3a46'), 0.03))
-    return Layer(z, fn, name='bench')
+            cv.drawLine(lx, y0 + 0.06, lx, 0.0, P(hexc('#3a3a46'), 0.03))
+    L = Layer(z, fn, name='bench')
+    L.seat = (x - w / 2, x + w / 2)
+    return L
 
 def sc5_roof(ep):
     ep.scene('5', 'Крыша школы', 'Крыша школы, большая перемена',
@@ -40,7 +45,7 @@ def sc5_roof(ep):
     b.say(ray, 'b02', gap=0.2)
     leon.expr(b.t, eyes='closed', mouth='chew')
     sfx(sh, 'eat_fast', b.t, gain=0.5, dur=2.0)
-    ray.pose(b.t + 0.2, 'reach', 0.25, sit=0.47, lh=86, lk=86, rh=90, rk=90, lean=12, rs=95, re=10)
+    ray.pose(b.t + 0.2, 'reach', 0.25, sit=0.27, lh=88, lk=88, rh=90, rk=90, lean=12, rs=95, re=10)
     tg = b.t + 0.5
     leon.prop(tg, None, hand=2)
     ray.prop(tg, 'bun')
@@ -246,9 +251,9 @@ def sc7_stairs(ep):
                                        (20, dict(x=-1.1, y=-0.95, zoom=640, aperture=0.4))]))
     # ── G2: хулиганы и Тим у воды ─────────────────────────────────
     sh = mk('golden', lay)
-    kos = sh.add(Actor('KOSTYA', x=1.75, y=0.72, face=-1, pose_='phone_up', eyes='angry', mouth='grin', prop='phone'))
-    shn = sh.add(Actor('SHNUR', x=2.45, y=0.84, face=-1, pose_='cross', eyes='normal', mouth='smirk'))
-    tim = sh.add(Actor('TIM', x=1.1, y=0.6, face=1, pose_='reach', eyes='sad', mouth='frown'))
+    kos = sh.add(Actor('KOSTYA', x=1.62, y=0.72, face=-1, pose_='phone_up', eyes='angry', mouth='grin', prop='phone'))
+    shn = sh.add(Actor('SHNUR', x=2.45, y=0.96, face=-1, pose_='cross', eyes='normal', mouth='smirk'))
+    tim = sh.add(Actor('TIM', x=1.17, y=0.6, face=1, pose_='reach', eyes='sad', mouth='frown'))
     b = Beat(sh)
     b.sfx('amb_water_eve', 0.0, gain=0.5)
     ep.cue(M + 'bgm_tense.wav', ep.t, None, gain=0.32, fade_in=2.5)
@@ -265,9 +270,9 @@ def sc7_stairs(ep):
     # ── G3: Рэй вздыхает, окликает, спускается ───────────────────
     sh = mk('golden', lay)
     ray = sh.add(Actor('RAY', x=-1.0, face=1, pose_='pockets', eyes='lazy', wind=0.4))
-    kos = sh.add(Actor('KOSTYA', x=1.75, y=0.72, face=-1, pose_='phone_up', eyes='angry', mouth='grin', prop='phone'))
-    shn = sh.add(Actor('SHNUR', x=2.45, y=0.84, face=-1, pose_='cross', eyes='normal', mouth='smirk'))
-    tim = sh.add(Actor('TIM', x=1.1, y=0.6, face=1, pose_='reach', eyes='sad', mouth='frown'))
+    kos = sh.add(Actor('KOSTYA', x=1.62, y=0.72, face=-1, pose_='phone_up', eyes='angry', mouth='grin', prop='phone'))
+    shn = sh.add(Actor('SHNUR', x=2.45, y=0.96, face=-1, pose_='cross', eyes='normal', mouth='smirk'))
+    tim = sh.add(Actor('TIM', x=1.17, y=0.6, face=1, pose_='reach', eyes='sad', mouth='frown'))
     b = Beat(sh)
     b.sfx('amb_water_eve', 0.0, gain=0.45)
     b.wait(0.3)
@@ -282,14 +287,7 @@ def sc7_stairs(ep):
     b.say(kos, 'b35', gap=0.25)
     # Рэй спускается по ступеням: каждая ступень 0.32 по x и 0.12 по y
     ts = b.t
-    ray.move(ts, 0.95, dur=3.2, ease='lin', y=0.0)
-    def ray_y(t, ray=ray):
-        x = Track(ray.xk)(t)
-        if x <= -0.2:
-            return 0.0
-        k = clamp((x + 0.2) / 0.32, 0, 7.5)
-        return min(7, int(k)) * 0.12 + (0.12 * smooth(k - int(k)) if k < 7 else 0)
-    sh.actor_over['RAY'] = lambda t, f=ray_y: dict(y=f(t))
+    ray.move(ts, 1.0, dur=3.2, ease='lin')   # высоту по ступеням даёт рельеф лестницы (seats.apply_terrain)
     sfx(sh, 'steps_stairs', ts, gain=0.45, dur=3.0)
     b.say(ray, 'b36', gap=0.2)
     shn.expr(b.t, eyes='wide', mouth='o')
@@ -320,7 +318,7 @@ def sc7_stairs(ep):
     sh = mk('golden', lay)
     ray = sh.add(Actor('RAY', x=1.15, y=0.6, face=1, pose_='stand', eyes='serious', wind=0.6))
     kos = sh.add(Actor('KOSTYA', x=1.6, y=0.72, face=-1, pose_='grab', eyes='angry', mouth='teeth', prop='phone'))
-    shn = sh.add(Actor('SHNUR', x=2.45, y=0.84, face=-1, pose_='cross', eyes='wide', mouth='o'))
+    shn = sh.add(Actor('SHNUR', x=2.45, y=0.96, face=-1, pose_='cross', eyes='wide', mouth='o'))
     tim = sh.add(Actor('TIM', x=0.55, y=0.36, face=1, pose_='cower', eyes='sad', mouth='frown'))
     phone = Obj(-0.03, lambda cv, t: d_phone(cv, t, lit=0.0), x=0, y=0)
     sh.layers.append(phone)
@@ -377,7 +375,7 @@ def sc7_stairs(ep):
     sh = mk('golden', lay)
     ray = sh.add(Actor('RAY', x=0.55, y=0.36, face=1, pose_='stumble', eyes='wide', mouth='o', wind=0.0))
     kos = sh.add(Actor('KOSTYA', x=1.6, y=0.72, face=-1, pose_='throw', eyes='angry', mouth='teeth'))
-    shn = sh.add(Actor('SHNUR', x=2.45, y=0.84, face=-1, pose_='cross', eyes='wide', mouth='o'))
+    shn = sh.add(Actor('SHNUR', x=2.45, y=0.96, face=-1, pose_='cross', eyes='wide', mouth='o'))
     tim = sh.add(Actor('TIM', x=1.0, y=0.48, face=1, pose_='cower', eyes='shock', mouth='scream'))
     tb = 2.6       # щелчок
     shards = Shards(-0.04, 2.73, 0.95, -5.0, tb, back_dur=0.55, n=30, seed=7)
@@ -414,7 +412,7 @@ def sc7_stairs(ep):
     sh = mk('golden', lay)
     ray = sh.add(Actor('RAY', x=0.55, y=0.36, face=1, pose_='stand', eyes='wide', mouth='o'))
     kos = sh.add(Actor('KOSTYA', x=1.6, y=0.72, face=-1, pose_='stand', eyes='wide', mouth='wavy'))
-    shn = sh.add(Actor('SHNUR', x=2.2, y=0.84, face=-1, pose_='point', eyes='shock', mouth='o'))
+    shn = sh.add(Actor('SHNUR', x=2.2, y=0.96, face=-1, pose_='point', eyes='shock', mouth='o'))
     tim = sh.add(Actor('TIM', x=1.0, y=0.48, face=1, pose_='cower', eyes='wide', mouth='o'))
     phone = Obj(-0.04, lambda cv, t: d_phone(cv, t, lit=1.0 if t > T_lit else 0.0), x=2.73, y=0.93, rot=90)
     sh.layers.append(phone)
@@ -458,7 +456,7 @@ def sc7_stairs(ep):
     ray.set(1.4, 'dash', 1.0, dur=0.3).set(2.6, 'dash', 0.0, dur=0.6)
     ray.set(1.4, 'thin', 0.55, dur=0.3).set(2.6, 'thin', 1.0, dur=0.6)
     ray.pose(3.2, 'sit_dizzy', 0.8, ly=0.0)
-    ray.move(3.2, 0.62, dur=0.8, y=0.38)
+    ray.move(3.2, 0.62, dur=0.8, y=0.48)   # сидит на ступени, ступни на следующей
     b.t = 4.4
     b.say(ray, 'b45', gap=0.6)
     from stickman import hand_world
@@ -467,7 +465,7 @@ def sc7_stairs(ep):
                                        (4.2, dict(x=0.6, y=-0.1, zoom=900, aperture=0.6)), (20, dict(x=0.55, y=-0.05, zoom=820, aperture=0.6))]))
     # ── G9: на другом берегу — незнакомец ────────────────────────
     sh = mk('golden', lay)
-    ray = sh.add(Actor('RAY', x=0.62, y=0.38, face=1, pose_='sit_dizzy', eyes='closed', mouth='flat'))
+    ray = sh.add(Actor('RAY', x=0.62, y=0.48, face=1, pose_='sit_dizzy', eyes='closed', mouth='flat'))
     man = sh.add(Actor('MAN', x=6.2, y=-0.6, face=-1, pose_='pockets', eyes='cold', z=18.0, wind=0.6))
     world(sh, 18.0, lambda cv, t: (cv.save(), cv.translate(6.9, -0.6), d_lamppost(cv, t, on=1.0), cv.restore()), 'lamp')
     b = Beat(sh)
@@ -512,9 +510,11 @@ def sc8_bridge(ep):
     b = Beat(sh)
     b.sfx('amb_bridge_fog', 0.0, gain=0.55)
     b.sfx('ferry_horn', 1.0, gain=0.35)
-    ray.move(0.0, 0.45, dur=8.0, ease='lin')
-    man.move(0.0, -2.8, dur=8.0, ease='lin')
-    sfx(sh, 'steps_walk', 0.0, gain=0.3, dur=8.0)
+    # оба идут навстречу; Рэй останавливается перед разворотом, незнакомец исчезает (без «лунной походки»)
+    ray.move(0.0, -0.45, dur=5.8, ease='lin')
+    ray.move(5.8, -0.28, dur=0.35, ease='out')
+    man.move(0.0, 4.4 - 7.2 * 6.05 / 8.0, dur=6.05, ease='lin')
+    sfx(sh, 'steps_walk', 0.0, gain=0.3, dur=6.0)
     # они поравнялись около t=4.6 (x≈-0.05)
     tp = 4.6
     SA, SB, K = tp - 0.7, tp + 1.6, 0.25
@@ -608,7 +608,7 @@ def sc9_dinner(ep):
     b.sfx('kitchen_eve', 0.0, gain=0.4)
     b.sfx('clock_tick', 0.0, gain=0.25, dur=60)
     b.wait(0.4)
-    ray.pose(b.t, 'present', 0.4, sit=0.47, lh=86, lk=86, rh=90, rk=90, rs=75, re=20)
+    ray.pose(b.t, 'present', 0.4, sit=0.27, lh=88, lk=88, rh=90, rk=90, rs=75, re=20)
     b.say(ray, 'b55', gap=0.15)
     tstop = b.t
     sfx(sh, 'spoon_clink', tstop, gain=0.5)
@@ -646,7 +646,7 @@ def sc9_dinner(ep):
     mom.expr(b.t, eyes='sad', mouth='smile')
     b.say(mom, 'b62', gap=0.6)
     tlh = b.t
-    ray.pose(tlh, 'look_hand', 0.5, sit=0.47, lh=86, lk=86, rh=90, rk=90, rs=45, re=100)
+    ray.pose(tlh, 'look_hand', 0.5, sit=0.27, lh=88, lk=88, rh=90, rk=90, rs=45, re=100)
     ray.set(tlh + 1.0, 'notch', 0.25, dur=0.6).set(tlh + 2.4, 'notch', 0.0, dur=0.6)
     b.wait(3.2)
     from stickman import hand_world
@@ -741,8 +741,9 @@ def sc11_rooftop(ep):
 def sc12_night(ep):
     ep.scene('12', 'Комната Рэя, ночь', 'Квартира Рэя, ночь', 'Проверка с карандашом. Ничего. Свет гаснет — и карандаш срастается.')
     sh = mk('night', room_ray('night'))
-    ray = sh.add(Actor('RAY', x=-1.55, y=-0.55, face=-1, pose_='lie', eyes='normal', mouth='flat', z=0.25))
-    sh.layers.append(Obj(0.24, lambda cv, t: d_blanket(cv, t, night=True), x=-1.95, y=-0.52))
+    ray = sh.add(Actor('RAY', x=-1.5, y=-0.30, face=-1, pose_='lie', eyes='normal', mouth='flat', z=0.25))
+    emp = [(0.0, 0.0)]
+    sh.layers.append(Obj(0.24, lambda cv, t: d_blanket(cv, t, night=True, empty=Track(emp)(t)), x=-2.14, y=-0.27, scale=0.85))
     lamp_on = [(0.0, 1.0)]
     pencil = Obj(0.24, lambda cv, t: d_pencil(cv, t, broken=Track(brk)(t), glow=Track(glw)(t)), x=2.55, y=-0.77)
     brk = [(0.0, 0.0)]; glw = [(0.0, 0.0)]
@@ -755,17 +756,23 @@ def sc12_night(ep):
     b = Beat(sh)
     b.sfx('amb_room_night', 0.0, gain=0.45)
     b.wait(1.2)
-    ray.pose(b.t, pose('lie', rs=170, re=10), 0.8)
+    ray.pose(b.t, pose('lie', rs=92, re=4), 0.8)   # рука поднята к потолку
     ray.set(b.t + 0.6, 'notch', 0.5, dur=0.6)
     b.wait(1.8)
     import ep1_extra as _X
     _X.bedtime_vo(sh, b, ray)
     b.say(ray, 'b74', gap=0.4)
-    # встаёт к столу
+    # встаёт к столу: садится на край кровати, встаёт, идёт
     ray.set(b.t, 'notch', 0.0, dur=0.3)
-    ray.move(b.t, 2.1, dur=1.6, y=0.0).pose(b.t, 'stand', 0.5).face(b.t + 0.2, 1)
-    sfx(sh, 'steps_room', b.t + 0.2, gain=0.4, dur=1.4)
-    b.wait(1.8)
+    tg = b.t
+    ray.pose(tg, 'sit_edge', 0.7).move(tg, -1.15, dur=0.7, y=0.0)   # сел (лицом к ногам)
+    ray.face(tg + 0.75, 1, 0.16)                                       # быстро развернулся к столу
+    emp += [(tg + 0.2, 0.0, 'hold'), (tg + 0.8, 1.0, 'io')]
+    sfx(sh, 'cloth_grab', tg + 0.1, gain=0.35)
+    ray.pose(tg + 1.0, 'stand', 0.45)
+    ray.move(tg + 1.5, 2.1, dur=1.9)
+    sfx(sh, 'steps_room', tg + 1.5, gain=0.4, dur=1.8)
+    b.wait(3.6)
     ray.pose(b.t, 'reach', 0.4, lean=10, rs=60, re=40)
     tsn = b.t + 0.9
     brk += [(tsn, 0.0, 'hold'), (tsn + 0.06, 1.0, 'lin')]
@@ -781,7 +788,14 @@ def sc12_night(ep):
     lamp_on += [(tl, 1.0, 'hold'), (tl + 0.03, 0.0, 'lin')]
     sfx(sh, 'switch_click', tl, gain=0.7)
     sh.grade = dict(tint=(rgba(0.02, 0.03, 0.08, 1), lambda t: 0.35 if t > tl else 0.0, 'multiply'))
-    ray.move(tl + 0.3, -1.55, dur=1.8, y=-0.55).pose(tl + 0.3, 'lie', 0.6).face(tl + 0.3, -1).expr(tl + 1.4, eyes='closed')
+    # в темноте: обратно к кровати, сесть на край, лечь
+    tr = tl + 0.3
+    ray.face(tr, -1).pose(tr, 'relaxed', 0.3).move(tr, -1.15, dur=2.4)
+    tsit = tr + 2.5
+    ray.pose(tsit, 'sit_edge', 0.5)
+    tlie = tsit + 0.6
+    ray.pose(tlie, 'lie', 0.7).move(tlie, -1.5, dur=0.7, y=-0.30).expr(tlie + 1.0, eyes='closed')
+    emp += [(tlie + 0.2, 1.0, 'hold'), (tlie + 0.8, 0.0, 'io')]
     # срастание карандаша в темноте
     tfix = tl + 3.4
     brk += [(tfix, 1.0, 'hold'), (tfix + 0.35, 0.0, 'out')]
@@ -789,8 +803,9 @@ def sc12_night(ep):
     sfx(sh, 'click_breakpoint', tfix, gain=0.6)
     sfx(sh, 'shatter_reverse_soft', tfix, gain=0.4)
     b.t = tfix + 1.8
-    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=-1.1, y=-0.9, zoom=700, aperture=0.4)), (6.0, dict(x=-1.0, y=-0.95, zoom=760, aperture=0.4)),
-                                       (8.0, dict(x=2.0, y=-0.95, zoom=640, aperture=0.4)), (tl, dict(x=2.3, y=-0.95, zoom=700, aperture=0.4)),
+    done(ep, sh, b, tail=0.0, cam=C([(0, dict(x=-1.1, y=-0.7, zoom=700, aperture=0.4)), (tg, dict(x=-1.0, y=-0.72, zoom=760, aperture=0.4)),
+                                       (tg + 1.2, dict(x=-0.6, y=-0.85, zoom=640, aperture=0.4)),
+                                       (tg + 3.0, dict(x=2.0, y=-0.95, zoom=640, aperture=0.4)), (tl, dict(x=2.3, y=-0.95, zoom=700, aperture=0.4)),
                                        (tl + 2.4, dict(x=2.55, y=-0.8, zoom=1900, aperture=0.9, focus=0.24), 'io3'),
                                        (tfix + 1.8, dict(x=2.55, y=-0.79, zoom=2100, aperture=0.9, focus=0.24))]))
     # ── финал: окно → ночной город, закадровый голос ──────────────
@@ -815,7 +830,7 @@ def ending(ep):
     T0 = ep.t
     D = 90.0
     stills = [
-        ('night', lambda: room_ray('night'), [('RAY', dict(x=-1.55, y=-0.55, face=-1, pose_='lie', eyes='closed', z=0.25))], (-1.2, -0.9, 650), (-0.9, -0.95, 760)),
+        ('night', lambda: room_ray('night'), [('RAY', dict(x=-1.5, y=-0.30, face=-1, pose_='lie', eyes='closed', z=0.25))], (-1.2, -0.75, 650), (-0.9, -0.8, 760)),
         ('dusk', lambda: street_embank('dusk'), [('LEON', dict(x=0.0, face=1, pose_='fist_up', eyes='happy', mouth='grin', wind=0.6))], (-0.5, -1.0, 600), (0.4, -0.95, 700)),
         ('night', lambda: classroom('morning'), [('MIRA', dict(x=0.0, face=-1, pose_='write', eyes='normal', prop='notebook'))], (0.3, -1.0, 800), (0.0, -0.95, 900)),
         ('dusk', lambda: bridge_deck('dusk'), [('MAN', dict(x=0.0, face=-1, pose_='pockets', eyes='cold', wind=0.7))], (0.5, -1.2, 500), (-0.3, -1.1, 620)),
@@ -834,7 +849,7 @@ def ending(ep):
         for who, kw in acts:
             sh.add(Actor(who, **kw))
         if i == 0:
-            sh.layers.append(Obj(0.24, lambda cv, t: d_blanket(cv, t, night=True), x=-1.95, y=-0.52))
+            sh.layers.append(Obj(0.24, lambda cv, t: d_blanket(cv, t, night=True), x=-2.14, y=-0.27, scale=0.85))
         cr = credits[i]
         def f(cv, t, cr=cr, i=i):
             a = clamp(t / 0.8) * clamp((seg - t) / 0.8)

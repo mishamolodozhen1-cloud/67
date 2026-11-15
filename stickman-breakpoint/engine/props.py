@@ -72,14 +72,16 @@ def d_alarm(cv, t, ring=0.0):
             cv.drawArc(skia.Rect(-0.15 - a * 0.1, -0.25 - a * 0.1, 0.15 + a * 0.1, 0.05 + a * 0.1), 290, 50, False,
                        P(calpha(INK, (1 - a) * ring), 0.01))
 
-def d_blanket(cv, t, breathe=True, night=False):
-    b = math.sin(t * 1.4) * 0.01 if breathe else 0
+def d_blanket(cv, t, breathe=True, night=False, empty=0.0):
+    """Одеяло; empty 0..1 — под ним никого нет (опадает почти плоско)."""
+    k = 1.0 - 0.75 * clamp(empty)
+    b = (math.sin(t * 1.4) * 0.01 if breathe else 0) * k
     col = hexc('#3d6fb0') if not night else hexc('#24365a')
-    pth = smooth_path([(-1.2, 0.02), (-1.0, -0.22 - b), (-0.4, -0.28 - b), (0.3, -0.24 - b), (0.85, -0.18), (1.05, 0.02)])
+    pth = smooth_path([(-1.2, 0.02), (-1.0, -0.22 * k - b), (-0.4, -0.28 * k - b), (0.3, -0.24 * k - b), (0.85, -0.18 * k), (1.05, 0.02)])
     pth.lineTo(1.05, 0.06); pth.lineTo(-1.2, 0.06); pth.close()
     cv.drawPath(pth, P(col)); cv.drawPath(pth, P(INK, 0.018))
-    for k in range(4):
-        cv.drawLine(-0.9 + k * 0.45, -0.2, -0.75 + k * 0.45, 0.0, P(cmix(col, INK, 0.25), 0.01))
+    for k_ in range(4):
+        cv.drawLine(-0.9 + k_ * 0.45, -0.2 * k, -0.75 + k_ * 0.45, 0.0, P(cmix(col, INK, 0.25), 0.01))
 
 def d_phone(cv, t, lit=0.0, crack=0.0):
     r = skia.RRect.MakeRectXY(skia.Rect(-0.045, -0.08, 0.045, 0.08), 0.015, 0.015)

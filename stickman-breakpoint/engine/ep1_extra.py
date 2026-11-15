@@ -580,7 +580,8 @@ def bus(ep):
     tt = b.t
     sfx(sh, 'bus_brake', tt - 0.2, gain=0.7)
     ray.pose(tt, 'stumble', 0.2).move(tt, 1.25, dur=0.5, ease='in')
-    ray.pose(tt + 0.5, pose('lie', rs=-60), 0.25).move(tt + 0.5, 1.45, dur=0.2, y=-0.1)
+    # падает лицом вниз поперёк коленей сидящего пассажира
+    ray.pose(tt + 0.5, pose('lie', rot=88, ls=-170, le=10, rs=-160, re=20, lh=10, lk=30, rh=4, rk=24), 0.25).move(tt + 0.5, 1.2, dur=0.2, y=-0.28)
     pas[1].expr(tt + 0.6, eyes='angry', mouth='frown').set(tt + 0.6, 'vein', 1.0, dur=0.2)
     leon.pose(tt, 'stand', 0.2, lean=-14, rs=172, re=4)
     sfx(sh, 'thud', tt + 0.6, gain=0.7)

@@ -19,7 +19,11 @@ def add(p, v, k=1.0):
     return (p[0] + v[0] * k, p[1] + v[1] * k)
 
 # ─────────────────────────── позы ───────────────────────────
-BASE = dict(lean=0, head=0, ls=-6, le=8, rs=6, re=10, lh=-4, lk=2, rh=5, rk=3, ly=0.0, sit=0.0)
+BASE = dict(lean=0, head=0, ls=-6, le=8, rs=6, re=10, lh=-4, lk=2, rh=5, rk=3, ly=0.0, sit=0.0, rot=0.0)
+# высота таза сидящего на стуле: ступни стоят на полу (бедро ≈ горизонтально, голень вертикально)
+SIT_H = 0.27
+# сиденье стула/скамьи (верх), подогнано под SIT_H
+SEAT_Y = -0.255
 
 POSES = {
     'stand':     dict(),
@@ -50,14 +54,16 @@ POSES = {
     'cower':     dict(lean=14, head=20, ls=40, le=120, rs=45, re=125, lh=-12, lk=25, rh=15, rk=30),
     'jump':      dict(lean=-6, ls=-150, le=10, rs=150, re=10, lh=-30, lk=60, rh=40, rk=70, ly=0.18),
     'crouch':    dict(lean=22, head=-10, ls=20, le=40, rs=30, re=50, lh=55, lk=110, rh=65, rk=115),
-    'sit':       dict(lean=-4, ls=10, le=60, rs=18, re=70, lh=88, lk=88, rh=92, rk=92, sit=0.47),
-    'sit_eat':   dict(lean=-2, head=-2, ls=12, le=70, rs=50, re=125, lh=86, lk=86, rh=90, rk=90, sit=0.47),
-    'sit_write': dict(lean=14, head=18, ls=50, le=85, rs=55, re=90, lh=86, lk=86, rh=90, rk=90, sit=0.47),
-    'sit_desk':  dict(lean=24, head=20, ls=70, le=80, rs=72, re=82, lh=86, lk=86, rh=90, rk=90, sit=0.47),
-    'sit_sleep': dict(lean=58, head=40, ls=95, le=95, rs=100, re=100, lh=86, lk=86, rh=90, rk=90, sit=0.47),
-    'sit_ground': dict(lean=-10, head=6, ls=20, le=40, rs=30, re=50, lh=70, lk=100, rh=80, rk=120, sit=0.17),
-    'sit_dizzy': dict(lean=22, head=26, ls=50, le=60, rs=58, re=130, lh=60, lk=95, rh=70, rk=105, sit=0.20),
-    'lie':       dict(lean=-90, head=-5, ls=-100, le=10, rs=-80, re=20, lh=-90, lk=5, rh=-88, rk=10, sit=0.06),
+    'sit':       dict(lean=-4, ls=10, le=60, rs=18, re=70, lh=88, lk=88, rh=90, rk=90, sit=0.27),
+    'sit_eat':   dict(lean=-2, head=-2, ls=12, le=70, rs=50, re=125, lh=88, lk=88, rh=90, rk=90, sit=0.27),
+    'sit_write': dict(lean=14, head=18, ls=50, le=85, rs=55, re=90, lh=88, lk=88, rh=90, rk=90, sit=0.27),
+    'sit_desk':  dict(lean=24, head=20, ls=70, le=80, rs=72, re=82, lh=88, lk=88, rh=90, rk=90, sit=0.27),
+    'sit_sleep': dict(lean=58, head=40, ls=95, le=95, rs=100, re=100, lh=88, lk=88, rh=90, rk=90, sit=0.27),
+    'sit_edge':  dict(lean=-2, head=2, ls=20, le=30, rs=28, re=36, lh=78, lk=78, rh=82, rk=82, sit=0.31),
+    'sit_ground': dict(lean=-10, head=6, ls=20, le=40, rs=30, re=50, lh=105, lk=43, rh=112, rk=55, sit=0.05),
+    'sit_dizzy': dict(lean=22, head=26, ls=50, le=60, rs=58, re=130, lh=100, lk=70, rh=106, rk=76, sit=0.17),
+    # лёжа на спине: весь скелет повёрнут на −90° вокруг таза (голова — назад по взгляду)
+    'lie':       dict(rot=-90, lean=0, head=-4, ls=-8, le=6, rs=-4, re=8, lh=-3, lk=4, rh=3, rk=6, sit=0.075),
     'run_pose':  dict(lean=16, ls=-50, le=80, rs=55, re=85, lh=-35, lk=40, rh=45, rk=20),
     'hat_tip':   dict(head=4, rs=150, re=95, ls=-5),
     'phone_ear': dict(head=8, rs=40, re=150, ls=-6, le=8),
@@ -80,28 +86,50 @@ def pose(name, **over):
     return d
 
 # ─────────────────────────── походка ───────────────────────────
+GAIT = {  # размах бедра A, сгиб колена в переносе KB, доля опоры, мах рук, локоть, наклон
+    'walk':  dict(A=24, KB=55, ST=0.60, ARM=20, EA=18, lean=3, head=-1),
+    'run':   dict(A=40, KB=100, ST=0.36, ARM=60, EA=95, lean=16, head=-4),
+    'sneak': dict(A=18, KB=45, ST=0.65, ARM=10, EA=40, lean=10, head=-4),
+}
+LEG = TH + SH
+
+_STRIDE = {}
+def stride_of(mode):
+    """Длина полного цикла (два шага) без проскальзывания: путь опорной стопы за фазу опоры / доля опоры."""
+    if mode not in _STRIDE:
+        g = GAIT.get(mode, GAIT['walk'])
+        x0 = skeleton(pose('stand', **gait(0.0, mode)))['ran'][0]
+        x1 = skeleton(pose('stand', **gait(g['ST'] - 1e-6, mode)))['ran'][0]
+        _STRIDE[mode] = abs(x0 - x1) / g['ST']
+    return _STRIDE[mode]
+
 def gait(phase, mode='walk'):
-    p = 2 * math.pi * phase
+    """Цикл шага: опора — бедро равномерно идёт от +A к −A (стопа неподвижна относительно земли),
+    перенос — быстро возвращается вперёд с согнутым коленом."""
+    g = GAIT.get(mode, GAIT['walk'])
+    A, KB, ST = g['A'], g['KB'], g['ST']
+    d = dict(lean=g['lean'], head=g['head'], ly=0.0)
+    hs = {}
+    for side, off in (('r', 0.0), ('l', 0.5)):
+        p = (phase + off) % 1.0
+        if p < ST:
+            u = p / ST
+            h = A * (1 - 2 * u)
+            k = 6 + 4 * math.sin(math.pi * u)
+        else:
+            u = (p - ST) / (1 - ST)
+            h = -A + 2 * A * (u * u * (3 - 2 * u))
+            k = 6 + KB * math.sin(math.pi * u) ** 1.2
+        d[side + 'h'] = h
+        d[side + 'k'] = k
+        hs[side] = h
     if mode == 'run':
-        A, KB, ARM = 46, 95, 55
-        d = dict(lean=16, head=-4, ly=0.035 * abs(math.sin(p)))
-        ea = 95
-    elif mode == 'sneak':
-        A, KB, ARM = 18, 40, 10
-        d = dict(lean=10, head=-4, ly=0.0)
-        ea = 40
-    else:
-        A, KB, ARM = 24, 46, 18
-        d = dict(lean=3, head=-1, ly=0.0)
-        ea = 18
-    for side, off in (('r', 0.0), ('l', math.pi)):
-        q = p + off
-        d[side + 'h'] = A * math.sin(q)
-        d[side + 'k'] = 6 + KB * max(0.0, math.cos(q)) ** 1.4
-    d['rs'] = -ARM * math.sin(p)
-    d['ls'] = ARM * math.sin(p)
-    d['re'] = ea + 10 * math.sin(p)
-    d['le'] = ea - 10 * math.sin(p)
+        d['ly'] = 0.03 * abs(math.sin(2 * math.pi * phase * 2))
+    # руки — противофазно ногам своей стороны
+    d['rs'] = -g['ARM'] * hs['r'] / A
+    d['ls'] = -g['ARM'] * hs['l'] / A
+    d['re'] = g['EA'] + 10 * hs['l'] / A
+    d['le'] = g['EA'] + 10 * hs['r'] / A
     return d
 
 # ─────────────────────────── геометрия ───────────────────────────
@@ -131,6 +159,24 @@ def skeleton(ps):
 
 def ground_offset(pts):
     return max(pts['lan'][1], pts['ran'][1], pts['ltoe'][1] - 0.01, pts['rtoe'][1] - 0.01)
+
+def hip_height(ps, pts):
+    """Смещение таза относительно опоры (отрицательное — вверх).
+    Стоя — ступни на земле; сидя — таз на высоте sit, но ступни никогда не уходят под пол; лёжа (rot) — таз на sit."""
+    s = ps.get('sit', 0.0)
+    if abs(ps.get('rot', 0.0)) > 1.0:
+        h = -s
+    elif s > 0:
+        h = -max(s, ground_offset(pts) + 0.004)
+    else:
+        h = -ground_offset(pts)
+    return h - ps.get('ly', 0.0)
+
+def rot_pt(p, deg):
+    if not deg:
+        return p
+    a = rad(deg); c, sn = math.cos(a), math.sin(a)
+    return (p[0] * c - p[1] * sn, p[0] * sn + p[1] * c)
 
 # ─────────────────────────── персонажи ───────────────────────────
 SPECS = {
@@ -165,12 +211,7 @@ def draw_char(cv, L):
     sp = SPECS.get(L.who, SPECS['EXTRA'])
     sc = sp.get('scale', 1.0) * L.scale
     pts = skeleton(L.ps)
-    g = ground_offset(pts)
-    if L.ps.get('sit', 0) > 0:
-        hip_y = -L.ps['sit'] * 1.0
-    else:
-        hip_y = -g
-    hip_y -= L.ps.get('ly', 0.0)
+    hip_y = hip_height(L.ps, pts)
     cv.save()
     cv.translate(L.x, L.y)
     cv.scale(sc * L.face, sc)
@@ -554,13 +595,19 @@ def draw_scarf_tail(cv, pts, L, col, back=True):
     n = pts['neck']
     c = cmix(col, INK, L.sil)
     wind = L.wind + min(1.2, abs(L.vx) * 0.8)
-    length = 0.36
+    rot = L.ps.get('rot', 0.0)
+    # лёжа хвосты шарфа прижаты к телу (не свисают сквозь матрас); при повороте тела — гравитация по миру
+    vis = clamp(1.0 - abs(rot) / 55.0)
+    if vis < 0.12:
+        return
+    length = 0.36 * vis
     N = 7
     pts_top, pts_bot = [], []
     for k in range(N + 1):
         u = k / N
         dx = -u * length * (0.55 + 0.45 * clamp(wind))
-        dy = u * length * (0.75 - 0.6 * clamp(wind)) + scarf_wave(L, k, N)
+        dy = u * length * (0.75 - 0.6 * clamp(wind)) + scarf_wave(L, k, N) * vis
+        dx, dy = rot_pt((dx, dy), -rot)
         x, y = n[0] - 0.02 + dx, n[1] + 0.03 + dy
         w = 0.032 * (1 - 0.5 * u)
         pts_top.append((x, y - w)); pts_bot.append((x, y + w))
@@ -573,7 +620,8 @@ def draw_scarf_tail(cv, pts, L, col, back=True):
     for k in range(N + 1):
         u = k / N
         dx = -u * length * 0.8 * (0.5 + 0.5 * clamp(wind))
-        dy = u * length * 0.9 * (0.8 - 0.6 * clamp(wind)) + scarf_wave(L, k + 3, N) * 1.2
+        dy = u * length * 0.9 * (0.8 - 0.6 * clamp(wind)) + scarf_wave(L, k + 3, N) * 1.2 * vis
+        dx, dy = rot_pt((dx, dy), -rot)
         pts2.append((n[0] + dx, n[1] + 0.04 + dy))
     cv.drawPath(smooth_path(pts2), P(cmix(c, INK, 0.25), 0.04))
 
@@ -772,7 +820,8 @@ class Actor:
         over = dict(over)
         if 'x' in over:
             x = over.pop('x')
-        if 'y' in over:
+        y_forced = 'y' in over
+        if y_forced:
             y = over.pop('y')
         nog = over.pop('nogesture', False)
         dt = 1 / 60.0
@@ -785,13 +834,18 @@ class Actor:
         for (a, b, m) in self.gait_override:
             if a <= t <= b:
                 mode = m
-        stride = 0.95 if mode == 'run' else 0.62
-        if speed > 0.02:
-            # фаза по пройденному пути — без проскальзывания ступней
+        # длина шага согласована с размахом ног (опорная ступня не скользит) и ростом персонажа
+        sc_ = SPECS.get(self.who, SPECS['EXTRA']).get('scale', 1.0) * self.kw.get('scale', 1.0)
+        stride = stride_of(mode) * sc_
+        upright = abs(ps.get('rot', 0.0)) < 1.0 and ps.get('sit', 0.0) < 0.1
+        # рельеф (ступени): стоящий персонаж ступает по поверхности
+        if getattr(self, 'ground', None) is not None and not y_forced and upright:
+            y = self.ground(x)
+        if speed > 0.02 and upright:
+            # фаза по пути вдоль взгляда — без проскальзывания ступней; пятится — шагает назад
             dist = self._dist(t)
             g = gait(dist / stride, mode)
-            w = clamp(speed / (0.35 if mode != 'run' else 0.8))
-            w = smooth(w)
+            w = smooth(clamp(speed / ((0.12 if mode != 'run' else 0.35) * sc_)))
             ps = mix(ps, g, w)
         # дыхание и микродвижения
         br = math.sin(t * 1.6 + self.seed) * 1.2
@@ -827,11 +881,12 @@ class Actor:
     def _dist(self, t):
         # длина пройденного по x пути до t: кумулятивная таблица с шагом 1/240 с
         if getattr(self, '_dtab', None) is None:
-            xt = Track(self.xk)
+            xt, ft = Track(self.xk), Track(self.fk)
             tmax = max(k[0] for k in self.xk) + 2.0
             n = int(tmax * 240) + 2
             xs = np.array([xt(i / 240.0) for i in range(n)])
-            self._dtab = np.concatenate([[0.0], np.cumsum(np.abs(np.diff(xs)))])
+            fs = np.array([1.0 if ft(i / 240.0) >= 0 else -1.0 for i in range(n)])
+            self._dtab = np.concatenate([[0.0], np.cumsum(np.diff(xs) * fs[1:])])
         i = t * 240.0
         if i <= 0:
             return 0.0
@@ -847,8 +902,6 @@ def hand_world(actor, t, hand='r'):
     sp = SPECS.get(actor.who, SPECS['EXTRA'])
     sc = sp.get('scale', 1.0) * L.scale
     pts = skeleton(L.ps)
-    g = ground_offset(pts)
-    hip_y = -L.ps['sit'] if L.ps.get('sit', 0) > 0 else -g
-    hip_y -= L.ps.get('ly', 0.0)
-    wx, wy = pts[hand + 'wr']
+    hip_y = hip_height(L.ps, pts)
+    wx, wy = rot_pt(pts[hand + 'wr'], L.ps.get('rot', 0.0))
     return (L.x + L.face * sc * wx, L.y + sc * (wy + hip_y))
