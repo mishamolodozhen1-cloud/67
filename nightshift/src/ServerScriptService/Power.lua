@@ -92,7 +92,7 @@ function Power.Restore(player)
 		return
 	end
 	S.Net.Set("Power", true)
-	S.Net.Sound("PowerUp", nil, 0.9)
+	S.Net.Sound("FluorOn", nil, 0.8)
 	S.Tasks.ProgressKind("power", 1)
 	if player then
 		S.Net.Notify(nil, player.DisplayName .. " восстановил(а) электричество", "done")

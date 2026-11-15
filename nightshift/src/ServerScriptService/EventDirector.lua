@@ -41,7 +41,7 @@ local E = {}
 function E.Flicker(zone, center, radius, seconds)
 	S.Net.Effect(nil, "Flicker", { Zone = zone, Center = center, Radius = radius or 40, Duration = seconds or 3 })
 	if center then
-		S.Net.Sound("Flicker", center + Vector3.new(0, 12, 0), 0.8)
+		S.Net.Sound("FluorFlicker", center + Vector3.new(0, 12, 0), 0.8)
 	end
 end
 
@@ -181,6 +181,82 @@ function E.Strange(kind)
 	S.Customers.Spawn(kind)
 end
 
+-- Товар падает с полки рядом с игроком (настоящая физика), потом возвращается на место
+function E.ItemFalls()
+	local player = randomPlayer()
+	local root = player and Util.rootOf(player)
+	if not root then
+		return
+	end
+	local options = {}
+	for _, f in ipairs(map.Facings) do
+		if not f.Empty and f.Front and (f.Front.Position - root.Position).Magnitude < 28 then
+			local simple = true
+			for _, p in ipairs(f.Parts) do
+				if p.Name ~= "Product" then
+					simple = false
+				end
+			end
+			if simple and #f.Parts > 0 then
+				table.insert(options, f)
+			end
+		end
+	end
+	local f = Util.pick(options, rng)
+	if not f then
+		return
+	end
+	local part = f.Parts[rng:NextInteger(1, #f.Parts)]
+	local home = part.CFrame
+	part.Anchored = false
+	part.AssemblyLinearVelocity = Vector3.new(f.Side * rng:NextNumber(6, 10), rng:NextNumber(2, 5), rng:NextNumber(-2, 2))
+	part.AssemblyAngularVelocity = Vector3.new(rng:NextNumber(-6, 6), rng:NextNumber(-6, 6), rng:NextNumber(-6, 6))
+	task.delay(0.45, function()
+		S.Net.Sound(rng:NextNumber() < 0.5 and "BoxDrop" or "CansFall", part.Position, 0.7)
+	end)
+	task.delay(45, function()
+		if part.Parent then
+			part.Anchored = true
+			part.AssemblyLinearVelocity = Vector3.new()
+			part.CFrame = home
+		end
+	end)
+end
+
+-- Шаги где-то рядом, хотя там никого нет
+function E.FootstepsNear()
+	local player = randomPlayer()
+	local root = player and Util.rootOf(player)
+	if not root then
+		return
+	end
+	local a = rng:NextNumber(0, math.pi * 2)
+	local pos = root.Position + Vector3.new(math.cos(a), 0, math.sin(a)) * rng:NextNumber(14, 24)
+	S.Net.Sound(rng:NextNumber() < 0.6 and "StepsFar" or "Steps", Vector3.new(pos.X, 2, pos.Z), 0.55)
+end
+
+-- Лампы над игроком гаснут на минуту-две
+function E.LampsOut()
+	local player = randomPlayer()
+	local root = player and Util.rootOf(player)
+	if not root then
+		return
+	end
+	S.Net.Effect(nil, "LampsOut", { Center = root.Position, Radius = 16, Duration = rng:NextNumber(60, 120) })
+	S.Net.Sound("FluorFlicker", root.Position + Vector3.new(0, 12, 0), 0.8)
+end
+
+-- Мигание света, в темноте между вспышками в конце прохода кто-то стоит (видно только одному)
+function E.FlickerFigure()
+	local player = randomPlayer()
+	local root = player and Util.rootOf(player)
+	if not root then
+		return
+	end
+	S.Net.Effect(player, "Flicker", { Zone = "Floor", Center = root.Position, Radius = 45, Duration = 3.5, Figure = true })
+	S.Net.Sound("FluorFlicker", root.Position + Vector3.new(0, 12, 0), 0.9, player)
+end
+
 -------------------------------------------------------------------------------
 -- План смены
 -------------------------------------------------------------------------------
@@ -232,6 +308,23 @@ function EventDirector.Plan()
 		S.Store.RingPhone(35)
 	end)
 	add(r(122, 178), "Apparition 2", E.Apparition)
+	-- мелкие тревожные события, чем ближе к утру — тем чаще
+	add(r(70, 118), "Item falls 1", E.ItemFalls)
+	add(r(80, 118), "Steps near 1", E.FootstepsNear)
+	add(r(124, 178), "Item falls 2", E.ItemFalls)
+	add(r(126, 178), "Steps near 2", E.FootstepsNear)
+	add(r(130, 178), "Lamps out 1", E.LampsOut)
+	add(r(140, 178), "Flicker figure 1", E.FlickerFigure)
+	add(r(182, 238), "Item falls 3", E.ItemFalls)
+	add(r(182, 238), "Steps near 3", E.FootstepsNear)
+	add(r(182, 238), "Flicker figure 2", E.FlickerFigure)
+	add(r(200, 238), "Lamps out 2", E.LampsOut)
+	add(r(242, 298), "Steps near 4", E.FootstepsNear)
+	add(r(242, 298), "Item falls 4", E.ItemFalls)
+	add(r(242, 298), "Lamps out 3", E.LampsOut)
+	add(r(300, 356), "Steps near 5", E.FootstepsNear)
+	add(r(300, 356), "Flicker figure 3", E.FlickerFigure)
+	add(r(300, 356), "Item falls 5", E.ItemFalls)
 	-- 03:00 — серьёзные аномалии
 	add(r(184, 196), "Blackout 1", function()
 		S.Power.Cut()

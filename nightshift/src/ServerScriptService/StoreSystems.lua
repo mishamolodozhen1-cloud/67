@@ -192,9 +192,17 @@ end
 -------------------------------------------------------------------------------
 -- Выкладка товара
 -------------------------------------------------------------------------------
+-- Показать или убрать товар с полки (пустая полка — задание «выложить товар»)
 local function setFacingVisible(f, visible)
-	for _, t in ipairs(f.Textures) do
-		t.Transparency = visible and 0 or 1
+	for _, p in ipairs(f.Parts or {}) do
+		p.Transparency = visible and 0 or 1
+		p.CanCollide = visible
+		p.CanQuery = visible
+		for _, d in ipairs(p:GetChildren()) do
+			if d:IsA("Decal") then
+				d.Transparency = visible and 0 or 1
+			end
+		end
 	end
 	f.Empty = not visible
 end
@@ -440,6 +448,12 @@ function StoreSystems.Init(m, services)
 	station("Cameras", map.Stations.CamDesk, "Открыть камеры", "Видеонаблюдение", 0, 9).Triggered:Connect(function(player)
 		S.Net.Effect(player, "OpenCameras")
 	end)
+	-- Мониторы камер в кабинете менеджера
+	if map.Stations.OfficeCams then
+		station("OfficeCams", map.Stations.OfficeCams, "Открыть камеры", "Мониторы", 0, 9).Triggered:Connect(function(player)
+			S.Net.Effect(player, "OpenCameras")
+		end)
+	end
 	-- Батарейки для фонарика
 	station("Batteries", map.Stations.Batteries, "Взять батарейки", "Для фонарика", 0.3, 7).Triggered:Connect(function(player)
 		S.Net.Effect(player, "Battery")

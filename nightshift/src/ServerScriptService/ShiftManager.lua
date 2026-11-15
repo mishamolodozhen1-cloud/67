@@ -21,6 +21,7 @@ local served = 0
 local night = 0
 local startRequested = false
 local finishKind = nil
+local introPlayers, introDone = {}, {}
 
 local function setPhase(p)
 	phase = p
@@ -42,6 +43,11 @@ function ShiftManager.RequestStart(player)
 	end
 	startRequested = true
 	S.Net.Notify(nil, player.DisplayName .. " отметился на табельных часах. Смена начинается!", "info")
+end
+
+-- Клиент досмотрел (или пропустил) вступительную кат-сцену
+function ShiftManager.IntroDone(player)
+	introDone[player] = true
 end
 
 function ShiftManager.AddServed()
@@ -176,6 +182,33 @@ function ShiftManager.Start()
 				task.wait(1)
 			end
 			S.Net.Set("Countdown", 0)
+			-- ВСТУПИТЕЛЬНАЯ КАТ-СЦЕНА (у каждого игрока своя, ждём всех или ~100 секунд)
+			introPlayers, introDone = {}, {}
+			for _, p in ipairs(Players:GetPlayers()) do
+				introPlayers[p] = true
+			end
+			setPhase("Intro")
+			S.Net.Effect(nil, "Intro", { Seconds = Config.IntroSeconds })
+			local introStart = os.clock()
+			while os.clock() - introStart < Config.IntroSeconds + 8 do
+				task.wait(0.5)
+				local waiting = false
+				for p in pairs(introPlayers) do
+					if p.Parent and not introDone[p] then
+						waiting = true
+					end
+				end
+				if not waiting then
+					break
+				end
+			end
+			-- все стоят в кабинете менеджера, смена начинается в 00:00
+			for i, p in ipairs(Players:GetPlayers()) do
+				local ch = p.Character
+				if ch then
+					ch:PivotTo(map.Points.IntroEnd * CFrame.new((i - 2.5) * 2.4, 0, 0))
+				end
+			end
 			-- СМЕНА
 			startShift()
 			local perMinute = Config.SecondsPerHour / 60

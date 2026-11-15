@@ -6,7 +6,7 @@ local Config = {}
 Config.SecondsPerHour = 160 -- реальных секунд в одном игровом часе (вся смена 00:00–06:00 ≈ 16 минут)
 Config.ShiftHours = 6 -- смена длится с 00:00 до 06:00
 Config.LobbyAutoStart = 90 -- через столько секунд смена начнётся сама, если никто не отметился на табельных часах
-Config.StartCountdown = 8 -- обратный отсчёт перед началом смены
+Config.StartCountdown = 3 -- обратный отсчёт перед началом смены
 Config.EndingSeconds = 40 -- сколько длится финал, потом магазин сбрасывается и начинается новая смена
 
 -- Цель смены ----------------------------------------------------------------
@@ -36,6 +36,7 @@ Config.SalaryPerPercent = 30
 
 -- Картинки (загружены через Open Cloud) -------------------------------------
 Config.Images = {
+	-- старые ряды товаров (остались для торцов витрин и ларей)
 	Grocery = "rbxassetid://83836111641998",
 	Drinks = "rbxassetid://110507854021190",
 	Snacks = "rbxassetid://118531572248218",
@@ -46,9 +47,41 @@ Config.Images = {
 	ProduceTop = "rbxassetid://77506074059788",
 	FrozenTop = "rbxassetid://128979819244355",
 	CctvNoise = "rbxassetid://125782225307871",
+	-- текстуры поверхностей (набор NIGHT_SHIFT_MART24_TEXTURES)
+	FloorTile = "rbxassetid://74296570713927",
+	PaintedWall = "rbxassetid://84891728643042",
+	CeilingPanels = "rbxassetid://90690072446047",
+	ConcreteWall = "rbxassetid://127833902419080",
+	BrushedMetal = "rbxassetid://123908805648197",
+	StainlessSteel = "rbxassetid://96392735117413",
+	DarkPlastic = "rbxassetid://87456451994167",
+	RubberMat = "rbxassetid://101405801984514",
+	Cardboard = "rbxassetid://137540960037592",
+	WoodCounter = "rbxassetid://109926347152153",
+	-- этикетки товаров
+	LabelCanned = "rbxassetid://91283338775160",
+	LabelCereal = "rbxassetid://122876531882957",
+	LabelChips = "rbxassetid://86830321046304",
+	LabelCoffee = "rbxassetid://136906214330237",
+	LabelFrozen = "rbxassetid://80887092072390",
+	LabelMilk = "rbxassetid://139729338565115",
+	LabelSoda = "rbxassetid://77235555671982",
+	LabelWater = "rbxassetid://92889266951620",
+	LabelHousehold = "rbxassetid://116293978072091",
+	-- эффекты и интерфейс
+	RainStreak = "rbxassetid://73426808753707",
+	IconFlashlight = "rbxassetid://74745876125161",
+	IconRun = "rbxassetid://127992880148136",
+	PaperNote = "rbxassetid://96018777830216",
+	Vignette = "rbxassetid://75529053513298",
+	Scanlines = "rbxassetid://126973411646885",
 }
 
+-- Вступительная кат-сцена ----------------------------------------------------
+Config.IntroSeconds = 100 -- длина кат-сцены перед началом смены
+Config.IntroAlways = true -- показывать каждую смену (её можно пропустить кнопкой)
+
 -- Камеры видеонаблюдения: порядок на мониторе охраны
-Config.CameraCount = 7
+Config.CameraCount = 9
 
 return Config

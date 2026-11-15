@@ -277,6 +277,7 @@ local function catch(player)
 	caughtCooldown[player] = now
 	lastCatch = now
 	S.Net.Effect(player, "Caught")
+	S.Net.Sound("DarkHit", nil, 0.9, player)
 	S.Store.ClearCarry(player, false)
 	nextAppear = now + rng:NextNumber(25, 40)
 	task.delay(1.4, function()

@@ -1,5 +1,5 @@
 -- NIGHT SHIFT — клиент (LocalScript «NightClient» в StarterPlayer.StarterPlayerScripts).
--- Дочерние ModuleScript: UI, Audio, HUD, Controls, CameraSystem, Effects.
+-- Дочерние ModuleScript: UI, Audio, Weather, HUD, Controls, CameraSystem, Effects, Cinematic.
 -- Здесь создаётся общая таблица ctx, загружаются настройки игрока и подключаются события сервера.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +24,7 @@ local ctx = {
 	Remotes = Remotes,
 	State = State,
 	CameraLocked = false,
+	IntroPlaying = false,
 	-- настройки по умолчанию (потом подменяются сохранёнными)
 	Settings = {
 		Music = 0.6,
@@ -37,10 +38,12 @@ local ctx = {
 
 ctx.UI = require(script:WaitForChild("UI"))
 ctx.Audio = require(script:WaitForChild("Audio"))
+ctx.Weather = require(script:WaitForChild("Weather"))
 ctx.HUD = require(script:WaitForChild("HUD"))
 ctx.Controls = require(script:WaitForChild("Controls"))
 ctx.Cameras = require(script:WaitForChild("CameraSystem"))
 ctx.Effects = require(script:WaitForChild("Effects"))
+ctx.Cinematic = require(script:WaitForChild("Cinematic"))
 
 function ctx.ApplySettings()
 	ctx.Audio.SetVolumes(ctx.Settings.Music, ctx.Settings.Sfx)
@@ -48,9 +51,11 @@ function ctx.ApplySettings()
 end
 
 ctx.Audio.Init(ctx)
+ctx.Weather.Init(ctx)
 ctx.HUD.Init(ctx)
 ctx.Controls.Init(ctx)
 ctx.Cameras.Init(ctx)
+ctx.Cinematic.Init(ctx)
 ctx.ApplySettings()
 
 -------------------------------------------------------------------------------
@@ -87,6 +92,12 @@ local EFFECTS = {
 	end,
 	Flicker = function(data)
 		ctx.Effects.Flicker(data)
+	end,
+	LampsOut = function(data)
+		ctx.Effects.LampsOut(data)
+	end,
+	Intro = function(data)
+		ctx.Cinematic.Play(data)
 	end,
 	Apparition = function(data)
 		ctx.Effects.Apparition(data)

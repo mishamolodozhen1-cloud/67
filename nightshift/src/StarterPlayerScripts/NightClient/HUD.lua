@@ -17,7 +17,9 @@ local Texts = require(Shared:WaitForChild("Texts"))
 local HUD = {}
 
 local ctx, UI
-local gui, overlay
+local gui, overlay, main
+local waitPanel
+local hudMode = "Full"
 local clockLabel, nightLabel, barFill, powerLabel, batteryLabel
 local tasksPanel, tasksBody, planLabel, tasksCollapsed
 local taskRows = {}
@@ -311,6 +313,7 @@ local function updateClock()
 	local s = ctx.State
 	local minutes = s:GetAttribute("Minutes") or 0
 	local phase = s:GetAttribute("Phase")
+	waitPanel.Visible = phase == "Intro" and not ctx.IntroPlaying
 	clockLabel.Text = Util.clock(minutes)
 	nightLabel.Text = string.format("НОЧЬ %d · %s", math.max(1, s:GetAttribute("Night") or 1), Texts.StoreName)
 	barFill.Size = UDim2.new(math.clamp(minutes / (Config.ShiftHours * 60), 0, 1), 0, 1, 0)
@@ -325,6 +328,22 @@ local function updateClock()
 		local left = s:GetAttribute("Countdown") or 0
 		lobbyCountdown.Text = string.format("Смена начнётся сама через %d с", left)
 	end
+end
+
+function HUD.Refresh()
+	updateClock()
+end
+
+-- Режим интерфейса: "Full" — всё; "Cameras" — только уведомления, телефон и субтитры;
+-- "Hidden" — ничего (кат-сцена)
+function HUD.SetMode(mode)
+	hudMode = mode
+	gui.Enabled = mode ~= "Hidden"
+	main.Visible = mode == "Full"
+end
+
+function HUD.Mode()
+	return hudMode
 end
 
 function HUD.SetProfile(profile)
@@ -371,8 +390,8 @@ function HUD.SetStamina(frac)
 end
 
 function HUD.SetBattery(frac, on)
-	batteryLabel.Text = string.format("🔦 %d%%%s", math.floor(frac * 100 + 0.5), on and " · вкл" or "")
-	batteryLabel.TextColor3 = frac < 0.2 and UI.Colors.Warn or UI.Colors.Muted
+	batteryLabel.Text = string.format("ФОНАРИК %d%%", math.floor(frac * 100 + 0.5))
+	batteryLabel.TextColor3 = frac < 0.2 and UI.Colors.Warn or (on and UI.Colors.Amber or UI.Colors.Muted)
 end
 
 -------------------------------------------------------------------------------
@@ -471,7 +490,7 @@ local function buildTopLeft()
 		AnchorPoint = Vector2.new(0, 0),
 		Position = UDim2.fromOffset(14, 10),
 		Size = UDim2.fromOffset(250, 112),
-	}, gui)
+	}, main)
 	UI.scaled(panel)
 	UI.padding(panel, 12)
 	clockLabel = UI.text("00:00", { Size = UDim2.new(1, 0, 0, 40), TextSize = 40, Font = Enum.Font.GothamBlack }, panel)
@@ -483,7 +502,7 @@ local function buildTopLeft()
 	for h = 1, Config.ShiftHours - 1 do
 		UI.new("Frame", { Position = UDim2.new(h / Config.ShiftHours, -1, 0, -2), Size = UDim2.new(0, 2, 1, 4), BackgroundColor3 = UI.Colors.Muted, BackgroundTransparency = 0.4 }, bar)
 	end
-	batteryLabel = UI.text("🔦 100%", { Position = UDim2.fromOffset(0, 74), Size = UDim2.new(0.5, 0, 0, 16), TextSize = 13, TextColor3 = UI.Colors.Muted }, panel)
+	batteryLabel = UI.text("ФОНАРИК 100%", { Position = UDim2.fromOffset(0, 74), Size = UDim2.new(0.5, 0, 0, 16), TextSize = 13, TextColor3 = UI.Colors.Muted }, panel)
 	powerLabel = UI.text("⚡ НЕТ СВЕТА", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 74), Size = UDim2.new(0.5, 0, 0, 16), TextSize = 13, Font = Enum.Font.GothamBold, TextColor3 = UI.Colors.Warn, TextXAlignment = Enum.TextXAlignment.Right, Visible = false }, panel)
 
 	buttonsRow = UI.new("Frame", {
@@ -491,7 +510,7 @@ local function buildTopLeft()
 		Position = UDim2.fromOffset(14, 128),
 		Size = UDim2.fromOffset(250, 40),
 		BackgroundTransparency = 1,
-	}, gui)
+	}, main)
 	UI.scaled(buttonsRow)
 	UI.list(buttonsRow, 8, true)
 	UI.button("📱 Телефон" .. keyHint("P"), { Size = UDim2.fromOffset(UI.IsTouch and 118 or 140, 38), TextSize = 14, LayoutOrder = 1 }, buttonsRow, function()
@@ -509,7 +528,7 @@ local function buildTasks()
 		Position = UDim2.new(1, -14, 0, 10),
 		Size = UDim2.fromOffset(340, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-	}, gui)
+	}, main)
 	UI.scaled(tasksPanel)
 	UI.padding(tasksPanel, 12)
 	UI.list(tasksPanel, 8)
@@ -579,7 +598,7 @@ local function buildCenter()
 		Position = UDim2.new(0.5, 0, 1, -96),
 		Size = UDim2.fromOffset(420, 44),
 		Visible = false,
-	}, gui)
+	}, main)
 	UI.scaled(carryFrame)
 	carryLabel = UI.text("", { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -150, 1, 0), TextSize = 15 }, carryFrame)
 	UI.button("Положить" .. keyHint("G"), {
@@ -599,7 +618,7 @@ local function buildCenter()
 		BackgroundColor3 = UI.Colors.PanelLight,
 		BackgroundTransparency = 0.3,
 		Visible = false,
-	}, gui)
+	}, main)
 	UI.scaled(staminaBack)
 	UI.corner(staminaBack, 3)
 	staminaFill = UI.new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = UI.Colors.Text }, staminaBack)
@@ -613,7 +632,7 @@ local function buildCenter()
 		Font = Enum.Font.GothamBlack,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Visible = false,
-	}, gui)
+	}, main)
 	UI.scaled(countdownLabel)
 end
 
@@ -626,12 +645,12 @@ local function buildLobby()
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 0.15,
 		Visible = false,
-	}, gui)
+	}, main)
 	UI.scaled(lobbyPanel)
 	UI.padding(lobbyPanel, 16)
 	UI.list(lobbyPanel, 6)
 	UI.text("NIGHT SHIFT", { Size = UDim2.new(1, 0, 0, 34), TextSize = 32, Font = Enum.Font.GothamBlack, TextColor3 = UI.Colors.Accent, LayoutOrder = 1 }, lobbyPanel)
-	UI.text("МАРТ 24 · ночная смена с 00:00 до 06:00 · 1–4 сотрудника", { Size = UDim2.new(1, 0, 0, 18), TextSize = 15, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, lobbyPanel)
+	UI.text(Texts.StoreName .. " · ночная смена с 00:00 до 06:00 · 1–4 сотрудника", { Size = UDim2.new(1, 0, 0, 18), TextSize = 15, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, lobbyPanel)
 	lobbyStats = UI.text("Загрузка профиля…", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, LayoutOrder = 3 }, lobbyPanel)
 	UI.text(Texts.LobbyHint .. (UI.IsTouch and "." or " — или нажмите Enter."), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, TextColor3 = UI.Colors.Amber, LayoutOrder = 4 }, lobbyPanel)
 	local row = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 5 }, lobbyPanel)
@@ -675,8 +694,8 @@ local function buildModals()
 		table.insert(settingsRows, { Def = def, Value = value })
 	end
 	local help = UI.IsTouch
-			and "Управление: джойстик — ходьба, свайп — обзор. 🔦 — фонарик, 🏃 — бег, ✋ — положить предмет. Нажимайте на подсказки рядом с предметами."
-		or "Управление: WASD — ходьба, мышь — обзор, E — действие (R — второе действие), F — фонарик, Shift — бег, G — положить предмет, P — телефон, M — меню, T — задания. На мониторе охраны: 1–7, ←/→, X — выйти."
+			and "Управление: джойстик — ходьба, свайп — обзор. Круглые кнопки у прыжка: фонарик и бег (бег включается касанием и выключается, когда вы остановились). Нажимайте на подсказки рядом с предметами. На мониторе камер — номера камер на плане магазина."
+		or "Управление: WASD — ходьба, мышь — обзор, E — действие (R — второе действие), F — фонарик, Shift — бег, G — положить предмет, P — телефон, M — меню, T — задания. На мониторе камер: 1–9 или номера на плане, ←/→, X — выйти."
 	UI.text(help, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 13, TextColor3 = UI.Colors.Muted, ZIndex = 22, LayoutOrder = 20 }, sp)
 	UI.button("Закрыть", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = UI.Colors.Accent, ZIndex = 22, LayoutOrder = 21 }, sp, function()
 		HUD.CloseModals()
@@ -727,6 +746,23 @@ function HUD.Init(c)
 	gui = UI.new("ScreenGui", { Name = "NightHUD", ResetOnSpawn = false, IgnoreGuiInset = false, DisplayOrder = 5, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
 	overlay = UI.new("ScreenGui", { Name = "NightOverlay", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 30, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
 	fadeFrame = UI.new("Frame", { Name = "Fade", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, ZIndex = 1 }, overlay)
+	main = UI.new("Frame", { Name = "Main", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, gui)
+	-- пока другие смотрят вступление (или вы зашли позже) — короткая надпись внизу
+	waitPanel = UI.panel({
+		Name = "IntroWait",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -40),
+		Size = UDim2.fromOffset(520, 64),
+		Visible = false,
+		ZIndex = 5,
+	}, overlay)
+	UI.scaled(waitPanel)
+	UI.text("Смена вот-вот начнётся…\nДругие сотрудники ещё досматривают вступление.", {
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextSize = 16,
+		ZIndex = 6,
+	}, waitPanel)
 	HUD.Gui = gui
 	HUD.Overlay = overlay
 

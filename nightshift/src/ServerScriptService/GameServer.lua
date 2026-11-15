@@ -40,37 +40,54 @@ function GameServer.Start()
 	-------------------------------------------------------------------------------
 	Lighting.ClockTime = 0.4
 	Lighting.GeographicLatitude = 55
-	Lighting.Brightness = 0.6
-	Lighting.Ambient = Color3.fromRGB(14, 14, 18)
-	Lighting.OutdoorAmbient = Color3.fromRGB(26, 28, 36)
-	Lighting.EnvironmentDiffuseScale = 0.25
+	Lighting.Brightness = 0.35
+	Lighting.Ambient = Color3.fromRGB(12, 12, 16)
+	Lighting.OutdoorAmbient = Color3.fromRGB(34, 40, 54)
+	Lighting.EnvironmentDiffuseScale = 0.35
 	Lighting.EnvironmentSpecularScale = 1
 	Lighting.GlobalShadows = true
-	Lighting.ShadowSoftness = 0.25
-	Lighting.ExposureCompensation = 0.1
+	Lighting.ShadowSoftness = 0.3
+	Lighting.ExposureCompensation = 0.15
 	for _, c in ipairs(Lighting:GetChildren()) do
 		if c:IsA("PostEffect") or c:IsA("Atmosphere") or c:IsA("Sky") then
 			c:Destroy()
 		end
 	end
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.36
-	atmosphere.Offset = 0
-	atmosphere.Color = Color3.fromRGB(58, 62, 78)
-	atmosphere.Decay = Color3.fromRGB(28, 28, 38)
+	atmosphere.Density = 0.42
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(52, 60, 76)
+	atmosphere.Decay = Color3.fromRGB(22, 26, 34)
 	atmosphere.Glare = 0
-	atmosphere.Haze = 1.6
+	atmosphere.Haze = 2.2
 	atmosphere.Parent = Lighting
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.55
-	bloom.Size = 26
-	bloom.Threshold = 1.5
+	bloom.Intensity = 0.7
+	bloom.Size = 30
+	bloom.Threshold = 1.25
 	bloom.Parent = Lighting
+	local dof = Instance.new("DepthOfFieldEffect")
+	dof.Name = "DepthOfField"
+	dof.FarIntensity = 0.08
+	dof.FocusDistance = 45
+	dof.InFocusRadius = 40
+	dof.NearIntensity = 0
+	dof.Parent = Lighting
+	-- пасмурное ночное небо
+	local oldClouds = workspace.Terrain:FindFirstChildOfClass("Clouds")
+	if oldClouds then
+		oldClouds:Destroy()
+	end
+	local clouds = Instance.new("Clouds")
+	clouds.Cover = 0.88
+	clouds.Density = 0.55
+	clouds.Color = Color3.fromRGB(30, 34, 44)
+	clouds.Parent = workspace.Terrain
 	local cc = Instance.new("ColorCorrectionEffect")
 	cc.Name = "Grade"
-	cc.Saturation = -0.1
-	cc.Contrast = 0.08
-	cc.TintColor = Color3.fromRGB(236, 242, 255)
+	cc.Saturation = -0.12
+	cc.Contrast = 0.1
+	cc.TintColor = Color3.fromRGB(236, 242, 248)
 	cc.Parent = Lighting
 
 	-------------------------------------------------------------------------------
@@ -170,6 +187,9 @@ function GameServer.Start()
 	function ACTIONS.MonsterSeen(player, seen)
 		MonsterAI.ReportSeen(player, seen == true)
 	end
+	function ACTIONS.IntroDone(player)
+		ShiftManager.IntroDone(player)
+	end
 	function ACTIONS.SaveSettings(player, settings)
 		DataService.SaveSettings(player, settings)
 	end
@@ -199,7 +219,7 @@ function GameServer.Start()
 	MonsterAI.Start()
 	ShiftManager.Start()
 	workspace:SetAttribute("StoreReady", true)
-	print(string.format("[NIGHT SHIFT] магазин МАРТ 24 готов за %.1f с", os.clock() - started))
+	print(string.format("[NIGHT SHIFT] магазин MART 24 готов за %.1f с", os.clock() - started))
 	return S
 end
 
