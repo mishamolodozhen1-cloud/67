@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg2"
+        android:orientation="horizontal"
+        android:paddingStart="22dp"
+        android:paddingEnd="22dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="14dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="CF · Bench"
+            android:textColor="@color/text"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.04"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1.4.1-c7"
+            android:textColor="@color/muted"
+            android:textSize="12sp"
+            android:layout_gravity="center_vertical"/>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/line"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="DEPLOY"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:letterSpacing="0.2"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="8dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp"
+                    android:gravity="center_vertical">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Скачать модифицированный APK"
+                            android:textColor="@color/text"
+                            android:textSize="15sp"/>
+                        <TextView
+                            android:id="@+id/status"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="готов — нажми fetch"
+                            android:textColor="@color/muted"
+                            android:textSize="12sp"
+                            android:layout_marginTop="2dp"/>
+                    </LinearLayout>
+                    <Button
+                        android:id="@+id/btnFetch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="fetch"
+                        android:textColor="#12141A"
+                        android:textAllCaps="false"
+                        android:background="@drawable/btn_accent"
+                        android:paddingLeft="20dp"
+                        android:paddingRight="20dp"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/line" android:layout_marginStart="16dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp"
+                    android:gravity="center_vertical">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Открыть страницу игры"
+                            android:textColor="@color/text"
+                            android:textSize="15sp"/>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="counterflame.com"
+                            android:textColor="@color/muted"
+                            android:textSize="12sp"
+                            android:layout_marginTop="2dp"/>
+                    </LinearLayout>
+                    <Button
+                        android:id="@+id/btnSite"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="open"
+                        android:textColor="@color/text"
+                        android:textAllCaps="false"
+                        android:background="@drawable/btn_ghost"
+                        android:paddingLeft="16dp"
+                        android:paddingRight="16dp"/>
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/progress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="4dp"
+                    android:layout_marginLeft="16dp"
+                    android:layout_marginRight="16dp"
+                    android:layout_marginBottom="12dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/accent"
+                    android:progressBackgroundTint="#2A2F38"/>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="CHEATS"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:letterSpacing="0.2"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="8dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
+
+                <include layout="@layout/row" android:tag="r1"/>
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/line" android:layout_marginStart="16dp"/>
+                <include layout="@layout/row" android:tag="r2"/>
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/line" android:layout_marginStart="16dp"/>
+                <include layout="@layout/row" android:tag="r3"/>
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/line" android:layout_marginStart="16dp"/>
+                <include layout="@layout/row" android:tag="r4"/>
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/line" android:layout_marginStart="16dp"/>
+                <include layout="@layout/row" android:tag="r5"/>
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/line" android:layout_marginStart="16dp"/>
+                <include layout="@layout/row" android:tag="r6"/>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="built by olivia — discord.gg/ojailbreaks"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:gravity="center"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="20dp"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
