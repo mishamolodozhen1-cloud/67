@@ -1,3 +1,0 @@
-aiogram==3.33.0
-PlayerokAPI==0.2.0
-aiosqlite>=0.20
