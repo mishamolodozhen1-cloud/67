@@ -13,38 +13,37 @@ local tasks = {} -- id -> task
 local order = 0
 local folder
 
--- Количество зависит от числа игроков n (1–4)
+-- Количество зависит от числа игроков n (1–4). Работа охранника:
+--   patrol — обход контрольных точек, cctv — проверить камеры, help — помочь на кассах самообслуживания,
+--   orders — выдать заказы, catch — задержать вора (добавляется, когда срабатывают ворота),
+--   lockback — запереть задний выход, closelanes — отключить кассы, shiftlog — журнал смены
 local SCHEDULE = {
 	[0] = {
-		{ Kind = "serve", Text = "Обслужить покупателей на кассе", Room = "Кассы", Count = function(n) return 2 + n end },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 1 + n end },
-		{ Kind = "fridgecheck", Text = "Проверить температуру холодильников", Room = "Торговый зал, у задней стены", Count = 5 },
-		{ Kind = "spill", Text = "Вымыть пол (швабра — в комнате персонала)", Room = "Торговый зал", Count = 1 },
+		{ Kind = "patrol", Text = "Обход: отметиться на всех контрольных точках", Room = "Весь магазин", Count = Config.PatrolPoints },
+		{ Kind = "help", Text = "Помогать покупателям на кассах самообслуживания", Room = "Кассы самообслуживания", Count = function(n) return 1 + n end },
+		{ Kind = "orders", Text = "Выдать заказы в пункте выдачи", Room = "У входа, стойка выдачи", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[1] = {
-		{ Kind = "serve", Text = "Обслужить покупателей на кассе", Room = "Кассы", Count = function(n) return 2 + n end },
-		{ Kind = "coldtemp", Text = "Записать температуру в холодильной камере", Room = "Холодильная камера", Count = 1 },
-		{ Kind = "trash", Text = "Вынести мусор со склада на задний двор", Room = "Склад — задний двор", Count = function(n) return 1 + math.floor(n / 2) end },
+		{ Kind = "cctv", Text = "Проверить все камеры наблюдения", Room = "Пост охраны у входа или комната охраны", Count = Config.CameraCount },
+		{ Kind = "help", Text = "Помогать покупателям на кассах самообслуживания", Room = "Кассы самообслуживания", Count = function(n) return 1 + n end },
+		{ Kind = "orders", Text = "Выдать заказы в пункте выдачи", Room = "У входа, стойка выдачи", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[2] = {
-		{ Kind = "cctv", Text = "Проверить все камеры наблюдения", Room = "Охрана или кабинет менеджера", Count = Config.CameraCount },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 2 + n end },
-		{ Kind = "serve", Text = "Обслужить покупателей на кассе", Room = "Кассы", Count = function(n) return 1 + n end },
-		{ Kind = "spill", Text = "Вымыть пол (швабра — в комнате персонала)", Room = "Торговый зал", Count = 1 },
+		{ Kind = "patrol", Text = "Второй обход контрольных точек", Room = "Весь магазин", Count = Config.PatrolPoints },
+		{ Kind = "help", Text = "Помогать покупателям на кассах самообслуживания", Room = "Кассы самообслуживания", Count = function(n) return 1 + math.floor(n / 2) end },
+		{ Kind = "orders", Text = "Выдать заказы в пункте выдачи", Room = "У входа, стойка выдачи", Count = 1 },
 	},
 	[3] = {
-		{ Kind = "serve", Text = "Обслужить последних покупателей", Room = "Кассы", Count = 1 },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 1 + math.floor(n / 2) end },
+		{ Kind = "cctv", Text = "Снова проверить все камеры", Room = "Пост охраны у входа или комната охраны", Count = Config.CameraCount },
+		{ Kind = "help", Text = "Помогать покупателям на кассах самообслуживания", Room = "Кассы самообслуживания", Count = 1 },
 	},
 	[4] = {
-		{ Kind = "cctv", Text = "Снова проверить все камеры", Room = "Охрана или кабинет менеджера", Count = Config.CameraCount },
+		{ Kind = "patrol", Text = "Ночной обход контрольных точек", Room = "Весь магазин", Count = Config.PatrolPoints },
 		{ Kind = "lockback", Text = "Запереть задний выход", Room = "Служебный коридор", Count = 1 },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[5] = {
-		{ Kind = "closelanes", Text = "Закрыть кассы 1–3", Room = "Кассы", Count = 3 },
-		{ Kind = "shiftlog", Text = "Заполнить журнал смены", Room = "Кабинет директора", Count = 1 },
-		{ Kind = "spill", Text = "Вымыть пол (швабра — в комнате персонала)", Room = "Торговый зал", Count = 1 },
+		{ Kind = "closelanes", Text = "Отключить кассы самообслуживания 1–4", Room = "Кассы самообслуживания", Count = 4 },
+		{ Kind = "shiftlog", Text = "Заполнить журнал смены", Room = "Кабинет менеджера", Count = 1 },
 	},
 }
 
@@ -112,6 +111,9 @@ function TaskManager.Add(def)
 	end
 	if S.Checkout then
 		S.Checkout.SetupTask(t)
+	end
+	if S.Security then
+		S.Security.OnTaskAdded(t)
 	end
 	sync(t)
 	publishPercent()

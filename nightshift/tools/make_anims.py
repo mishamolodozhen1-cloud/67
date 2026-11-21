@@ -14,7 +14,14 @@
     грудь поворачивается с небольшой задержкой после таза, таз переносит вес вперёд-назад,
     голова слегка кивает против подъёма корпуса.
 
-Запуск: python3 tools/make_anims.py  ->  build/anims/walk.rbxm, run.rbxm, idle.rbxm
+Звуковые метки (KeyframeMarker): в ходьбе и беге метка «Step» стоит в момент касания пяткой
+(значение L или R — какая нога), игра по ней проигрывает шаг под этой ступнёй. В действиях
+покупателей метки отмечают момент звука: Beep — товар над сканером, Bag — товар в пакете,
+Grab — взял с полки, Rustle — спрятал под куртку, Tap — карта к терминалу, Take — взял коробку.
+
+Действия (v5, не зациклены, кроме сканирования): Scan, Reach, Conceal, Pay, Take, LookAround, HandsUp.
+
+Запуск: python3 tools/make_anims.py  ->  build/anims/*.rbxm
 """
 import math
 import os
@@ -82,14 +89,130 @@ def pose_tree(name, joints):
     return p
 
 
-def sequence(name, length, frames, sample, priority):
-    kfs = Inst("KeyframeSequence", name, [("bool", "Loop", True), ("token", "Priority", priority)])
+def sequence(name, length, frames, sample, priority, loop=True, markers=None):
+    """markers: список (доля цикла 0..1, имя, значение) — метка ставится на ближайший кадр."""
+    kfs = Inst("KeyframeSequence", name, [("bool", "Loop", loop), ("token", "Priority", priority)])
+    marks = {}
+    for (u, mname, value) in (markers or []):
+        marks.setdefault(int(round(u * frames)), []).append((mname, value))
     for i in range(frames + 1):
         t = i / frames
         kf = Inst("Keyframe", "Keyframe", [("float", "Time", round(t * length, 4))])
         kf.add(pose_tree("HumanoidRootPart", sample(t)))
+        for (mname, value) in marks.get(i, []):
+            kf.add(Inst("KeyframeMarker", mname, [("string", "Value", value)]))
         kfs.add(kf)
     return kfs
+
+
+def smooth(x):
+    x = max(0.0, min(1.0, x))
+    return x * x * (3 - 2 * x)
+
+
+def keyed(keys):
+    """keys: [(t, value)] по возрастанию t -> функция плавной интерполяции значения во времени."""
+    def f(t):
+        if t <= keys[0][0]:
+            return keys[0][1]
+        for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
+            if t <= t1:
+                k = smooth((t - t0) / (t1 - t0)) if t1 > t0 else 1
+                return v0 + (v1 - v0) * k
+        return keys[-1][1]
+    return f
+
+
+def action(channels):
+    """channels: {(сустав, ось): [(t, значение)]} поверх стойки ожидания (ноги и дыхание из idle)."""
+    curves = {k: keyed(v) for k, v in channels.items()}
+
+    def sample(t):
+        base = idle_sample(t * 0.5)
+        j = {}
+        for name, (pos, rx, ry, rz) in base.items():
+            vals = {"x": rx, "y": ry, "z": rz}
+            for axis in ("x", "y", "z"):
+                c = curves.get((name, axis))
+                if c is not None:
+                    vals[axis] = c(t)
+            j[name] = (pos, vals["x"], vals["y"], vals["z"])
+        return j
+    return sample
+
+
+# Покупатель на кассе самообслуживания: взял товар из корзины слева, провёл над сканером, положил в пакет справа
+SCAN = action({
+    ("RightUpperArm", "x"): [(0, 0.15), (0.2, 0.55), (0.42, 1.0), (0.62, 0.85), (0.82, 0.25), (1, 0.15)],
+    ("RightUpperArm", "z"): [(0, -0.05), (0.2, 0.35), (0.42, 0.05), (0.62, -0.45), (0.82, -0.1), (1, -0.05)],
+    ("RightLowerArm", "x"): [(0, 0.2), (0.2, 0.7), (0.42, 0.95), (0.62, 0.55), (0.82, 0.3), (1, 0.2)],
+    ("RightHand", "x"): [(0, 0.05), (0.42, -0.25), (0.62, 0.1), (1, 0.05)],
+    ("UpperTorso", "y"): [(0, 0), (0.2, 0.22), (0.42, 0.0), (0.62, -0.22), (0.82, -0.05), (1, 0)],
+    ("UpperTorso", "x"): [(0, -0.03), (0.2, -0.12), (0.42, -0.06), (0.62, -0.1), (1, -0.03)],
+    ("Head", "x"): [(0, 0.05), (0.42, 0.25), (0.62, 0.18), (1, 0.05)],
+    ("LeftUpperArm", "x"): [(0, 0.1), (0.42, 0.35), (1, 0.1)],
+    ("LeftLowerArm", "x"): [(0, 0.2), (0.42, 0.6), (1, 0.2)],
+})
+
+# Взять товар с полки на уровне груди
+REACH = action({
+    ("RightUpperArm", "x"): [(0, 0.05), (0.35, 1.35), (0.5, 1.35), (0.75, 0.7), (1, 0.05)],
+    ("RightUpperArm", "z"): [(0, -0.06), (0.35, 0.05), (0.75, 0.15), (1, -0.06)],
+    ("RightLowerArm", "x"): [(0, 0.15), (0.35, 0.15), (0.5, 0.35), (0.75, 1.3), (1, 0.15)],
+    ("RightHand", "x"): [(0, 0.05), (0.4, -0.3), (0.55, 0.3), (1, 0.05)],
+    ("UpperTorso", "x"): [(0, -0.02), (0.35, -0.12), (0.75, -0.04), (1, -0.02)],
+    ("Head", "x"): [(0, 0.03), (0.3, -0.15), (0.7, 0.1), (1, 0.03)],
+})
+
+# Вор прячет товар: оглядывается, рука под куртку, плечи сжимаются
+CONCEAL = action({
+    ("Head", "y"): [(0, 0), (0.12, 0.55), (0.28, -0.5), (0.42, 0.0), (0.85, 0.3), (1, 0)],
+    ("UpperTorso", "y"): [(0, 0), (0.12, 0.15), (0.28, -0.15), (0.42, 0), (1, 0)],
+    ("UpperTorso", "x"): [(0, -0.02), (0.45, -0.16), (0.8, -0.14), (1, -0.02)],
+    ("RightUpperArm", "x"): [(0, 0.05), (0.45, 0.35), (0.55, 0.55), (0.8, 0.55), (1, 0.05)],
+    ("RightUpperArm", "z"): [(0, -0.06), (0.45, 0.45), (0.55, 0.7), (0.8, 0.65), (1, -0.06)],
+    ("RightLowerArm", "x"): [(0, 0.15), (0.45, 1.3), (0.55, 1.75), (0.8, 1.7), (1, 0.15)],
+    ("LeftUpperArm", "x"): [(0, 0.05), (0.5, 0.25), (0.8, 0.25), (1, 0.05)],
+    ("LeftLowerArm", "x"): [(0, 0.15), (0.5, 0.9), (0.8, 0.9), (1, 0.15)],
+})
+
+# Приложить карту к терминалу
+PAY = action({
+    ("RightUpperArm", "x"): [(0, 0.1), (0.35, 0.95), (0.6, 0.95), (1, 0.1)],
+    ("RightUpperArm", "z"): [(0, -0.05), (0.35, 0.12), (1, -0.05)],
+    ("RightLowerArm", "x"): [(0, 0.2), (0.35, 0.45), (0.6, 0.55), (1, 0.2)],
+    ("RightHand", "x"): [(0, 0.05), (0.35, -0.35), (0.6, -0.35), (1, 0.05)],
+    ("Head", "x"): [(0, 0.04), (0.35, 0.22), (0.7, 0.2), (1, 0.04)],
+})
+
+# Взять коробку (заказ) двумя руками
+TAKE = action({
+    ("RightUpperArm", "x"): [(0, 0.1), (0.4, 1.05), (0.6, 1.0), (1, 0.75)],
+    ("LeftUpperArm", "x"): [(0, 0.1), (0.4, 1.05), (0.6, 1.0), (1, 0.75)],
+    ("RightUpperArm", "z"): [(0, -0.05), (0.4, 0.2), (1, 0.25)],
+    ("LeftUpperArm", "z"): [(0, 0.05), (0.4, -0.2), (1, -0.25)],
+    ("RightLowerArm", "x"): [(0, 0.2), (0.4, 0.35), (0.6, 0.6), (1, 0.9)],
+    ("LeftLowerArm", "x"): [(0, 0.2), (0.4, 0.35), (0.6, 0.6), (1, 0.9)],
+    ("UpperTorso", "x"): [(0, -0.02), (0.4, -0.1), (1, -0.04)],
+})
+
+# Оглядеться по сторонам
+LOOK = action({
+    ("Head", "y"): [(0, 0), (0.25, 0.7), (0.45, 0.65), (0.7, -0.7), (0.85, -0.6), (1, 0)],
+    ("UpperTorso", "y"): [(0, 0), (0.25, 0.2), (0.7, -0.2), (1, 0)],
+    ("Head", "x"): [(0, 0.03), (0.25, -0.05), (0.7, 0.08), (1, 0.03)],
+})
+
+# Пойманный вор: руки вверх
+HANDS_UP = action({
+    ("RightUpperArm", "x"): [(0, 0.1), (0.3, 2.6), (1, 2.5)],
+    ("LeftUpperArm", "x"): [(0, 0.1), (0.3, 2.6), (1, 2.5)],
+    ("RightUpperArm", "z"): [(0, -0.05), (0.3, -0.35), (1, -0.35)],
+    ("LeftUpperArm", "z"): [(0, 0.05), (0.3, 0.35), (1, 0.35)],
+    ("RightLowerArm", "x"): [(0, 0.2), (0.3, 1.3), (1, 1.2)],
+    ("LeftLowerArm", "x"): [(0, 0.2), (0.3, 1.3), (1, 1.2)],
+    ("Head", "x"): [(0, 0.03), (0.3, 0.2), (1, 0.15)],
+})
 
 
 def pos_part(x):
@@ -168,14 +291,29 @@ ANIMS = {
         arm=0.75, elbow=1.25, elbow_swing=0.25, lean=0.2, bob=0.16, twist=0.1, sway=0.03, head_hold=0.9)),
     # ожидание: дыхание и лёгкое переступание
     "idle": dict(length=4.0, natural=0, priority=0, sample=idle_sample),
+    # действия покупателей (приоритет Action = 2)
+    "scan": dict(length=1.7, natural=0, priority=2, sample=SCAN, loop=True,
+                 markers=[(0.5, "Beep", ""), (0.74, "Bag", "")]),
+    "reach": dict(length=1.8, natural=0, priority=2, sample=REACH, loop=False, markers=[(0.45, "Grab", "")]),
+    "conceal": dict(length=2.4, natural=0, priority=2, sample=CONCEAL, loop=False, markers=[(0.55, "Rustle", "")]),
+    "pay": dict(length=1.3, natural=0, priority=2, sample=PAY, loop=False, markers=[(0.45, "Tap", "")]),
+    "take": dict(length=1.4, natural=0, priority=2, sample=TAKE, loop=False, markers=[(0.45, "Take", "")]),
+    "look": dict(length=3.2, natural=0, priority=2, sample=LOOK, loop=False),
+    "handsup": dict(length=1.2, natural=0, priority=2, sample=HANDS_UP, loop=False),
 }
+
+# Метки шагов: левая пятка касается пола при t = 0.25, правая при 0.75
+STEP_MARKERS = [(0.25, "Step", "L"), (0.75, "Step", "R")]
+ANIMS["walk"]["markers"] = STEP_MARKERS
+ANIMS["run"]["markers"] = STEP_MARKERS
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, a in ANIMS.items():
-        frames = 24 if name != "idle" else 16
-        seq = sequence("NS_" + name.capitalize(), a["length"], frames, a["sample"], a["priority"])
+        frames = 24 if name in ("walk", "run") else (16 if name == "idle" else 30)
+        seq = sequence("NS_" + name.capitalize(), a["length"], frames, a["sample"], a["priority"],
+                       a.get("loop", True), a.get("markers"))
         data = build.write_binary([seq])
         path = os.path.join(OUT, name + ".rbxm")
         with open(path, "wb") as f:

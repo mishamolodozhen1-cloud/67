@@ -50,6 +50,12 @@ function ShiftManager.IntroDone(player)
 	introDone[player] = true
 end
 
+-- Счётчики для итогов смены: Caught, Escaped, Orders, FalseChecks, LeftAngry
+local extra = {}
+function ShiftManager.AddStat(key, n)
+	extra[key] = (extra[key] or 0) + (n or 1)
+end
+
 function ShiftManager.AddServed()
 	served = served + 1
 end
@@ -116,6 +122,11 @@ local function endShift(kind)
 		Salary = salary,
 		Clues = S.Secrets.Count(),
 		Night = night,
+		Caught = extra.Caught or 0,
+		Escaped = extra.Escaped or 0,
+		Orders = extra.Orders or 0,
+		FalseChecks = extra.FalseChecks or 0,
+		LeftAngry = extra.LeftAngry or 0,
 	}
 	for _, p in ipairs(Players:GetPlayers()) do
 		S.Data.RecordShift(p, kind, stats)
@@ -135,6 +146,8 @@ local function resetAll()
 	S.Tasks.Reset()
 	S.Store.Reset()
 	S.Checkout.Reset()
+	S.Security.Reset()
+	extra = {}
 	S.Customers.Reset()
 	S.Power.Reset()
 	S.Doors.Reset()

@@ -446,9 +446,11 @@ local function updateCarry()
 		return
 	end
 	local kind, category = string.match(carry, "^(%w+):?(%w*)$")
-	local names = { Box = "Коробка", Mop = "Швабра", Trash = "Мешок с мусором", Delivery = "Поставка" }
+	local names = { Box = "Коробка", Mop = "Швабра", Trash = "Мешок с мусором", Delivery = "Поставка", Parcel = "Заказ" }
 	local text = names[kind] or carry
-	if category and category ~= "" and Products.Categories[category] then
+	if kind == "Parcel" and category ~= "" then
+		text = text .. " №" .. category .. " — отдайте покупателю у стойки выдачи"
+	elseif category and category ~= "" and Products.Categories[category] then
 		text = text .. " «" .. Products.Categories[category].Name .. "»"
 	end
 	carryLabel.Text = "В руках: " .. text
@@ -487,10 +489,14 @@ function HUD.ShowEnding(stats)
 	endingSubtitle.Text = e.Subtitle
 	endingBody.Text = e.Body
 	endingStats.Text = string.format(
-		"План выполнен: %d%%\nОбслужено покупателей: %d\nВыручка: %d руб.\nЗарплата за смену: %d руб.\nНайдено улик: %d из 4",
+		"План выполнен: %d%%\nПокупок на кассах самообслуживания: %d (выручка %d руб.)\nЗадержано воров: %d · скрылось: %d\nВыдано заказов: %d · ушли недовольными: %d\nЗарплата за смену: %d руб. · найдено улик: %d из 4",
 		stats.Percent or 0,
 		stats.Served or 0,
 		stats.Revenue or 0,
+		stats.Caught or 0,
+		stats.Escaped or 0,
+		stats.Orders or 0,
+		(stats.LeftAngry or 0) + (stats.FalseChecks or 0),
 		stats.Salary or 0,
 		stats.Clues or 0
 	)
@@ -593,6 +599,42 @@ local function buildTopLeft()
 	end)
 	UI.button("Меню" .. keyHint("M"), { Size = UDim2.fromOffset(UI.IsTouch and 100 or 102, 38), TextSize = 14, LayoutOrder = 2 }, buttonsRow, function()
 		HUD.OpenModal("Settings")
+	end)
+end
+
+-- Состояние касс самообслуживания: 6 индикаторов, цвет как у лампы на стойке кассы
+-- (зелёный — свободна, синий — идёт покупка, мигает оранжевым — зовёт сотрудника, серый — отключена)
+local kioskDots = {}
+local function buildKioskRow()
+	local row = UI.panel({
+		Name = "Kiosks",
+		Position = UDim2.fromOffset(14, 176),
+		Size = UDim2.fromOffset(250, 34),
+		BackgroundTransparency = 0.35,
+	}, main)
+	UI.scaled(row)
+	UI.text("КАССЫ", { Position = UDim2.fromOffset(10, 0), Size = UDim2.fromOffset(70, 34), TextSize = 12, Font = Enum.Font.GothamBold, TextColor3 = UI.Colors.Muted }, row)
+	for i = 1, 6 do
+		local holder = UI.new("Frame", { Position = UDim2.fromOffset(74 + (i - 1) * 28, 0), Size = UDim2.fromOffset(26, 34), BackgroundTransparency = 1 }, row)
+		local dot = UI.dot(holder, 12, UI.Colors.Muted, true)
+		dot.AnchorPoint = Vector2.new(0.5, 0)
+		dot.Position = UDim2.new(0.5, 0, 0, 5)
+		UI.text(tostring(i), { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 18), Size = UDim2.fromOffset(20, 14), TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = UI.Colors.Muted }, holder)
+		kioskDots[i] = dot
+	end
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			local store = workspace:FindFirstChild("Store")
+			local f = store and store:FindFirstChild("Checkouts")
+			for i, dot in ipairs(kioskDots) do
+				local k = f and f:FindFirstChild("Kiosk" .. i)
+				local lamp = k and k:FindFirstChild("StatusLamp")
+				if lamp then
+					UI.setDot(dot, lamp.Color, true)
+				end
+			end
+		end
 	end)
 end
 
@@ -751,7 +793,7 @@ local function buildLobby()
 	UI.padding(lobbyPanel, 16)
 	UI.list(lobbyPanel, 6)
 	UI.text("NIGHT SHIFT", { Size = UDim2.new(1, 0, 0, 34), TextSize = 32, Font = Enum.Font.GothamBlack, TextColor3 = UI.Colors.Accent, LayoutOrder = 1 }, lobbyPanel)
-	UI.text(Texts.StoreName .. " · ночная смена с 00:00 до 06:00 · 1–4 сотрудника", { Size = UDim2.new(1, 0, 0, 18), TextSize = 15, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, lobbyPanel)
+	UI.text(Texts.StoreName .. " · ночная охрана с 00:00 до 06:00 · 1–4 охранника", { Size = UDim2.new(1, 0, 0, 18), TextSize = 15, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, lobbyPanel)
 	lobbyRoom = UI.text("", {
 		Size = UDim2.new(1, 0, 0, 34),
 		TextSize = 16,
@@ -920,6 +962,7 @@ function HUD.Init(c)
 	HUD.Overlay = overlay
 
 	buildTopLeft()
+	buildKioskRow()
 	buildTasks()
 	buildCenter()
 	buildLobby()

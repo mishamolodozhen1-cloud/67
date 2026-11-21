@@ -336,7 +336,7 @@ local function updateActor(dt)
 	if actor.Model then
 		actor.Model:PivotTo(CFrame.new(actor.Pos.X, actor.Y + actor.Height + actor.Lift, actor.Pos.Z) * CFrame.Angles(0, actor.Yaw, 0))
 		-- шаги
-		if moving and actor.StepDist >= 2.4 then
+		if moving and actor.StepDist >= 2.4 and not ctx.Audio.MarkerSteps(actor.Model) then
 			actor.StepDist = 0
 			ctx.Audio.Step(actor.Root, material, ctx.Audio.ZoneOf(actor.Pos) == "Outside", false, false)
 		end

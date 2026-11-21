@@ -1,12 +1,12 @@
--- Checkout: кассы. Покупатель выкладывает товары на ленту, игрок пробивает их и принимает оплату.
--- Удобнее всего — экран кассы (POS) у кассира: список товаров, кнопка «Пробить товар», затем оплата
--- картой (приложить к терминалу) или наличными (выбрать правильную сдачу из трёх вариантов).
--- То же можно сделать и подсказками: «Пробить» на товаре, «Принять оплату» на терминале.
--- Состояние каждой кассы для экрана POS — в ReplicatedStorage.Lanes (атрибуты папки LaneN).
--- Здесь же задания «Закрыть кассы» и аномалия «касса №4 включилась сама».
+-- Checkout: кассы самообслуживания (ночью кассиров нет — покупатели платят сами).
+-- Покупатель подходит к свободной кассе, выкладывает корзину на полку слева, проводит каждый товар
+-- над сканером (анимация, писк, строка на экране) и кладёт в пакет справа, затем прикладывает карту.
+-- Иногда касса просит помощи сотрудника: «неожиданный предмет в зоне упаковки», «проверка товара»,
+-- «карта не прошла». Лампа на стойке мигает оранжевым, касса зовёт сигналом — охранник подходит и
+-- подтверждает (подсказка «Помочь покупателю»). Если долго никто не подходит, покупатель уходит,
+-- не заплатив.
+-- Здесь же: задание «Отключить кассы» в конце смены и аномалия «касса №6 включилась сама».
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -17,85 +17,89 @@ local ModelKit = require(script.Parent:WaitForChild("ModelKit"))
 
 local Checkout = {}
 
-local map, S
+local map, S, NpcFactory
 local rng = Random.new()
-local lanes
-local lane4Active = false
+local kiosks
 local revenue = 0
-local laneFolders = {}
-local NOTES = { 100, 200, 500, 1000, 2000, 5000 }
+local hauntedActive = false
+local HAUNTED = 6
 
-local CYLINDER_SHAPES = { Bottle = true, Can = true, Jar = true, Cup = true }
 local GREEN = Color3.fromRGB(40, 200, 90)
+local BLUE = Color3.fromRGB(60, 140, 255)
+local ORANGE = Color3.fromRGB(255, 150, 30)
 local GREY = Color3.fromRGB(70, 70, 72)
-local RED = Color3.fromRGB(220, 30, 30)
+local RED = Color3.fromRGB(230, 30, 30)
+
+local HELP_REASONS = {
+	{ Text = "Неожиданный предмет\nв зоне упаковки", Short = "неожиданный предмет в зоне упаковки" },
+	{ Text = "Вес товара не совпадает.\nОжидайте сотрудника", Short = "вес не совпадает" },
+	{ Text = "Товар требует проверки\nсотрудником", Short = "проверка товара" },
+}
+local CARD_REASON = { Text = "Карта не прошла.\nОбратитесь к сотруднику", Short = "карта не прошла" }
 
 -------------------------------------------------------------------------------
--- Табло кассы
+-- Экран, лампа, терминал
 -------------------------------------------------------------------------------
--- Обрезать строку до n символов (кириллица занимает 2 байта, поэтому через utf8)
 local function short(text, n)
-	local len = utf8.len(text) or #text
-	if len <= n then
-		return text
+	if utf8.len(text) and utf8.len(text) > n then
+		local cut = utf8.offset(text, n)
+		return string.sub(text, 1, cut - 1) .. "…"
 	end
-	return string.sub(text, 1, utf8.offset(text, n) - 1) .. "…"
+	return text
 end
 
-local function refreshScreens(lane)
-	if lane.Closed then
-		lane.CashierLabel.Text = "КАССА " .. lane.Index .. "\nЗАКРЫТА"
-		lane.CustomerLabel.Text = "Касса закрыта"
-		lane.TerminalLabel.Text = ""
-		return
-	end
-	if not lane.Open then
-		return
-	end
-	local lines = { "КАССА " .. lane.Index }
-	if lane.Customer then
-		local first = math.max(1, #lane.Scanned - 4)
-		for i = first, #lane.Scanned do
-			local item = lane.Scanned[i]
-			table.insert(lines, short(item.Name, 16) .. "  " .. item.Price .. " руб.")
-		end
-		table.insert(lines, string.format("ИТОГО: %d руб.", lane.Total))
-		local last = lane.Scanned[#lane.Scanned]
-		lane.CustomerLabel.Text = last and (last.Name .. "\n" .. last.Price .. " руб.\nИтого: " .. lane.Total .. " руб.") or "Добро пожаловать!"
-	else
-		table.insert(lines, "Свободна")
-		lane.CustomerLabel.Text = "Добро пожаловать!"
-	end
-	lane.CashierLabel.Text = table.concat(lines, "\n")
+local function setLamp(k, color)
+	k.LampColor = color
+	k.Lamp.Color = color
+	k.LampLight.Color = color
+	k.LampLight.Brightness = (color == GREY) and 0 or 0.6
 end
 
-local function setNumberSign(lane, color)
-	lane.NumberSign.Color = color
+local function screen(k, head, body, total, foot, headColor)
+	local g = k.Gui
+	g.Head.Text = head or ("КАССА " .. k.Index)
+	g.Head.BackgroundColor3 = headColor or Color3.fromRGB(30, 150, 80)
+	g.Body.Text = body or ""
+	g.Total.Text = total or ""
+	g.Foot.Text = foot or ""
+end
+
+local function idleScreen(k)
+	if k.Closed then
+		screen(k, "КАССА " .. k.Index, "Касса закрыта.\nВоспользуйтесь соседней кассой", "", "", GREY)
+		setLamp(k, GREY)
+		k.ReaderLabel.Text = ""
+		return
+	end
+	screen(k, "КАССА " .. k.Index, "Добро пожаловать!\n\nОтсканируйте\nпервый товар", "", "Оплата картой")
+	setLamp(k, GREEN)
+	k.ReaderLabel.Text = ""
+end
+
+local function itemsScreen(k)
+	local lines = {}
+	local first = math.max(1, #k.Scanned - 4)
+	for i = first, #k.Scanned do
+		local p = k.Scanned[i]
+		table.insert(lines, short(p.Name, 18) .. "  " .. p.Price)
+	end
+	screen(k, "КАССА " .. k.Index, table.concat(lines, "\n"), "ИТОГО " .. k.Total .. " руб.", "Отсканируйте следующий товар")
 end
 
 -------------------------------------------------------------------------------
--- Товар на ленте
+-- Товары на полке кассы (3D-модели продуктов или простые коробочки)
 -------------------------------------------------------------------------------
-local function makeItem(lane, product, index)
-	local size = Products.ShapeSize[product.Shape] or Vector3.new(0.8, 0.8, 0.8)
-	local z = lane.ItemZ[math.min(index, #lane.ItemZ)]
-	local base = Vector3.new((lane.BeltX or lane.X) + rng:NextNumber(-0.3, 0.3), lane.BeltY or 3.12, z)
-	-- 3D-модель продукта (этикеткой к кассиру), если она загружена
+local function makeItem(k, product, index)
+	local spot = k.BasketSpot + Vector3.new(((index - 1) % 3 - 1) * 0.42, 0.12, (math.floor((index - 1) / 3) - 0.5) * 0.5)
 	local def = product.Model and Models.Meshes[product.Model]
 	if def and ModelKit.Has(product.Model) then
-		local msize = def.Size * Models.ProductScale
-		local look = Vector3.new(lane.Side or 1, 0, 0)
-		local h = msize.Y
-		local cf
+		local size = def.Size * Models.ProductScale
+		local h = def.Pose == "Upright" and size.Z or size.Y
+		local cf = CFrame.new(spot + Vector3.new(0, h / 2, 0)) * CFrame.Angles(0, math.rad(rng:NextNumber(-30, 30)), 0)
 		if def.Pose == "Upright" then
-			h = msize.Z
-			cf = CFrame.lookAt(base, base + look) * CFrame.Angles(math.rad(-90), 0, 0)
-		else
-			cf = CFrame.lookAt(base, base + look)
+			cf = cf * CFrame.Angles(math.rad(-90), 0, 0)
 		end
-		cf = (cf - cf.Position) + base + Vector3.new(0, h / 2, 0)
-		cf = CFrame.new(cf.Position) * CFrame.Angles(0, math.rad(rng:NextNumber(-12, 12)), 0) * (cf - cf.Position)
-		local part = ModelKit.Make(product.Model, map.Dynamic, cf, msize, { Name = "Item", CanCollide = false, CastShadow = true })
+		local part = ModelKit.Make(product.Model, map.Dynamic, cf, size, { Name = "Item", CanCollide = false, CastShadow = true })
 		if part then
 			return part
 		end
@@ -104,545 +108,373 @@ local function makeItem(lane, product, index)
 	part.Name = "Item"
 	part.Anchored = true
 	part.CanCollide = false
-	part.Color = product.Color
-	part.Material = (product.Shape == "Bag") and Enum.Material.Foil or Enum.Material.SmoothPlastic
-	if CYLINDER_SHAPES[product.Shape] then
-		part.Shape = Enum.PartType.Cylinder
-		part.Size = Vector3.new(size.Y, size.X, size.Z)
-		part.CFrame = CFrame.new(base + Vector3.new(0, size.Y / 2, 0)) * CFrame.Angles(0, 0, math.rad(90))
-	else
-		part.Size = size
-		part.CFrame = CFrame.new(base + Vector3.new(0, size.Y / 2, 0)) * CFrame.Angles(0, math.rad(rng:NextNumber(-15, 15)), 0)
-	end
-	-- полоска-этикетка другого цвета
-	local label = Instance.new("Part")
-	label.Name = "Label"
-	label.Anchored = true
-	label.CanCollide = false
-	label.CanQuery = false
-	label.Color = product.Accent
-	label.Material = Enum.Material.SmoothPlastic
-	if CYLINDER_SHAPES[product.Shape] then
-		label.Shape = Enum.PartType.Cylinder
-		label.Size = Vector3.new(size.Y * 0.35, size.X + 0.02, size.Z + 0.02)
-		label.CFrame = part.CFrame
-	else
-		label.Size = Vector3.new(size.X + 0.02, size.Y * 0.3, size.Z + 0.02)
-		label.CFrame = part.CFrame
-	end
-	label.Parent = part
-	if product.Shape == "Bottle" then
-		local cap = Instance.new("Part")
-		cap.Name = "Cap"
-		cap.Anchored = true
-		cap.CanCollide = false
-		cap.Shape = Enum.PartType.Cylinder
-		cap.Size = Vector3.new(0.18, 0.24, 0.24)
-		cap.Color = product.Accent
-		cap.CFrame = CFrame.new(base + Vector3.new(0, size.Y + 0.09, 0)) * CFrame.Angles(0, 0, math.rad(90))
-		cap.Parent = part
-	elseif product.Shape == "Fruit" then
-		part.Material = Enum.Material.Plastic
-		part.Transparency = 0.35
-		part.Color = Color3.fromRGB(240, 240, 235)
-		for k = 1, 3 do
-			local apple = Instance.new("Part")
-			apple.Name = "Apple"
-			apple.Anchored = true
-			apple.CanCollide = false
-			apple.Shape = Enum.PartType.Ball
-			apple.Size = Vector3.new(0.38, 0.38, 0.38)
-			apple.Color = product.Color
-			apple.CFrame = part.CFrame * CFrame.new((k - 2) * 0.28, -0.15, 0)
-			apple.Parent = part
-		end
-	end
+	part.CanQuery = false
+	part.Size = Vector3.new(0.5, 0.7, 0.35)
+	part.Color = product.Color or Color3.fromRGB(200, 200, 200)
+	part.Material = Enum.Material.SmoothPlastic
+	part.CFrame = CFrame.new(spot + Vector3.new(0, 0.35, 0))
 	part.Parent = map.Dynamic
 	return part
 end
 
--- Сдвинуть товар (вместе с деталями-детьми) в новую точку
 local function slide(part, target, seconds)
-	local start = part.CFrame
-	local offsets = {}
-	for _, c in ipairs(part:GetChildren()) do
-		if c:IsA("BasePart") then
-			offsets[c] = start:ToObjectSpace(c.CFrame)
-		end
+	if not part.Parent then
+		return
 	end
+	local start = part.CFrame
 	local steps = math.max(1, math.floor(seconds / 0.03))
 	for i = 1, steps do
 		if not part.Parent then
 			return
 		end
-		local cf = start:Lerp(target, i / steps)
-		part.CFrame = cf
-		for c, off in pairs(offsets) do
-			if c.Parent then
-				c.CFrame = cf * off
-			end
-		end
+		local u = i / steps
+		u = u * u * (3 - 2 * u)
+		part.CFrame = start:Lerp(target, u)
 		task.wait(0.03)
 	end
 end
 
-local function allScannedRaw(lane)
-	for _, it in ipairs(lane.Items) do
-		if not it.Scanned then
-			return false
+local function clearItems(k)
+	for _, part in ipairs(k.ItemParts or {}) do
+		if part.Parent then
+			part:Destroy()
 		end
 	end
-	return #lane.Items > 0
+	k.ItemParts = {}
+	k.Scanned = {}
+	k.Total = 0
 end
 
--- Состояние кассы для экрана POS у игроков
-local function publish(lane)
-	local f = laneFolders[lane]
-	if not f then
-		return
-	end
-	local items = {}
-	for _, it in ipairs(lane.Items) do
-		table.insert(items, { N = it.Product.Name, P = it.Product.Price, S = it.Scanned == true })
-	end
-	local c = lane.Customer
-	local stage = "Idle"
-	if c then
-		if c.Paid then
-			stage = "Paid"
-		elseif allScannedRaw(lane) then
-			stage = "Payment"
-		else
-			stage = "Scanning"
-		end
-	end
-	f:SetAttribute("Items", HttpService:JSONEncode(items))
-	f:SetAttribute("Total", lane.Total or 0)
-	f:SetAttribute("Stage", stage)
-	f:SetAttribute("Method", c and c.PayMethod or "")
-	f:SetAttribute("Given", c and c.Given or 0)
-	f:SetAttribute("Options", HttpService:JSONEncode(c and c.ChangeOptions or {}))
-	f:SetAttribute("Closed", lane.Closed == true)
-	f:SetAttribute("Open", lane.Open ~= false)
-	f:SetAttribute("Version", (f:GetAttribute("Version") or 0) + 1)
-end
-Checkout.Publish = publish
-
--- Как покупатель платит: картой или наличными (купюра не меньше суммы, иногда крупнее)
-local function choosePayment(customer)
-	local sum = 0
-	for _, p in ipairs(customer.Items or {}) do
-		sum = sum + (p.Price or 0)
-	end
-	customer.Mistakes = 0
-	if rng:NextNumber() < 0.55 then
-		customer.PayMethod = "Card"
-		customer.Given, customer.Change, customer.ChangeOptions = 0, 0, nil
-		return
-	end
-	customer.PayMethod = "Cash"
-	local given = NOTES[#NOTES]
-	for i, n in ipairs(NOTES) do
-		if n >= sum then
-			given = (rng:NextNumber() < 0.3 and NOTES[i + 1]) or n
-			break
-		end
-	end
-	if given < sum then
-		given = math.ceil(sum / 1000) * 1000
-	end
-	local change = given - sum
-	-- три варианта сдачи: правильный и два похожих
-	local options = { change }
-	local deltas = { 10, 20, 50, 100 }
-	while #options < 3 do
-		local d = deltas[rng:NextInteger(1, #deltas)] * (rng:NextNumber() < 0.5 and -1 or 1)
-		local v = change + d
-		if v >= 0 and not table.find(options, v) then
-			table.insert(options, v)
-		end
-	end
-	for i = #options, 2, -1 do
-		local j = rng:NextInteger(1, i)
-		options[i], options[j] = options[j], options[i]
-	end
-	customer.Given, customer.Change, customer.ChangeOptions = given, change, options
-end
-
-local function clearItems(lane)
-	for _, it in ipairs(lane.Items) do
-		if it.Part and it.Part.Parent then
-			it.Part:Destroy()
-		end
-	end
-	lane.Items = {}
-	lane.Scanned = {}
-	lane.Total = 0
-	lane.PayPrompt.Enabled = false
-	lane.TerminalLabel.Text = ""
-	publish(lane)
-end
-
-local function allScanned(lane)
-	for _, it in ipairs(lane.Items) do
-		if not it.Scanned then
-			return false
-		end
-	end
-	return #lane.Items > 0
-end
-
-local function scanItem(lane, it, player)
-	if it.Scanned or lane.Customer ~= it.Customer then
-		return
-	end
-	if not S.Power.IsOn() then
-		S.Net.Sound("ScanError", lane.ScanSpot, 0.6)
-		S.Net.Notify(player, "Касса не работает: нет электричества", "warn")
-		return
-	end
-	if not it.Retried and rng:NextNumber() < Config.ScanErrorChance then
-		it.Retried = true
-		S.Net.Sound("ScanError", lane.ScanSpot, 0.7)
-		it.Prompt.ActionText = "Пробить ещё раз"
-		S.Net.Notify(player, "Штрихкод не считался — пробейте ещё раз", "warn")
-		local f = laneFolders[lane]
-		if f then
-			f:SetAttribute("ScanError", os.clock())
-		end
-		return
-	end
-	it.Scanned = true
-	it.Prompt:Destroy()
-	S.Net.Sound("Scan", lane.ScanSpot, 0.7)
-	table.insert(lane.Scanned, it.Product)
-	lane.Total = lane.Total + it.Product.Price
-	refreshScreens(lane)
-	local part = it.Part
+-------------------------------------------------------------------------------
+-- Помощь сотрудника
+-------------------------------------------------------------------------------
+local function startHelp(k, reason)
+	k.State = "Help"
+	k.Help = reason
+	k.HelpSince = os.clock()
+	k.HelpDone = false
+	screen(k, "ОЖИДАЙТЕ СОТРУДНИКА", reason.Text, k.Total > 0 and ("ИТОГО " .. k.Total .. " руб.") or "", "Помощь уже идёт", Color3.fromRGB(230, 120, 20))
+	k.HelpPrompt.ObjectText = "Касса " .. k.Index .. ": " .. reason.Short
+	k.HelpPrompt.Enabled = true
+	S.Net.Sound("KioskHelp", k.ScanSpot, 0.9)
+	S.Net.Notify(nil, "Касса самообслуживания №" .. k.Index .. " зовёт сотрудника: " .. reason.Short, "task")
+	-- лампа мигает, касса зовёт сигналом каждые несколько секунд
 	task.spawn(function()
-		local over = CFrame.new(lane.ScanSpot + Vector3.new(0, 0.2, 0)) * (part.CFrame - part.CFrame.Position)
-		slide(part, over, 0.25)
-		local bag = lane.BagSpot + Vector3.new(rng:NextNumber(-0.6, 0.6), part.Size.Y / 2 + 0.05, rng:NextNumber(-0.8, 0.8))
-		slide(part, CFrame.new(bag) * (part.CFrame - part.CFrame.Position), 0.3)
-	end)
-	if allScanned(lane) then
-		local c = lane.Customer
-		local cash = c and c.PayMethod == "Cash"
-		lane.TerminalLabel.Text = "К ОПЛАТЕ\n" .. lane.Total .. " руб."
-		lane.PayPrompt.ActionText = cash and "Принять наличные" or "Принять оплату"
-		lane.PayPrompt.ObjectText = cash and ("Дали " .. c.Given .. " руб. · сдача " .. c.Change .. " руб.") or ("К оплате " .. lane.Total .. " руб.")
-		lane.PayPrompt.Enabled = true
-		if c and c.Alive then
-			S.Customers.Say(c, cash and ("Наличными. Вот, " .. c.Given .. ".") or "Картой, пожалуйста.")
+		local on = false
+		local lastChime = os.clock()
+		while k.State == "Help" and not k.HelpDone do
+			on = not on
+			setLamp(k, on and ORANGE or GREY)
+			if os.clock() - lastChime > 5 then
+				lastChime = os.clock()
+				S.Net.Sound("KioskHelp", k.ScanSpot, 0.8)
+			end
+			task.wait(0.45)
 		end
-	end
-	publish(lane)
+	end)
 end
 
--- Принять оплату на терминале
-function Checkout.Pay(lane, player)
-	local c = lane.Customer
-	if not (c and allScanned(lane)) or c.Paid then
+-- Охранник подтвердил на кассе
+function Checkout.Help(k, player)
+	if k.State ~= "Help" or k.HelpDone then
 		return false
 	end
-	if not S.Power.IsOn() then
-		S.Net.Notify(player, "Терминал не работает: нет электричества", "warn")
-		return false
-	end
-	c.Paid = true
-	lane.PayPrompt.Enabled = false
-	revenue = revenue + lane.Total
-	if c.PayMethod == "Cash" then
-		-- ящик с чеком, сдача монетами, ящик закрылся
-		S.Net.Sound("CashDrawer", lane.BagSpot or lane.Terminal.Position, 0.8)
-		task.delay(1.1, function()
-			S.Net.Sound("Coins", lane.BagSpot or lane.Terminal.Position, 0.7)
-		end)
-		task.delay(2.4, function()
-			S.Net.Sound("CashClose", lane.BagSpot or lane.Terminal.Position, 0.7)
-		end)
-	else
-		-- карту приложили к терминалу: короткий сигнал и печать чека
-		S.Net.Sound("CardTap", lane.Terminal.Position, 0.7)
-		task.delay(0.45, function()
-			S.Net.Sound("CardBeep", lane.Terminal.Position, 0.6)
-		end)
-		task.delay(0.9, function()
-			S.Net.Sound("Payment", lane.Terminal.Position, 0.6)
-		end)
-	end
-	lane.TerminalLabel.Text = "ОПЛАЧЕНО"
-	lane.CustomerLabel.Text = c.Weird and "СПАСИБО, ЧТО ОСТАЛИСЬ" or "Спасибо за покупку!"
+	k.HelpDone = true
+	k.HelpPrompt.Enabled = false
+	S.Net.Sound("CardBeep", k.ScanSpot, 0.7)
+	screen(k, "КАССА " .. k.Index, "Сотрудник подтвердил.\nПродолжайте", k.Total > 0 and ("ИТОГО " .. k.Total .. " руб.") or "", "", BLUE)
+	setLamp(k, BLUE)
+	S.Tasks.ProgressKind("help", 1)
 	if player then
-		S.Net.Notify(player, "Покупатель обслужен: " .. lane.Total .. " руб.", "info")
+		S.Net.Notify(player, "Вы помогли покупателю на кассе №" .. k.Index, "done")
 	end
-	publish(lane)
+	if k.Customer and k.Customer.Alive then
+		S.Customers.Say(k.Customer, Util.pick({ "Спасибо!", "Спасибо, а то я уже испугался.", "Благодарю." }, rng))
+	end
 	return true
 end
 
--- Стоит ли игрок за этой кассой (в зоне кассира)
-local function playerAtLane(lane, player)
-	local root = Util.rootOf(player)
-	local z = lane.CashierZone
-	if not (root and z) then
-		return false
+-- Ждать сотрудника; true — помогли, false — покупатель ушёл
+local function waitHelp(k, npc)
+	local nagged = false
+	while npc.Alive and not k.HelpDone do
+		task.wait(0.3)
+		local waited = os.clock() - k.HelpSince
+		if not nagged and waited > 18 then
+			nagged = true
+			S.Customers.Say(npc, Util.pick({ "Тут есть кто-нибудь?", "Касса не работает…", "Позовите кого-нибудь!" }, rng))
+			NpcFactory.PlayAction(npc, "Look")
+		end
+		if waited > Config.HelpPatience then
+			return false
+		end
 	end
-	local pos = root.Position
-	return pos.X >= z[1] - 1 and pos.X <= z[2] + 1 and pos.Z >= z[3] - 1 and pos.Z <= z[4] + 1
+	if k.State == "Help" then
+		k.State = "Busy"
+	end
+	return k.HelpDone
 end
-
--- Действие с экрана кассы: "Scan" — пробить следующий товар, "Card" — оплата картой,
--- "Change" — выдать сдачу (arg — сумма, которую выбрал игрок)
-function Checkout.PosAction(player, index, op, arg)
-	local lane = lanes and lanes[index]
-	if not (lane and lane.Customer) or lane.Customer.Paid then
-		return
-	end
-	if not playerAtLane(lane, player) then
-		return
-	end
-	local c = lane.Customer
-	if op == "Scan" then
-		for _, it in ipairs(lane.Items) do
-			if not it.Scanned then
-				scanItem(lane, it, player)
-				return
-			end
-		end
-	elseif op == "Card" then
-		if c.PayMethod ~= "Cash" then
-			Checkout.Pay(lane, player)
-		end
-	elseif op == "Change" then
-		if c.PayMethod ~= "Cash" or not allScanned(lane) then
-			return
-		end
-		if tonumber(arg) == c.Change then
-			Checkout.Pay(lane, player)
-		else
-			c.Mistakes = (c.Mistakes or 0) + 1
-			S.Net.Sound("ScanError", lane.Terminal.Position, 0.6)
-			local more = (tonumber(arg) or 0) > c.Change
-			S.Net.Notify(player, more and "Это больше, чем нужно. Пересчитайте сдачу." or "Сдачи не хватает. Пересчитайте.", "warn")
-			if c.Alive then
-				S.Customers.Say(c, more and "Вы дали мне лишнее." or "Мне не хватает сдачи.")
-			end
-			local f = laneFolders[lane]
-			if f then
-				f:SetAttribute("ScanError", os.clock())
-			end
-		end
-	end
-end
-
--- Пробить товар (вызывается подсказкой «Пробить» на товаре)
-Checkout.Scan = scanItem
 
 -------------------------------------------------------------------------------
-function Checkout.Init(m, services)
-	map, S = m, services
-	lanes = map.Lanes
-	local root = ReplicatedStorage:FindFirstChild("Lanes") or Instance.new("Folder")
-	root.Name = "Lanes"
-	root.Parent = ReplicatedStorage
-	for _, lane in ipairs(lanes) do
-		lane.Queue = {}
-		lane.Items = {}
-		lane.Scanned = {}
-		lane.Total = 0
-		lane.Closed = false
-		local f = Instance.new("Folder")
-		f.Name = "Lane" .. lane.Index
-		f:SetAttribute("Index", lane.Index)
-		local z = lane.CashierZone
-		if z then
-			f:SetAttribute("X0", z[1])
-			f:SetAttribute("X1", z[2])
-			f:SetAttribute("Z0", z[3])
-			f:SetAttribute("Z1", z[4])
+-- Покупка: всё делает покупатель (вызывает CustomerManager). Возвращает true, если оплатил
+-------------------------------------------------------------------------------
+function Checkout.Free()
+	local list = {}
+	for _, k in ipairs(kiosks) do
+		if k.State == "Idle" and not k.Closed and not (hauntedActive and k.Index == HAUNTED) then
+			table.insert(list, k)
 		end
-		f.Parent = root
-		laneFolders[lane] = f
-		local pay = Util.prompt(lane.Terminal, "Принять оплату", "Терминал", 0.3, 8)
-		pay.Enabled = false
-		lane.PayPrompt = pay
-		pay.Triggered:Connect(function(player)
-			Checkout.Pay(lane, player)
+	end
+	return Util.pick(list, rng)
+end
+
+function Checkout.Use(k, npc)
+	k.State = "Busy"
+	k.Customer = npc
+	clearItems(k)
+	setLamp(k, BLUE)
+	screen(k, "КАССА " .. k.Index, "Выложите товары\nи отсканируйте их", "", "Оплата картой", Color3.fromRGB(30, 150, 80))
+	NpcFactory.WalkTo(npc, k.CustomerSpot, 12)
+	if not npc.Alive then
+		Checkout.Finish(k)
+		return false
+	end
+	NpcFactory.Face(npc, Vector3.new(k.X, 0, k.CustomerSpot.Z + 5))
+	-- корзину на полку, товары из неё
+	S.Net.Sound("BoxPick", k.BasketSpot, 0.35)
+	local basket = NpcFactory.PlaceBasket(npc, k.BasketSpot, math.rad(90), map.Dynamic)
+	if basket then
+		table.insert(k.ItemParts, basket)
+	end
+	for i, product in ipairs(npc.Items) do
+		table.insert(k.ItemParts, makeItem(k, product, i))
+	end
+	task.wait(0.6)
+	-- в каком месте покупки (если вообще) касса попросит помощи
+	local helpAt = rng:NextNumber() < Config.KioskHelpChance and rng:NextInteger(1, #npc.Items) or nil
+	local offset = basket and 1 or 0
+	for i, product in ipairs(npc.Items) do
+		if not npc.Alive then
+			break
+		end
+		local part = k.ItemParts[i + offset]
+		local scanned = false
+		NpcFactory.PlayAction(npc, "Scan", function(mark)
+			if mark == "Beep" then
+				-- товар над сканером: писк, вспышка лазера, строка на экране
+				if part and part.Parent then
+					task.spawn(slide, part, CFrame.new(k.ScanSpot + Vector3.new(0, 0.3, 0)) * (part.CFrame - part.CFrame.Position), 0.2)
+				end
+				k.Laser.Color = Color3.fromRGB(255, 255, 255)
+				task.delay(0.12, function()
+					k.Laser.Color = Color3.fromRGB(255, 40, 40)
+				end)
+				table.insert(k.Scanned, product)
+				k.Total = k.Total + product.Price
+				itemsScreen(k)
+				scanned = true
+			elseif mark == "Bag" then
+				if part and part.Parent then
+					local bag = k.BagSpot + Vector3.new(rng:NextNumber(-0.35, 0.35), 0.35 + (i % 3) * 0.2, rng:NextNumber(-0.4, 0.4))
+					task.spawn(slide, part, CFrame.new(bag) * (part.CFrame - part.CFrame.Position), 0.25)
+				end
+			end
+		end, k.ScanSpot)
+		task.wait(1.75)
+		if not scanned then
+			-- метка не пришла (покупатель удалён) — пробиваем без анимации
+			table.insert(k.Scanned, product)
+			k.Total = k.Total + product.Price
+			itemsScreen(k)
+		end
+		if helpAt == i and npc.Alive then
+			startHelp(k, Util.pick(HELP_REASONS, rng))
+			if not waitHelp(k, npc) then
+				S.Customers.Say(npc, Util.pick({ "Ладно, не буду ничего брать.", "Сами со своей кассой разбирайтесь.", "Ну и магазин…" }, rng))
+				S.Shift.AddStat("LeftAngry")
+				Checkout.Finish(k)
+				return false
+			end
+			task.wait(0.8)
+		end
+	end
+	if not npc.Alive then
+		Checkout.Finish(k)
+		return false
+	end
+	-- оплата картой
+	screen(k, "К ОПЛАТЕ", "Приложите карту\nк терминалу", "ИТОГО " .. k.Total .. " руб.", "Оплата картой")
+	k.ReaderLabel.Text = k.Total .. "\nруб."
+	task.wait(0.4)
+	if not S.Power.IsOn() then
+		screen(k, "КАССА " .. k.Index, "Нет связи с банком.\nОжидайте…", "ИТОГО " .. k.Total .. " руб.", "", GREY)
+		local t0 = os.clock()
+		while npc.Alive and not S.Power.IsOn() and os.clock() - t0 < 45 do
+			task.wait(0.5)
+		end
+		if not S.Power.IsOn() then
+			S.Customers.Say(npc, "Без света тут ничего не работает…")
+			S.Shift.AddStat("LeftAngry")
+			Checkout.Finish(k)
+			return false
+		end
+	end
+	NpcFactory.PlayAction(npc, "Pay", nil, k.Reader.Position)
+	task.wait(0.65)
+	if rng:NextNumber() < Config.CardDeclineChance then
+		S.Net.Sound("ScanError", k.Reader.Position, 0.6)
+		startHelp(k, CARD_REASON)
+		if not waitHelp(k, npc) then
+			S.Customers.Say(npc, "Ну и ладно. Уйду без покупок.")
+			S.Shift.AddStat("LeftAngry")
+			Checkout.Finish(k)
+			return false
+		end
+		NpcFactory.PlayAction(npc, "Pay", nil, k.Reader.Position)
+		task.wait(0.65)
+	end
+	S.Net.Sound("CardBeep", k.Reader.Position, 0.7)
+	k.ReaderLabel.Text = "ОДОБРЕНО"
+	screen(k, "ОПЛАЧЕНО", "Спасибо за покупку!\nНе забудьте пакет и чек", "ИТОГО " .. k.Total .. " руб.", "", Color3.fromRGB(30, 150, 80))
+	setLamp(k, GREEN)
+	task.wait(0.3)
+	S.Net.Sound("Receipt", k.ScanSpot, 0.7)
+	revenue = revenue + k.Total
+	npc.Paid = true
+	task.wait(1.2)
+	-- забирает пакет
+	S.Net.Sound("BagPick", k.BagSpot, 0.7)
+	for _, part in ipairs(k.ItemParts) do
+		if part.Parent and part ~= basket then
+			part:Destroy()
+		end
+	end
+	k.ItemParts = {}
+	if basket then
+		task.delay(5, function()
+			basket:Destroy()
 		end)
-		local close = Util.prompt(lane.Monitor, "Закрыть кассу", "Касса №" .. lane.Index, 1.5, 8)
+	end
+	k.Bag.Transparency = 1
+	task.delay(4, function()
+		k.Bag.Transparency = 0.25
+	end)
+	Checkout.Finish(k)
+	return true
+end
+
+-- Покупатель ушёл от кассы
+function Checkout.Finish(k)
+	if k.Customer and not k.Customer.Paid then
+		-- неоплаченные товары остаются на полке и пропадают через несколько секунд
+		local parts = k.ItemParts
+		task.delay(6, function()
+			for _, part in ipairs(parts or {}) do
+				if part.Parent then
+					part:Destroy()
+				end
+			end
+		end)
+		k.ItemParts = {}
+	end
+	k.Customer = nil
+	k.HelpDone = true
+	k.HelpPrompt.Enabled = false
+	k.Scanned = {}
+	k.Total = 0
+	task.delay(2.5, function()
+		if not k.Customer then
+			k.State = "Idle"
+			if not (hauntedActive and k.Index == HAUNTED) then
+				idleScreen(k)
+			end
+		end
+	end)
+end
+
+-------------------------------------------------------------------------------
+function Checkout.Init(m, services, npcFactory)
+	map, S, NpcFactory = m, services, npcFactory
+	kiosks = map.Kiosks
+	for _, k in ipairs(kiosks) do
+		k.State = "Idle"
+		k.ItemParts = {}
+		k.Scanned = {}
+		k.Total = 0
+		k.Closed = false
+		local help = Util.prompt(k.Screen, "Помочь покупателю", "Касса " .. k.Index, 1.2, 9)
+		help.Enabled = false
+		help.RequiresLineOfSight = false
+		k.HelpPrompt = help
+		help.Triggered:Connect(function(player)
+			Checkout.Help(k, player)
+		end)
+		local close = Util.prompt(k.Screen, "Отключить кассу", "Касса " .. k.Index, 1.5, 8)
 		close.Enabled = false
-		lane.ClosePrompt = close
+		k.ClosePrompt = close
 		close.Triggered:Connect(function()
-			if lane.Closed or not S.Tasks.IsActive("closelanes") then
+			if k.Closed or not S.Tasks.IsActive("closelanes") then
 				return
 			end
-			if lane.Customer then
-				S.Net.Notify(nil, "Сначала обслужите покупателя на кассе №" .. lane.Index, "warn")
+			if k.Customer then
+				S.Net.Notify(nil, "На кассе №" .. k.Index .. " ещё покупатель", "warn")
 				return
 			end
-			lane.Closed = true
+			k.Closed = true
 			close.Enabled = false
-			setNumberSign(lane, GREY)
-			refreshScreens(lane)
-			publish(lane)
-			S.Net.Sound("PowerDown", lane.Monitor.Position, 0.3)
+			idleScreen(k)
+			S.Net.Sound("PowerDown", k.ScanSpot, 0.3)
 			S.Tasks.ProgressKind("closelanes", 1)
 		end)
-		if lane.Index == 4 then
-			local off = Util.prompt(lane.Monitor, "Выключить кассу", "Касса №4", 2, 8)
+		if k.Index == HAUNTED then
+			local off = Util.prompt(k.Screen, "Выключить кассу", "Касса " .. k.Index, 2, 8)
 			off.Enabled = false
-			lane.OffPrompt = off
+			k.OffPrompt = off
 			off.Triggered:Connect(function()
 				Checkout.Lane4(false)
 				S.Tasks.ProgressKind("register4", 1)
 			end)
 		end
+		idleScreen(k)
 	end
-end
-
--- Сколько игроков стоит за кассой (в зоне кассира)
-local function staffed(lane)
-	local z = lane.CashierZone
-	for _, p in ipairs(Players:GetPlayers()) do
-		local root = Util.rootOf(p)
-		if root then
-			local pos = root.Position
-			if pos.X >= z[1] and pos.X <= z[2] and pos.Z >= z[3] and pos.Z <= z[4] then
-				return true
-			end
-		end
-	end
-	return false
-end
-
--- Выбрать кассу: сначала те, где стоит кассир, потом касса №1; при равенстве — короче очередь
-function Checkout.ChooseLane()
-	local best, bestScore = nil, math.huge
-	for _, lane in ipairs(lanes) do
-		if lane.Open and not lane.Closed then
-			local score = #lane.Queue * 10
-			if staffed(lane) then
-				score = score - 100
-			elseif lane.Index ~= 1 then
-				score = score + 25
-			end
-			if score < bestScore then
-				best, bestScore = lane, score
-			end
-		end
-	end
-	return best
-end
-
-function Checkout.Join(lane, customer)
-	table.insert(lane.Queue, customer)
-	customer.Lane = lane
-end
-
-function Checkout.Position(customer)
-	local lane = customer.Lane
-	if not lane then
-		return nil
-	end
-	return table.find(lane.Queue, customer)
-end
-
-function Checkout.Leave(customer)
-	local lane = customer.Lane
-	if not lane then
-		return
-	end
-	local i = table.find(lane.Queue, customer)
-	if i then
-		table.remove(lane.Queue, i)
-	end
-	if lane.Customer == customer then
-		local items = lane.Items
-		lane.Customer = nil
-		lane.PayPrompt.Enabled = false
-		lane.Items = {}
-		lane.Scanned = {}
-		lane.Total = 0
-		publish(lane)
-		-- оплаченные товары покупатель забирает, неоплаченные остаются и исчезают
-		task.delay(customer.Paid and 0.6 or 2, function()
-			for _, it in ipairs(items) do
-				if it.Part and it.Part.Parent then
-					it.Part:Destroy()
-				end
-			end
-			if not lane.Customer then
-				lane.TerminalLabel.Text = ""
-				refreshScreens(lane)
-			end
-		end)
-	end
-	customer.Lane = nil
-end
-
--- Покупатель подошёл к кассе: товары на ленту
-function Checkout.BeginService(lane, customer)
-	clearItems(lane)
-	lane.Customer = customer
-	customer.Paid = false
-	choosePayment(customer)
-	for i, product in ipairs(customer.Items) do
-		local part = makeItem(lane, product, i)
-		local it = { Part = part, Product = product, Customer = customer }
-		local prompt = Util.prompt(part, "Пробить", product.Name .. " · " .. product.Price .. " руб.", 0, 8)
-		it.Prompt = prompt
-		prompt.Triggered:Connect(function(player)
-			scanItem(lane, it, player)
-		end)
-		table.insert(lane.Items, it)
-	end
-	lane.TerminalLabel.Text = "Ожидание…"
-	refreshScreens(lane)
-	publish(lane)
 end
 
 -------------------------------------------------------------------------------
--- Аномалия: касса №4 включилась сама
+-- Аномалия: касса самообслуживания №6 включилась сама и «пробивает» товары никому
 -------------------------------------------------------------------------------
 function Checkout.Lane4(active)
-	local lane = lanes[4]
-	lane4Active = active
-	lane.OffPrompt.Enabled = active
-	for _, gui in ipairs(lane.NumberSign:GetChildren()) do
-		local label = gui:IsA("SurfaceGui") and gui:FindFirstChild("Text")
-		if label then
-			label.Text = active and "0" or "4"
-		end
-	end
+	local k = kiosks[HAUNTED]
+	hauntedActive = active
+	k.OffPrompt.Enabled = active
 	if active then
-		setNumberSign(lane, RED)
-		lane.CashierLabel.Text = "КАССА 0\nОЖИДАНИЕ ПОКУПАТЕЛЯ…"
-		lane.CashierLabel.TextColor3 = Color3.fromRGB(255, 80, 70)
-		lane.CustomerLabel.Text = "ПОДОЙДИТЕ К КАССЕ"
+		k.State = "Haunted"
+		setLamp(k, RED)
+		screen(k, "КАССА 0", "Покупатель\nожидает на кассе.\n\nОтсканируйте\nследующий товар", "ИТОГО 0 руб.", "14.11.2003  03:47", Color3.fromRGB(120, 10, 10))
 		task.spawn(function()
-			while lane4Active do
-				S.Net.Sound("Scan", lane.ScanSpot, 0.8)
+			while hauntedActive do
+				S.Net.Sound("Scan", k.ScanSpot, 0.8)
+				k.Laser.Color = Color3.fromRGB(255, 255, 255)
+				task.wait(0.1)
+				k.Laser.Color = Color3.fromRGB(255, 40, 40)
 				task.wait(rng:NextNumber(1.5, 4))
 			end
 		end)
 	else
-		setNumberSign(lane, GREY)
-		lane.CashierLabel.Text = "КАССА НЕ РАБОТАЕТ"
-		lane.CashierLabel.TextColor3 = Color3.fromRGB(120, 220, 255)
-		lane.CustomerLabel.Text = ""
+		k.State = "Idle"
+		idleScreen(k)
 	end
 end
 
 function Checkout.IsLane4Active()
-	return lane4Active
+	return hauntedActive
 end
 
 -------------------------------------------------------------------------------
 function Checkout.SetupTask(t)
 	if t.Kind == "closelanes" then
-		for _, lane in ipairs(lanes) do
-			if lane.Open and not lane.Closed then
-				lane.ClosePrompt.Enabled = true
+		for _, k in ipairs(kiosks) do
+			if k.Index <= t.Count and not k.Closed then
+				k.ClosePrompt.Enabled = true
 			end
 		end
 	end
@@ -650,8 +482,8 @@ end
 
 function Checkout.OnTaskDone(t)
 	if t.Kind == "closelanes" then
-		for _, lane in ipairs(lanes) do
-			lane.ClosePrompt.Enabled = false
+		for _, k in ipairs(kiosks) do
+			k.ClosePrompt.Enabled = false
 		end
 	end
 end
@@ -660,19 +492,22 @@ function Checkout.Revenue()
 	return revenue
 end
 
+function Checkout.Kiosks()
+	return kiosks
+end
+
 function Checkout.Reset()
 	revenue = 0
-	for _, lane in ipairs(lanes) do
-		clearItems(lane)
-		lane.Queue = {}
-		lane.Customer = nil
-		lane.Closed = false
-		lane.ClosePrompt.Enabled = false
-		if lane.Open then
-			setNumberSign(lane, GREEN)
-		end
-		refreshScreens(lane)
-		publish(lane)
+	for _, k in ipairs(kiosks) do
+		clearItems(k)
+		k.Customer = nil
+		k.Closed = false
+		k.State = "Idle"
+		k.HelpDone = true
+		k.HelpPrompt.Enabled = false
+		k.ClosePrompt.Enabled = false
+		k.Bag.Transparency = 0.25
+		idleScreen(k)
 	end
 	Checkout.Lane4(false)
 end

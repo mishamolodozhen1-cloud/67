@@ -151,7 +151,17 @@ function E.Register4()
 		return
 	end
 	S.Checkout.Lane4(true)
-	S.Tasks.Add({ Id = "register4", Kind = "register4", Text = "Выключить кассу №4 (она не работает с 2003 года)", Room = "Кассы", Count = 1 })
+	S.Tasks.Add({ Id = "register4", Kind = "register4", Text = "Выключить кассу самообслуживания №6 (она включилась сама)", Room = "Кассы самообслуживания", Count = 1 })
+end
+
+-- Подозрительный покупатель: диспетчер по рации просит присмотреть, на камерах видно, как он прячет товар
+function E.Thief(warn)
+	S.Customers.Spawn("Thief")
+	if warn then
+		task.delay(6, function()
+			S.Net.RadioCall(nil, "Охрана, в зал зашёл подозрительный покупатель. Посмотрите по камерам и проверьте его на выходе.")
+		end)
+	end
 end
 
 function E.SlamOpenDoor()
@@ -275,6 +285,19 @@ function EventDirector.Plan()
 	end)
 	add(r(28, 48), "PA Discount", function()
 		S.Net.PA("Discount")
+	end)
+	-- воры: часть приходит сама (CustomerManager), этих направляет план ночи
+	add(r(40, 55), "Thief 1", function()
+		E.Thief(true)
+	end)
+	add(r(130, 160), "Thief 2", function()
+		E.Thief(true)
+	end)
+	add(r(250, 290), "Thief 3", function()
+		E.Thief(false)
+	end)
+	add(r(18, 30), "Radio check", function()
+		S.Net.RadioCall(nil, "Пост охраны, проверка связи. Начните обход и держите кассы самообслуживания под контролем.")
 	end)
 	-- 01:00 — первые странности
 	add(r(63, 72), "Delivery", E.Delivery)

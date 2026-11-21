@@ -66,6 +66,7 @@ local CARRY_NAMES = {
 	Mop = "Швабра",
 	Trash = "Мешок с мусором",
 	Delivery = "Поставка",
+	Parcel = "Заказ",
 }
 
 local function makeCarryPart(kind, category)
@@ -76,8 +77,8 @@ local function makeCarryPart(kind, category)
 	part.CanTouch = false
 	part.Massless = true
 	part.CastShadow = true
-	if kind == "Box" or kind == "Delivery" then
-		part.Size = kind == "Box" and Vector3.new(1.8, 1.3, 1.3) or Vector3.new(2.2, 1.6, 1.6)
+	if kind == "Box" or kind == "Delivery" or kind == "Parcel" then
+		part.Size = kind == "Box" and Vector3.new(1.8, 1.3, 1.3) or (kind == "Parcel" and Vector3.new(1.3, 0.8, 1.1) or Vector3.new(2.2, 1.6, 1.6))
 		part.Material = Enum.Material.Cardboard
 		part.Color = rgb(176, 136, 90)
 		local gui = Instance.new("SurfaceGui")
@@ -92,7 +93,7 @@ local function makeCarryPart(kind, category)
 		t.TextScaled = true
 		t.Font = Enum.Font.GothamBold
 		t.TextColor3 = rgb(60, 40, 20)
-		t.Text = kind == "Box" and Products.Categories[category].Name or "ПОСТАВКА"
+		t.Text = kind == "Box" and Products.Categories[category].Name or (kind == "Parcel" and ("№" .. tostring(category)) or "ПОСТАВКА")
 		t.Parent = gui
 	elseif kind == "Mop" then
 		part.Size = Vector3.new(0.18, 5.6, 0.18)
@@ -126,6 +127,10 @@ function StoreSystems.Carrying(player)
 end
 
 local function returnItem(player, c)
+	if c.Kind == "Parcel" and S.Security then
+		-- коробка заказа возвращается в свою ячейку
+		S.Security.ReturnParcel(tostring(c.Category))
+	end
 	if c.Kind == "Delivery" and deliveryProp then
 		-- поставка возвращается к заднему выходу
 		deliveryProp.Transparency = 0
@@ -448,6 +453,13 @@ function StoreSystems.Init(m, services)
 	station("Cameras", map.Stations.CamDesk, "Открыть камеры", "Видеонаблюдение", 0, 9).Triggered:Connect(function(player)
 		S.Net.Effect(player, "OpenCameras")
 	end)
+	-- Монитор камер на посту охраны у входа
+	if map.Stations.GuardDesk then
+		station("GuardCams", map.Stations.GuardDesk, "Открыть камеры", "Пост охраны", 0, 9).Triggered:Connect(function(player)
+			S.Net.Sound("Keys", map.Stations.GuardDesk.Position, 0.4)
+			S.Net.Effect(player, "OpenCameras")
+		end)
+	end
 	-- Мониторы камер в кабинете менеджера
 	if map.Stations.OfficeCams then
 		station("OfficeCams", map.Stations.OfficeCams, "Открыть камеры", "Мониторы", 0, 9).Triggered:Connect(function(player)
@@ -585,7 +597,10 @@ function StoreSystems.Init(m, services)
 		end
 		S.Doors.Set("BackExit", false)
 		S.Doors.SetLocked("BackExit", true)
-		S.Net.Sound("Knock", backDoor.Parts[1].Position, 0.6)
+		S.Net.Sound("Keys", backDoor.Parts[1].Position, 0.6)
+		task.delay(0.4, function()
+			S.Net.Sound("LockClick", backDoor.Parts[1].Position, 0.8)
+		end)
 		S.Tasks.ProgressKind("lockback", 1)
 	end)
 	prompts.LockBack.Enabled = false

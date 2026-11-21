@@ -3,7 +3,7 @@
 --   List  — короткие звуки. Несколько звуков склеены в один файл («спрайт»), а здесь записано,
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
--- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic.
+-- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt.
 local Sounds = {}
 
 Sounds.Files = {
@@ -13,6 +13,7 @@ Sounds.Files = {
 	Music = "rbxassetid://124959931909471",
 	Sfx2 = "rbxassetid://99267307944697",
 	Sfx3 = "rbxassetid://89980517795896", -- интерфейс, касса, фонарик
+	Sfx4 = "rbxassetid://116252145157890", -- охрана: ворота, кассы самообслуживания, рация, обход, пакеты, одежда
 }
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
@@ -88,6 +89,19 @@ Sounds.List = {
 	Coins = { File = "Sfx3", Start = 9.813, Stop = 10.17, Loop = false, Volume = 0.5 },
 	-- щелчок кнопки фонарика
 	FlashClick = { File = "Sfx3", Start = 7.598, Stop = 7.742, Loop = false, Volume = 0.6 },
+	-- охрана (v5)
+	GateAlarm = { File = "Sfx4", Start = 0.02, Stop = 2.52, Loop = false, Volume = 0.7 }, -- антикражные ворота
+	KioskHelp = { File = "Sfx4", Start = 3.12, Stop = 3.311, Loop = false, Volume = 0.6 }, -- касса самообслуживания зовёт сотрудника
+	BagPick = { File = "Sfx4", Start = 3.911, Stop = 4.517, Loop = false, Volume = 0.45 }, -- пакет
+	BagCrinkle = { File = "Sfx4", Start = 5.117, Stop = 6.106, Loop = false, Volume = 0.4 },
+	RadioChirp = { File = "Sfx4", Start = 6.706, Stop = 7.072, Loop = false, Volume = 0.5 }, -- рация
+	Keys = { File = "Sfx4", Start = 7.672, Stop = 7.996, Loop = false, Volume = 0.5 },
+	LockClick = { File = "Sfx4", Start = 8.596, Stop = 9.397, Loop = false, Volume = 0.7 }, -- ключ в замке
+	ClothRustle = { File = "Sfx4", Start = 9.997, Stop = 11.709, Loop = false, Volume = 0.45 }, -- прячет под куртку
+	ClothSwish = { File = "Sfx4", Start = 12.309, Stop = 12.921, Loop = false, Volume = 0.35 },
+	ParcelBox = { File = "Sfx4", Start = 13.521, Stop = 14.284, Loop = false, Volume = 0.55 }, -- коробка заказа
+	TagBeep = { File = "Sfx4", Start = 14.884, Stop = 15.181, Loop = false, Volume = 0.5 }, -- метка обхода
+	Receipt = { File = "Sfx4", Start = 15.781, Stop = 17.309, Loop = false, Volume = 0.5 }, -- печать чека
 }
 
 -- Фоновые петли: отдельный файл, громкость

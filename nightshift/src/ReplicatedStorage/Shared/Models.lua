@@ -21,6 +21,16 @@ Models.Credits = {
 	"«Cash register» — Dester, CC BY 4.0",
 	"машины «Milano '95», «Fairheaven LT '80», «Fairheaven SW '84», «Negotiator '80», «Ace '11» — Daniel Zhabotinsky, CC BY 4.0",
 	"«Flashlight» — Brandon Baldwin, CC BY 4.0",
+	"«Pay Station Kiosk» — djeustice, CC BY 4.0",
+	"«Anti-Theft Gate» — sneirox, CC BY 4.0",
+	"«Shopping Cart» — AdrianXY, CC BY 4.0",
+	"«Supermarket Basket» — cicinha, CC BY 4.0",
+	"«Fire Extinguisher» — Loïc, CC BY 4.0",
+	"«Office Chair Modern» — thethieme, CC BY 4.0",
+	"«Office Computer» — sebodeweb, CC BY 4.0",
+	"«Parcel 01» — tblunden, CC BY 4.0",
+	"«Basket Shelving» — jimbogies, CC BY 4.0",
+	"«CCTV Camera» — Smoggybeard, CC BY 4.0",
 }
 
 -- Целые модели с текстурами (загружаются через InsertService:LoadAsset):
@@ -38,6 +48,17 @@ Models.Assets = {
 	CarNegotiator = { Id = 120487318164975, Scale = 3.6 },
 	CarFairheavenSW = { Id = 103191321469470, Scale = 3.6 },
 	CarAce = { Id = 105040233127033, Scale = 3.6 },
+	-- v5: охрана и самообслуживание
+	Kiosk = { Id = 88823043389915, Scale = 0.111 }, -- касса самообслуживания (экран смотрит в -Z)
+	Gate = { Id = 139444852525706, Scale = 0.034 }, -- антикражные ворота
+	Cart = { Id = 120126840224949, Scale = 4.2 }, -- тележка (ручка в +Z)
+	Basket = { Id = 114267600200939, Scale = 0.65 }, -- корзина
+	Extinguisher = { Id = 119882460876467, Scale = 1.1 },
+	Chair = { Id = 102843122769194, Scale = 3.6 },
+	Desk = { Id = 121794127557590, Scale = 0.034 }, -- стол охраны с компьютером и креслом (охранник смотрит в +X)
+	Parcel = { Id = 89547355781897, Scale = 3.6 }, -- коробка заказа
+	WireShelf = { Id = 99423585283502, Scale = 0.0914 }, -- сетчатый стеллаж выдачи заказов
+	Cctv = { Id = 84074956484334, Scale = 0.65 }, -- уличная камера (объектив в -Z)
 }
 Models.StaffCar = "CarMilano"
 Models.ParkedCars = { "CarFairheavenLT", "CarNegotiator", "CarFairheavenSW", "CarAce" }
@@ -52,14 +73,25 @@ Models.Checkout = {
 	Drawer = { 0.22, 0.46 }, -- денежный ящик вдоль X (в файле)
 }
 
--- Собственные анимации (tools/make_anims.py): ходьба, бег, ожидание
+-- Собственные анимации (tools/make_anims.py): ходьба, бег, ожидание.
+-- В ходьбе и беге стоят метки «Step» (L/R) в момент касания пяткой — по ним играют звуки шагов.
 Models.Anim = {
-	Walk = "rbxassetid://86928421934534",
-	Run = "rbxassetid://136012315059297",
+	Walk = "rbxassetid://105108708797939",
+	Run = "rbxassetid://81706662511100",
 	Idle = "rbxassetid://109915448085677",
 	WalkNatural = 9, -- скорость (studs/с), при которой шаг идёт в своём темпе
 	RunNatural = 17,
 	RunFrom = 15, -- с этой скорости персонаж бежит
+	-- действия покупателей (с метками звуков: Beep, Bag, Grab, Rustle, Tap, Take)
+	Actions = {
+		Scan = "rbxassetid://130847971220121", -- сканирует товары на кассе самообслуживания (цикл)
+		Reach = "rbxassetid://97470065632038", -- берёт товар с полки
+		Conceal = "rbxassetid://78183686321833", -- прячет товар под куртку
+		Pay = "rbxassetid://133420934800294", -- прикладывает карту
+		Take = "rbxassetid://90800489403547", -- берёт коробку с заказом
+		Look = "rbxassetid://127169663327962", -- оглядывается
+		HandsUp = "rbxassetid://128214517532276", -- пойман: руки вверх
+	},
 }
 
 -- Реалистичные покупатели (тела, лица, одежда из каталога Roblox)

@@ -1,5 +1,8 @@
--- CustomerManager: обычные и «странные» покупатели.
--- Обычный покупатель: входит, ходит по рядам и берёт товар, встаёт в очередь на кассу, ждёт, платит и уходит.
+-- CustomerManager: покупатели.
+-- Обычный: входит, ходит по рядам и берёт товар с полок (анимация), идёт на свободную кассу
+--   самообслуживания, сам сканирует и платит картой, уходит через проход между кассами.
+-- Вор: берёт товар, оглядывается и прячет под куртку, идёт мимо касс к выходу — сработают ворота.
+-- За заказом: идёт к стойке выдачи, называет номер и ждёт, пока охранник принесёт коробку.
 -- Странные (появляются после 01:00 по событиям): «Наблюдатель» стоит и смотрит на игрока,
 -- «У стены» смотрит в стену, «Задом наперёд» ходит спиной вперёд, «Постоянный» каждую ночь берёт одно и то же.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +19,7 @@ local map, S, NpcFactory, Navigation
 local customers = {}
 local rng = Random.new()
 local lastSpawn = 0
+local nextId = 0
 
 local GREET = { "Добрый вечер.", "Здравствуйте.", "Ночь сегодня тихая…", "О, открыто. Отлично." }
 local IMPATIENT = { "Есть кто на кассе?", "Долго ещё?", "Кассир, ау?", "Мне бы оплатить…" }
@@ -41,9 +45,6 @@ local function remove(npc)
 			table.remove(customers, i)
 			break
 		end
-	end
-	if npc.Lane then
-		S.Checkout.Leave(npc)
 	end
 	NpcFactory.Destroy(npc)
 end
@@ -82,12 +83,12 @@ local function enter(npc)
 	return NpcFactory.Follow(npc, { map.Points.EntranceOutside, map.Points.EntranceInside })
 end
 
-local function leave(npc, lane)
+local function leave(npc, via)
 	if not npc.Alive then
 		return
 	end
-	if lane then
-		NpcFactory.WalkTo(npc, lane.ExitSpot, 10)
+	for _, p in ipairs(via or {}) do
+		NpcFactory.WalkTo(npc, p, 10)
 	end
 	goTo(npc, map.Points.EntranceInside)
 	NpcFactory.WalkTo(npc, map.Points.EntranceOutside, 10)
@@ -108,11 +109,13 @@ local function shop(npc, stops)
 			return
 		end
 		NpcFactory.Face(npc, Vector3.new(f.Front.Position.X, 0, z))
-		task.wait(rng:NextNumber(2, 4.5))
+		task.wait(rng:NextNumber(0.8, 2.2))
 		if f.Empty then
 			say(npc, EMPTY)
 		else
 			for _ = 1, rng:NextInteger(1, 2) do
+				-- берёт товар с полки (анимация и звук)
+				task.wait(NpcFactory.PlayAction(npc, "Reach") * 0.9)
 				table.insert(npc.Items, Products.Random(f.Category, rng))
 			end
 		end
@@ -121,7 +124,8 @@ local function shop(npc, stops)
 		local fr = map.Fridges[rng:NextInteger(1, #map.Fridges)]
 		goTo(npc, fr.Front)
 		NpcFactory.Face(npc, fr.Front + Vector3.new(0, 0, -5))
-		task.wait(rng:NextNumber(2, 4))
+		task.wait(rng:NextNumber(1, 2.5))
+		task.wait(NpcFactory.PlayAction(npc, "Reach") * 0.9)
 		table.insert(npc.Items, Products.Random("Chilled", rng))
 	end
 	if #npc.Items == 0 then
@@ -132,71 +136,48 @@ local function shop(npc, stops)
 	end
 end
 
--- Очередь и оплата. Возвращает true, если покупатель оплатил
-local function queueAndPay(npc)
-	local lane = S.Checkout.ChooseLane()
-	if not lane then
-		return false
-	end
-	S.Checkout.Join(lane, npc)
-	goTo(npc, lane.QueueSpots[5])
-	local at = 5
-	local started = os.clock()
-	while npc.Alive do
-		local idx = S.Checkout.Position(npc)
-		if not idx then
-			return false
+-- Касса самообслуживания: ждёт свободную, сканирует и платит сам. Возвращает касс у и true, если оплатил
+local function selfCheckout(npc)
+	local k = S.Checkout.Free()
+	local t0 = os.clock()
+	while npc.Alive and not k do
+		-- все кассы заняты: стоит перед ними и ждёт
+		if not npc.WaitingSpot then
+			npc.WaitingSpot = Vector3.new(rng:NextNumber(-22, 20), 0, 27.5)
+			goTo(npc, npc.WaitingSpot)
+			NpcFactory.Face(npc, npc.WaitingSpot + Vector3.new(0, 0, 5))
 		end
-		idx = math.min(idx, 5)
-		if idx < at then
-			at = at - 1
-			NpcFactory.WalkTo(npc, lane.QueueSpots[at], 8)
-		elseif idx == 1 and at == 1 then
-			break
-		else
-			NpcFactory.Face(npc, npc.Root.Position + Vector3.new(0, 0, 5))
-			task.wait(0.5)
-		end
-		if os.clock() - started > Config.CustomerPatience * 1.6 then
+		task.wait(1)
+		k = S.Checkout.Free()
+		if os.clock() - t0 > Config.CustomerPatience then
 			say(npc, ANGRY)
-			return false
+			return nil, false
 		end
 	end
 	if not npc.Alive then
-		return false
+		return nil, false
 	end
-	NpcFactory.Face(npc, Vector3.new(lane.X, 0, npc.Root.Position.Z))
-	S.Checkout.BeginService(lane, npc)
-	if npc.Weird then
-		CustomerManager.Say(npc, "Я каждую ночь беру одно и то же.")
-	end
-	local t0, nagged = os.clock(), false
-	while npc.Alive and not npc.Paid do
-		task.wait(0.5)
-		if not nagged and os.clock() - t0 > 45 then
-			nagged = true
-			say(npc, IMPATIENT)
-		end
-		if os.clock() - t0 > Config.CustomerPatience then
-			break
-		end
-	end
-	return npc.Paid == true
+	k.State = "Reserved"
+	goTo(npc, k.CustomerSpot)
+	local paid = S.Checkout.Use(k, npc)
+	return k, paid
 end
 
-local function finish(npc)
-	local lane = npc.Lane
-	local paid = npc.Paid == true
-	S.Checkout.Leave(npc)
+local function finish(npc, k, paid)
 	if paid then
 		CustomerManager.Say(npc, npc.Weird and "До завтра. Вернее… до сегодня." or Util.pick(THANKS, rng))
-		S.Tasks.ProgressKind("serve", 1)
 		S.Shift.AddServed()
 	else
 		say(npc, ANGRY)
 	end
 	task.wait(0.8)
-	leave(npc, lane)
+	-- к выходу через проход между кассами
+	local via = {}
+	if k then
+		table.insert(via, k.ExitGap)
+		table.insert(via, Vector3.new(k.ExitGap.X, 0, 41))
+	end
+	leave(npc, via)
 end
 
 -------------------------------------------------------------------------------
@@ -205,13 +186,62 @@ end
 local BEHAVIOUR = {}
 
 function BEHAVIOUR.Normal(npc)
+	NpcFactory.HoldBasket(npc)
 	enter(npc)
 	if rng:NextNumber() < 0.4 then
 		say(npc, GREET)
 	end
 	shop(npc, rng:NextInteger(1, 3))
-	queueAndPay(npc)
-	finish(npc)
+	local k, paid = selfCheckout(npc)
+	finish(npc, k, paid)
+end
+
+-- Вор: набирает товар, прячет его под куртку и идёт к выходу мимо касс
+function BEHAVIOUR.Thief(npc)
+	enter(npc)
+	shop(npc, rng:NextInteger(1, 2))
+	if not npc.Alive then
+		return
+	end
+	-- оглядывается и прячет (видно на камерах)
+	S.Security.Conceal(npc)
+	task.wait(rng:NextNumber(1, 3))
+	-- к выходу
+	goTo(npc, map.Points.EntranceInside)
+	if not npc.Alive then
+		return
+	end
+	NpcFactory.WalkTo(npc, map.Points.EntranceOutside, 10)
+	if npc.Stolen and npc.Alarmed and not npc.Caught then
+		-- ворота пищат — бежит
+		npc.Humanoid.WalkSpeed = 15.5
+		CustomerManager.Say(npc, "…")
+	end
+	NpcFactory.WalkTo(npc, npc.Home, 30)
+	remove(npc)
+end
+
+-- За заказом: стойка выдачи, ждёт коробку
+function BEHAVIOUR.Pickup(npc)
+	local number = S.Security.FreeOrder()
+	if not number then
+		return BEHAVIOUR.Normal(npc)
+	end
+	enter(npc)
+	goTo(npc, map.Pickup.CustomerSpot)
+	if not npc.Alive then
+		return
+	end
+	NpcFactory.Face(npc, map.Pickup.CustomerSpot + Vector3.new(0, 0, 5))
+	CustomerManager.Say(npc, Util.pick({ "Здравствуйте, я за заказом. Номер ", "Добрый вечер. Заказ ", "Мне заказ забрать, номер " }, rng) .. number .. ".")
+	local got = S.Security.WaitOrder(npc, number)
+	if got then
+		CustomerManager.Say(npc, Util.pick({ "Спасибо!", "Отлично, спасибо.", "Спасибо, хорошей смены." }, rng))
+	else
+		CustomerManager.Say(npc, Util.pick({ "Ладно, заберу завтра.", "Долго у вас тут…" }, rng))
+	end
+	task.wait(1.2)
+	leave(npc, { Vector3.new(-46, 0, 42.5) })
 end
 
 -- Ходит спиной вперёд, но покупает как обычно
@@ -221,8 +251,8 @@ function BEHAVIOUR.Backwards(npc)
 	shop(npc, 2)
 	npc.Backwards = false
 	npc.Humanoid.AutoRotate = true
-	queueAndPay(npc)
-	finish(npc)
+	local k, paid = selfCheckout(npc)
+	finish(npc, k, paid)
 end
 
 -- Постоянный покупатель: шесть пакетов одного молока
@@ -237,8 +267,8 @@ function BEHAVIOUR.Repeater(npc)
 	for _ = 1, 6 do
 		table.insert(npc.Items, Products.Get("milk"))
 	end
-	queueAndPay(npc)
-	finish(npc)
+	local k, paid = selfCheckout(npc)
+	finish(npc, k, paid)
 end
 
 -- Стоит посреди ряда и смотрит на ближайшего игрока
@@ -300,9 +330,12 @@ function CustomerManager.Spawn(kind)
 	if not npc then
 		return nil
 	end
+	nextId = nextId + 1
+	npc.Id = tostring(nextId)
 	npc.Home = home
 	npc.Items = {}
 	npc.Behaviour = kind
+	S.Security.OnCustomer(npc)
 	npc.Humanoid.WalkSpeed = Config.CustomerWalkSpeed + rng:NextNumber(-1, 1)
 	table.insert(customers, npc)
 	task.spawn(function()
@@ -331,7 +364,16 @@ function CustomerManager.Start()
 				local interval = Config.CustomerInterval[hour]
 				if interval and #customers < Config.MaxCustomers and os.clock() - lastSpawn >= interval then
 					lastSpawn = os.clock()
-					CustomerManager.Spawn("Normal")
+					local roll = rng:NextNumber()
+					local thief = Config.ThiefChance[hour] or 0
+					local pickup = Config.PickupChance[hour] or 0
+					if roll < thief then
+						CustomerManager.Spawn("Thief")
+					elseif roll < thief + pickup then
+						CustomerManager.Spawn("Pickup")
+					else
+						CustomerManager.Spawn("Normal")
+					end
 				end
 			end
 		end
@@ -341,7 +383,6 @@ end
 function CustomerManager.Reset()
 	for i = #customers, 1, -1 do
 		local npc = customers[i]
-		npc.Lane = nil
 		NpcFactory.Destroy(npc)
 	end
 	customers = {}

@@ -518,23 +518,30 @@ function NpcFactory.WalkTo(npc, target, timeout)
 		if not npc.Alive or not root.Parent then
 			return false
 		end
-		if flat(root.Position, target) < 1.3 then
-			return true
-		end
-		if os.clock() - started > timeout then
-			return false
-		end
-		if (root.Position - lastPos).Magnitude > 0.4 then
-			lastPos, lastMove = root.Position, os.clock()
-		elseif os.clock() - lastMove > 2.5 then
-			-- застрял: подвинем на шаг к цели
-			local dir = Vector3.new(target.X - root.Position.X, 0, target.Z - root.Position.Z)
-			if dir.Magnitude > 0.1 then
-				root.CFrame = root.CFrame + dir.Unit * 1.5
-			end
+		if npc.Frozen then
+			-- остановлен (например, охранник задержал): стоит, время не идёт
+			hum:MoveTo(root.Position)
+			started = started + 0.15
 			lastMove = os.clock()
+		else
+			if flat(root.Position, target) < 1.3 then
+				return true
+			end
+			if os.clock() - started > timeout then
+				return false
+			end
+			if (root.Position - lastPos).Magnitude > 0.4 then
+				lastPos, lastMove = root.Position, os.clock()
+			elseif os.clock() - lastMove > 2.5 then
+				-- застрял: подвинем на шаг к цели
+				local dir = Vector3.new(target.X - root.Position.X, 0, target.Z - root.Position.Z)
+				if dir.Magnitude > 0.1 then
+					root.CFrame = root.CFrame + dir.Unit * 1.5
+				end
+				lastMove = os.clock()
+			end
+			hum:MoveTo(target)
 		end
-		hum:MoveTo(target)
 	end
 	return false
 end
@@ -547,6 +554,135 @@ function NpcFactory.Follow(npc, points, timeoutEach)
 		end
 	end
 	return npc.Alive
+end
+
+-------------------------------------------------------------------------------
+-- Действия (Models.Anim.Actions): сканировать на кассе, взять с полки, спрятать, оплатить, взять заказ…
+-- Звук каждого действия звучит в нужный момент анимации (метка в анимации; время продублировано здесь,
+-- чтобы звук шёл точно, даже если сервер не получил событие метки).
+-------------------------------------------------------------------------------
+local ACTION_MARKS = {
+	Scan = { { 0.85, "Beep" }, { 1.26, "Bag" } },
+	Reach = { { 0.81, "Grab" } },
+	Conceal = { { 1.32, "Rustle" } },
+	Pay = { { 0.58, "Tap" } },
+	Take = { { 0.63, "Take" } },
+}
+local ACTION_LENGTH = { Scan = 1.7, Reach = 1.8, Conceal = 2.4, Pay = 1.3, Take = 1.4, Look = 3.2, HandsUp = 1.2 }
+local MARK_SOUND = {
+	Beep = { "Scan", 0.5 },
+	Bag = { "BagCrinkle", 0.45 },
+	Grab = { "BoxPick", 0.25 },
+	Rustle = { "ClothRustle", 0.7 },
+	Tap = { "CardTap", 0.6 },
+	Take = { "ParcelBox", 0.6 },
+}
+-- Как проиграть звук (задаёт GameServer: Net.Sound)
+NpcFactory.SoundHook = nil
+
+-- Проиграть действие. onMark(name) — вызывается в момент метки (например, «Beep» — товар пробит).
+-- Возвращает длительность действия в секундах.
+function NpcFactory.PlayAction(npc, name, onMark, soundAt)
+	if not (npc and npc.Alive and ANIM.Actions and ANIM.Actions[name]) then
+		return 0
+	end
+	npc.ActionTracks = npc.ActionTracks or {}
+	local track = npc.ActionTracks[name]
+	if not track then
+		local animator = npc.Humanoid:FindFirstChildOfClass("Animator")
+		if animator then
+			local a = Instance.new("Animation")
+			a.AnimationId = ANIM.Actions[name]
+			local ok, tr = pcall(function()
+				return animator:LoadAnimation(a)
+			end)
+			if ok and tr then
+				tr.Priority = Enum.AnimationPriority.Action
+				tr.Looped = false
+				track = tr
+				npc.ActionTracks[name] = tr
+			end
+		end
+	end
+	if track then
+		track:Play(0.2)
+	end
+	local token = {}
+	npc.ActionToken = token
+	for _, m in ipairs(ACTION_MARKS[name] or {}) do
+		task.delay(m[1], function()
+			if not npc.Alive or npc.ActionToken ~= token then
+				return
+			end
+			local snd = MARK_SOUND[m[2]]
+			if snd and NpcFactory.SoundHook then
+				local hand = npc.Model:FindFirstChild("RightHand")
+				NpcFactory.SoundHook(snd[1], soundAt or (hand and hand.Position) or npc.Root.Position, snd[2])
+			end
+			if onMark then
+				task.spawn(onMark, m[2])
+			end
+		end)
+	end
+	return ACTION_LENGTH[name] or 1
+end
+
+function NpcFactory.StopActions(npc)
+	npc.ActionToken = nil
+	for _, tr in pairs(npc.ActionTracks or {}) do
+		tr:Stop(0.25)
+	end
+end
+
+-------------------------------------------------------------------------------
+-- Корзина в руке покупателя (модель корзины приварена к правой кисти и качается вместе с рукой)
+-------------------------------------------------------------------------------
+local ModelKit
+function NpcFactory.HoldBasket(npc)
+	ModelKit = ModelKit or require(script.Parent:WaitForChild("ModelKit"))
+	local hand = npc.Model:FindFirstChild("RightHand")
+	if not (hand and ModelKit.HasAsset("Basket")) then
+		return nil
+	end
+	local m = ModelKit.MakeAsset("Basket", npc.Model, hand.CFrame * CFrame.new(0, -1.45, 0), Models.Assets.Basket.Scale)
+	if not m then
+		return nil
+	end
+	m.Name = "HeldBasket"
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = false
+			d.Massless = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = hand
+			w.Part1 = d
+			w.Parent = d
+		end
+	end
+	npc.Basket = m
+	return m
+end
+
+-- Поставить корзину (на полку кассы): возвращает модель корзины
+function NpcFactory.PlaceBasket(npc, position, yaw, parent)
+	local m = npc.Basket
+	if not m then
+		return nil
+	end
+	npc.Basket = nil
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("WeldConstraint") then
+			d:Destroy()
+		elseif d:IsA("BasePart") then
+			d.Anchored = true
+		end
+	end
+	m:PivotTo(CFrame.new(position) * CFrame.Angles(0, yaw or 0, 0))
+	m.Parent = parent or m.Parent
+	return m
 end
 
 -- Реплика над головой

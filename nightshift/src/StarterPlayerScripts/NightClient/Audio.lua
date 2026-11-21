@@ -4,7 +4,8 @@
 --   • общий фон по месту, где сейчас камера: дождь и ветер на улице (внутри дождь глухой),
 --     ночной город, гул ламп зала, низкий фон подсобки, тревожный гул ближе к утру
 --   • эхо помещения (SoundService.AmbientReverb): зал, коридоры, комнаты, улица
---   • шаги всех игроков по плитке и мокрому асфальту
+--   • шаги всех людей (игроки и покупатели) по плитке и мокрому асфальту — точно в момент касания
+--     пяткой: в анимациях ходьбы и бега стоят метки «Step» (L/R), звук идёт из той ступни
 --   • сердцебиение, когда рядом Покупатель; помехи при просмотре камер
 local SoundService = game:GetService("SoundService")
 local CollectionService = game:GetService("CollectionService")
@@ -14,6 +15,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Sounds = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Sounds"))
+local Models = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Models"))
 
 local Audio = {}
 
@@ -27,7 +29,7 @@ local staticOn = false
 local cinematic = false
 local stepState = setmetatable({}, { __mode = "k" })
 
-local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Voice = "Voice", Music = "Music" }
+local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Voice = "Voice", Music = "Music" }
 
 local function makeGroup(name)
 	local g = Instance.new("SoundGroup")
@@ -218,6 +220,68 @@ function Audio.Step(root, material, outside, isLocal, sprint)
 	end
 end
 
+-- Шаги по меткам анимации: для каждого Animator — один обработчик на каждую дорожку ходьбы/бега
+local STEP_IDS = { [Models.Anim.Walk] = "Walk", [Models.Anim.Run] = "Run" }
+local hookedTracks = setmetatable({}, { __mode = "k" })
+local hookedHumanoids = setmetatable({}, { __mode = "k" })
+local stepRay = RaycastParams.new()
+stepRay.FilterType = Enum.RaycastFilterType.Exclude
+
+local function hookTrack(model, track)
+	if hookedTracks[track] then
+		return
+	end
+	local kind = track.Animation and STEP_IDS[track.Animation.AnimationId]
+	if not kind then
+		return
+	end
+	hookedTracks[track] = true
+	track:GetMarkerReachedSignal("Step"):Connect(function(side)
+		local foot = model:FindFirstChild(side == "L" and "LeftFoot" or "RightFoot") or model:FindFirstChild("HumanoidRootPart")
+		local cam = workspace.CurrentCamera
+		if not (foot and cam) or (foot.Position - cam.CFrame.Position).Magnitude > 60 then
+			return
+		end
+		stepRay.FilterDescendantsInstances = { model }
+		local hit = workspace:Raycast(foot.Position + Vector3.new(0, 1, 0), Vector3.new(0, -4, 0), stepRay)
+		local material = hit and hit.Material or Enum.Material.Concrete
+		local st = stepState[model]
+		if not st then
+			st = { Dist = 0 }
+			stepState[model] = st
+		end
+		st.Marker = os.clock()
+		local isLocal = ctx and model == ctx.Player.Character
+		Audio.Step(foot, material, zoneOf(foot.Position) == "Outside", isLocal, kind == "Run")
+	end)
+end
+
+-- Идут ли шаги этого персонажа по меткам анимации (тогда шаги «по расстоянию» не нужны)
+function Audio.MarkerSteps(model)
+	local st = model and stepState[model]
+	return st ~= nil and st.Marker ~= nil and os.clock() - st.Marker < 1.5
+end
+
+function Audio.HookHumanoid(hum)
+	if hookedHumanoids[hum] then
+		return
+	end
+	hookedHumanoids[hum] = true
+	task.spawn(function()
+		local animator = hum:FindFirstChildOfClass("Animator") or hum:WaitForChild("Animator", 10)
+		local model = hum.Parent
+		if not (animator and model) then
+			return
+		end
+		animator.AnimationPlayed:Connect(function(track)
+			hookTrack(model, track)
+		end)
+		for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+			hookTrack(model, track)
+		end
+	end)
+end
+
 local function updateSteps(dt)
 	local camPos = workspace.CurrentCamera and workspace.CurrentCamera.CFrame.Position or Vector3.new()
 	for _, p in ipairs(Players:GetPlayers()) do
@@ -231,9 +295,10 @@ local function updateSteps(dt)
 				stepState[ch] = st
 				muteDefaultSteps(ch)
 			end
-			local moved = Vector3.new(root.Position.X - st.Last.X, 0, root.Position.Z - st.Last.Z).Magnitude
+			local moved = Vector3.new(root.Position.X - (st.Last or root.Position).X, 0, root.Position.Z - (st.Last or root.Position).Z).Magnitude
 			st.Last = root.Position
-			if hum.FloorMaterial ~= Enum.Material.Air and moved < 3 and hum.MoveDirection.Magnitude > 0.05 then
+			local markersWork = st.Marker and os.clock() - st.Marker < 1.5
+			if not markersWork and hum.FloorMaterial ~= Enum.Material.Air and moved < 3 and hum.MoveDirection.Magnitude > 0.05 then
 				st.Dist = st.Dist + moved
 				local sprint = hum.WalkSpeed > 15
 				if st.Dist >= (sprint and 5.4 or 4.3) then
@@ -253,6 +318,17 @@ function Audio.Init(c)
 	for _, name in ipairs({ "Ambience", "Sfx", "Voice", "Music" }) do
 		makeGroup(name)
 	end
+	-- шаги по меткам анимации: все люди в мире (игроки, покупатели, герой кат-сцены)
+	for _, d in ipairs(workspace:GetDescendants()) do
+		if d:IsA("Humanoid") then
+			Audio.HookHumanoid(d)
+		end
+	end
+	workspace.DescendantAdded:Connect(function(d)
+		if d:IsA("Humanoid") then
+			Audio.HookHumanoid(d)
+		end
+	end)
 	-- Фоновые источники у объектов магазина
 	local function addTagged(tag, name, minD, maxD)
 		for _, part in ipairs(CollectionService:GetTagged(tag)) do

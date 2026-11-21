@@ -99,6 +99,12 @@ function Net.Sound(name, position, volume, player)
 	send("Sound", player, name, position, volume)
 end
 
+-- Рация охраны: щелчок, сообщение в телефоне от «Диспетчера» и субтитр
+function Net.RadioCall(player, text)
+	send("Sound", player, "RadioChirp", nil, 0.8)
+	send("Phone", player, "Рация (диспетчер)", text)
+end
+
 -- Объявление по громкой связи: сигнал + голос + субтитры
 function Net.PA(line)
 	send("Sound", nil, "PAChime", nil, nil)

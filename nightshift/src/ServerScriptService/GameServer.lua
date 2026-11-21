@@ -30,6 +30,7 @@ local Secrets = mod("Secrets")
 local EventDirector = mod("EventDirector")
 local ShiftManager = mod("ShiftManager")
 local Rooms = mod("Rooms")
+local Security = mod("Security")
 
 local GameServer = {}
 
@@ -137,6 +138,7 @@ function GameServer.Start()
 		Power = Power,
 		Store = StoreSystems,
 		Checkout = Checkout,
+		Security = Security,
 		Customers = CustomerManager,
 		Monster = MonsterAI,
 		Secrets = Secrets,
@@ -149,7 +151,12 @@ function GameServer.Start()
 	Doors.Init(map, S)
 	Power.Init(map, S)
 	StoreSystems.Init(map, S)
-	Checkout.Init(map, S)
+	-- звуки действий покупателей (сканирование, пакет, карта…) слышат все
+	NpcFactory.SoundHook = function(name, position, volume)
+		Net.Sound(name, position, volume)
+	end
+	Checkout.Init(map, S, NpcFactory)
+	Security.Init(map, S, NpcFactory)
 	CustomerManager.Init(map, S, NpcFactory, Navigation)
 	MonsterAI.Init(map, S, NpcFactory)
 	Secrets.Init(map, S)
@@ -216,12 +223,6 @@ function GameServer.Start()
 	end
 	function ACTIONS.MonsterSeen(player, seen)
 		MonsterAI.ReportSeen(player, seen == true)
-	end
-	-- экран кассы: пробить товар, оплата картой, сдача
-	function ACTIONS.Pos(player, index, op, arg)
-		if type(index) == "number" and type(op) == "string" then
-			Checkout.PosAction(player, index, op, arg)
-		end
 	end
 	function ACTIONS.IntroDone(player)
 		ShiftManager.IntroDone(player)

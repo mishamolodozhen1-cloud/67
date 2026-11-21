@@ -91,7 +91,6 @@ ctx.Controls = require(script:WaitForChild("Controls"))
 ctx.Cameras = require(script:WaitForChild("CameraSystem"))
 ctx.Effects = require(script:WaitForChild("Effects"))
 ctx.Cinematic = require(script:WaitForChild("Cinematic"))
-ctx.Pos = require(script:WaitForChild("Pos"))
 
 function ctx.ApplySettings()
 	ctx.Audio.SetVolumes(ctx.Settings.Music, ctx.Settings.Sfx)
@@ -104,7 +103,6 @@ ctx.HUD.Init(ctx)
 ctx.Controls.Init(ctx)
 ctx.Cameras.Init(ctx)
 ctx.Cinematic.Init(ctx)
-ctx.Pos.Init(ctx)
 ctx.ApplySettings()
 
 -------------------------------------------------------------------------------
