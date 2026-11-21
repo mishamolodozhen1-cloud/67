@@ -1,14 +1,19 @@
 -- NpcFactory: создаёт людей-NPC (покупателей и «Покупателя»), проигрывает им анимации,
 -- водит по точкам и показывает реплики над головой.
--- Модели делает Players:CreateHumanoidModelFromDescription (стандартный R15 Roblox), одежду задаём цветом частей тела.
+-- Модели делает Players:CreateHumanoidModelFromDescription: реалистичные тела и живые лица
+-- из каталога Roblox (вещи Roblox: Oliver, Summer, City Life Woman, Man, Woman, Kenneth),
+-- многослойная одежда, причёски и обувь. Если каталог недоступен — простая модель с цветной одеждой.
+-- Анимации ходьбы, бега и ожидания — собственные (Shared/Models.Anim, их делает tools/make_anims.py).
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local Debris = game:GetService("Debris")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Models = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Models"))
 
 local NpcFactory = {}
 
-local ANIM_WALK = "rbxassetid://507777826" -- стандартная R15-анимация ходьбы Roblox
-local ANIM_IDLE = "rbxassetid://507766388" -- стандартная R15-анимация ожидания
+local ANIM = Models.Anim
 
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
@@ -77,8 +82,186 @@ local function addHair(model, color, beanie)
 	hair.Parent = model
 end
 
--- Собрать модель человека. look = { Skin, Top, Bottom, Shoes, Hair, Beanie, Height, Width, NoFace }
+-------------------------------------------------------------------------------
+-- Реалистичная внешность из каталога Roblox
+-------------------------------------------------------------------------------
+-- Тела (части из наборов Roblox) и живые головы с мимикой
+local BODIES = {
+	{ Name = "Oliver", Male = true, Torso = 3963871432, LeftArm = 3963861732, RightArm = 3963867514, LeftLeg = 3963864909, RightLeg = 3963869770, Head = 12778883791, Mood = 79356521114937, Brows = 12778888565 },
+	{ Name = "Kenneth", Male = true, Torso = 4637290950, LeftArm = 4637157175, RightArm = 4637286849, LeftLeg = 4637285693, RightLeg = 4637289137, Head = 15093144795, Mood = 15093151872, Brows = 15093184900 },
+	{ Name = "Man", Male = true, Torso = 86500008, LeftArm = 86500054, RightArm = 86500036, LeftLeg = 86500064, RightLeg = 86500078, Head = 10725826963, Mood = 10725833199 },
+	{ Name = "Summer", Male = false, Torso = 3963485362, LeftArm = 3963476651, RightArm = 3963481369, LeftLeg = 3963479563, RightLeg = 3963483107, Head = 12853000475, Mood = 12954144780, Brows = 12853002044, Lashes = 12853004141 },
+	{ Name = "CityLife", Male = false, Torso = 2492674027, LeftArm = 2492667589, RightArm = 2492669375, LeftLeg = 2492671662, RightLeg = 2492670347, Head = 15093243863, Mood = 15093245263, Brows = 15093246364 },
+	{ Name = "Woman", Male = false, Torso = 86499666, LeftArm = 86499716, RightArm = 86499698, LeftLeg = 86499753, RightLeg = 86499793, Head = 10725626210, Mood = 10725638029 },
+}
+local HAIR_M = { 3963874672, 4637431811, 62234425, 9244021842, 9244111257 }
+local HAIR_F = { 3963490791, 2492675286, 7193442167, 9244095135, 7193448258, 6993754725 }
+-- Многослойная одежда Roblox: { id, тип }
+local TOPS_LAYERED = {
+	{ 7192553841, "Jacket" }, -- толстовка на молнии, чёрная
+	{ 9240757332, "Sweater" }, -- вязаный свитер, чёрный
+	{ 9240758221, "Sweater" }, -- вязаный свитер, серый
+	{ 6984769289, "Sweater" }, -- вязаный свитер, бежевый
+	{ 7192549218, "Jacket" }, -- кожаная куртка
+	{ 8516609675, "Jacket" }, -- джинсовая куртка
+	{ 8516620262, "Jacket" }, -- куртка с капюшоном, серая
+	{ 8648397446, "Jacket" }, -- парка, коричневая
+	{ 9120031517, "TShirt" }, -- лонгслив
+	{ 9119670803, "TShirt" }, -- футболка в полоску
+	{ 9112474888, "TShirt" }, -- футболка, серая
+}
+local BOTTOMS_LAYERED = {
+	{ 6984763785, "Pants" }, -- спортивные штаны, чёрные
+	{ 7192664790, "Pants" }, -- спортивные штаны, серые
+	{ 6984740059, "Pants" }, -- карго, коричневые
+	{ 8721985925, "Pants" }, -- брюки, коричневые
+}
+local SHOES = {
+	{ 9482987287, 9482991343 }, -- кеды белые
+	{ 9481782649, 9481786623 }, -- полукеды белые
+	{ 9483690316, 9483697460 }, -- полукеды серые
+	{ 7193165925, 7193166879 }, -- кроссовки серые
+}
+local SKIN_TONES = { rgb(234, 192, 160), rgb(224, 172, 136), rgb(196, 142, 104), rgb(242, 210, 186), rgb(160, 110, 78), rgb(110, 74, 52) }
+
+local function accessory(id, kind, order, layered)
+	if layered then
+		return { AssetId = id, AccessoryType = Enum.AccessoryType[kind], IsLayered = true, Order = order }
+	end
+	if kind == "Eyebrow" or kind == "Eyelash" then
+		-- брови и ресницы ложатся на живую голову: им нужен порядок, но не слой
+		return { AssetId = id, AccessoryType = Enum.AccessoryType[kind], Order = order or 5 }
+	end
+	-- причёска: без слоя и порядка
+	return { AssetId = id, AccessoryType = Enum.AccessoryType[kind] }
+end
+
+-- Описание внешности: тело, голова, причёска, одежда, обувь, цвет кожи
+local function realisticDescription(look)
+	local body = look.Body
+	local d = Instance.new("HumanoidDescription")
+	d.Torso = body.Torso
+	d.LeftArm = body.LeftArm
+	d.RightArm = body.RightArm
+	d.LeftLeg = body.LeftLeg
+	d.RightLeg = body.RightLeg
+	d.Head = look.NoFace and 0 or body.Head
+	d.Face = 0
+	if not look.NoFace and body.Mood then
+		d.MoodAnimation = body.Mood
+	end
+	d.HeightScale = look.Height or 1
+	d.WidthScale = look.Width or 1
+	d.DepthScale = look.Width or 1
+	d.HeadScale = 1
+	d.BodyTypeScale = look.BodyType or 0.3
+	d.ProportionScale = 1
+	for _, k in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
+		d[k] = look.Skin
+	end
+	local list = {}
+	if look.HairId then
+		table.insert(list, accessory(look.HairId, "Hair", nil, false))
+	end
+	if not look.NoFace then
+		if body.Brows then
+			table.insert(list, accessory(body.Brows, "Eyebrow", nil, false))
+		end
+		if body.Lashes then
+			table.insert(list, accessory(body.Lashes, "Eyelash", nil, false))
+		end
+	end
+	if look.Bottom then
+		table.insert(list, accessory(look.Bottom[1], look.Bottom[2], 1, true))
+	end
+	if look.Top then
+		table.insert(list, accessory(look.Top[1], look.Top[2], look.Top[2] == "TShirt" and 2 or 3, true))
+	end
+	if look.Shoes then
+		table.insert(list, accessory(look.Shoes[1], "LeftShoe", 4, true))
+		table.insert(list, accessory(look.Shoes[2], "RightShoe", 4, true))
+	end
+	d:SetAccessories(list, true)
+	return d
+end
+
+local function pick(list)
+	return list[rng:NextInteger(1, #list)]
+end
+
+local function realisticLook()
+	local body = pick(BODIES)
+	return {
+		Realistic = true,
+		Body = body,
+		HairId = rng:NextNumber() < 0.92 and pick(body.Male and HAIR_M or HAIR_F) or nil,
+		Top = pick(TOPS_LAYERED),
+		Bottom = pick(BOTTOMS_LAYERED),
+		Shoes = pick(SHOES),
+		Skin = pick(SKIN_TONES),
+		Height = rng:NextNumber(0.95, 1.05),
+		Width = rng:NextNumber(0.92, 1.04),
+	}
+end
+
+-- Собрать модель человека.
+-- Реалистичная: look = { Realistic = true, Body, HairId, Top, Bottom, Shoes, Skin, Height, Width, NoFace }
+-- Простая (запасная): look = { Skin, Top, Bottom, Shoes, Hair, Beanie, Height, Width, NoFace }
 local function buildRig(look)
+	local model
+	if look.Realistic then
+		local ok, res = pcall(function()
+			return Players:CreateHumanoidModelFromDescription(realisticDescription(look), Enum.HumanoidRigType.R15)
+		end)
+		if ok then
+			model = res
+		else
+			warn("[NPC] реалистичная внешность не загрузилась, беру простую: " .. tostring(res))
+			look = look.Fallback or {
+				Skin = look.Skin,
+				Top = rgb(60, 62, 66),
+				Bottom = rgb(30, 34, 50),
+				Height = look.Height,
+				Width = look.Width,
+				NoFace = look.NoFace,
+			}
+		end
+	end
+	if model then
+		local animate = model:FindFirstChild("Animate")
+		if animate then
+			animate:Destroy()
+		end
+		if look.NoFace then
+			local head = model:FindFirstChild("Head")
+			if head then
+				for _, d in ipairs(head:GetChildren()) do
+					if d:IsA("Decal") then
+						d:Destroy()
+					end
+				end
+				if head:IsA("MeshPart") then
+					pcall(function()
+						head.TextureID = ""
+					end)
+				end
+			end
+		end
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		hum.BreakJointsOnDeath = false
+		hum.RequiresNeck = false
+		for _, st in ipairs({ Enum.HumanoidStateType.FallingDown, Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.Swimming }) do
+			hum:SetStateEnabled(st, false)
+		end
+		for _, p in ipairs(model:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.CollisionGroup = "NPC"
+			end
+		end
+		return model, hum
+	end
 	local d = Instance.new("HumanoidDescription")
 	d.HeightScale = look.Height or 1
 	d.WidthScale = look.Width or 1
@@ -86,7 +269,7 @@ local function buildRig(look)
 	d.HeadScale = 1
 	d.BodyTypeScale = 0
 	d.ProportionScale = 0
-	local model = Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	model = Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
 	local bc = model:FindFirstChildOfClass("BodyColors")
 	if bc then
 		bc:Destroy()
@@ -134,7 +317,7 @@ local function buildRig(look)
 	return model, hum
 end
 
-local function randomLook()
+local function simpleLook()
 	local hat = rng:NextNumber() < 0.25
 	return {
 		Skin = SKIN[rng:NextInteger(1, #SKIN)],
@@ -147,16 +330,35 @@ local function randomLook()
 	}
 end
 
--- Облик «Покупателя»: обычный человек в сером пальто. Вблизи видно, что у него нет лица.
+local function randomLook()
+	if Models.RealisticPeople then
+		return realisticLook()
+	end
+	return simpleLook()
+end
+
+-- Облик «Покупателя»: обычный высокий человек в сером пальто. Вблизи видно, что у него нет лица.
 NpcFactory.MonsterLook = {
+	Realistic = true,
+	Body = BODIES[3], -- «Man»: обычное тело, лицо убираем
+	HairId = 9244021842, -- пробор, чёрные волосы
+	Top = { 8516638468, "Jacket" }, -- деловое пальто, серое
+	Bottom = { 6984763785, "Pants" },
+	Shoes = SHOES[4],
 	Skin = rgb(214, 206, 200),
-	Top = rgb(74, 74, 78),
-	Bottom = rgb(30, 30, 34),
-	Shoes = rgb(16, 16, 16),
-	Hair = rgb(24, 22, 20),
 	Height = 1.09,
 	Width = 0.92,
 	NoFace = true,
+	Fallback = {
+		Skin = rgb(214, 206, 200),
+		Top = rgb(74, 74, 78),
+		Bottom = rgb(30, 30, 34),
+		Shoes = rgb(16, 16, 16),
+		Hair = rgb(24, 22, 20),
+		Height = 1.09,
+		Width = 0.92,
+		NoFace = true,
+	},
 }
 
 local function wrap(model, hum, kind)
@@ -173,7 +375,13 @@ local function wrap(model, hum, kind)
 	return npc
 end
 
--- Анимации ходьбы и ожидания (проигрываются на сервере и видны всем)
+-- Собственные анимации ходьбы, бега и ожидания (проигрываются на сервере и видны всем).
+-- Темп шага подстраивается под скорость, чтобы ноги не скользили по полу.
+local function heightScale(hum)
+	local v = hum:FindFirstChild("BodyHeightScale")
+	return (v and v:IsA("NumberValue") and v.Value > 0) and v.Value or 1
+end
+
 function NpcFactory.Animate(npc)
 	local hum = npc.Humanoid
 	local animator = hum:FindFirstChildOfClass("Animator")
@@ -181,36 +389,50 @@ function NpcFactory.Animate(npc)
 		animator = Instance.new("Animator")
 		animator.Parent = hum
 	end
-	local walk = Instance.new("Animation")
-	walk.AnimationId = ANIM_WALK
-	local idle = Instance.new("Animation")
-	idle.AnimationId = ANIM_IDLE
-	local okW, walkTrack = pcall(function()
-		return animator:LoadAnimation(walk)
-	end)
-	local okI, idleTrack = pcall(function()
-		return animator:LoadAnimation(idle)
-	end)
-	if okI then
-		idleTrack.Looped = true
-		idleTrack.Priority = Enum.AnimationPriority.Idle
+	local function load(id, priority)
+		local a = Instance.new("Animation")
+		a.AnimationId = id
+		local ok, track = pcall(function()
+			return animator:LoadAnimation(a)
+		end)
+		if ok and track then
+			track.Looped = true
+			track.Priority = priority
+			return track
+		end
+		return nil
+	end
+	local idleTrack = load(ANIM.Idle, Enum.AnimationPriority.Idle)
+	local walkTrack = load(ANIM.Walk, Enum.AnimationPriority.Movement)
+	local runTrack = load(ANIM.Run, Enum.AnimationPriority.Movement)
+	if idleTrack then
 		idleTrack:Play()
 	end
-	if okW then
-		walkTrack.Looped = true
-		walkTrack.Priority = Enum.AnimationPriority.Movement
-		hum.Running:Connect(function(speed)
-			if speed > 0.6 then
-				if not walkTrack.IsPlaying then
-					walkTrack:Play(0.2)
-				end
-				walkTrack:AdjustSpeed(math.clamp(speed / 10, 0.4, 1.4))
-			elseif walkTrack.IsPlaying then
-				walkTrack:Stop(0.25)
+	local hs = heightScale(hum)
+	local current = nil
+	hum.Running:Connect(function(speed)
+		local want, rate = nil, 1
+		if speed > 0.6 then
+			if speed >= ANIM.RunFrom and runTrack then
+				want, rate = runTrack, math.clamp(speed / (ANIM.RunNatural * hs), 0.7, 1.5)
+			else
+				want, rate = walkTrack, math.clamp(speed / (ANIM.WalkNatural * hs), 0.45, 1.6)
 			end
-		end)
-	end
-	npc.Tracks = { Walk = okW and walkTrack or nil, Idle = okI and idleTrack or nil }
+		end
+		if want ~= current then
+			if current then
+				current:Stop(0.25)
+			end
+			if want then
+				want:Play(0.25)
+			end
+			current = want
+		end
+		if want then
+			want:AdjustSpeed(rate)
+		end
+	end)
+	npc.Tracks = { Walk = walkTrack, Run = runTrack, Idle = idleTrack }
 end
 
 -- Обычный покупатель (случайная внешность). Возвращает nil, если модель не создалась.

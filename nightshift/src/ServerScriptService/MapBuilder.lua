@@ -20,6 +20,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Products = require(Shared:WaitForChild("Products"))
 local Texts = require(Shared:WaitForChild("Texts"))
+local Models = require(Shared:WaitForChild("Models"))
+local ModelKit = require(script.Parent:WaitForChild("ModelKit"))
 
 local MapBuilder = {}
 
@@ -389,10 +391,109 @@ local function productPart(parent, style, cf)
 	return parts
 end
 
+-------------------------------------------------------------------------------
+-- 3D-модели: продукты (Melon Polygons) и полки, холодильники, стеллажи (SimplePolygon)
+-------------------------------------------------------------------------------
+local SS = Models.ShelfScale -- studs на метр для полок и холодильников
+local PS = Models.ProductScale -- studs на метр для продуктов
+
+local function useModels(list)
+	return ModelKit.Ready and ModelKit.HasAll(list)
+end
+
+-- Размер продукта на полке: ширина вдоль полки, глубина, высота (studs)
+local function productFootprint(def)
+	local s = def.Size * PS
+	if def.Pose == "Upright" then
+		return s.X, s.Y, s.Z
+	end
+	return s.X, s.Z, s.Y
+end
+
+-- Ряд продуктов-моделей. Лицевая сторона (этикетка) смотрит в проход.
+-- Stand — в один ярус, Stack — в 2–3 яруса, Flat — стопкой этикеткой вверх, Upright — пакет на ребре.
+local function modelProductLayer(parent, x0, x1, y, z0, z1, face, category, clearance)
+	local list = Models.Shelf[category]
+	local name = list[rng:NextInteger(1, #list)]
+	local def = Models.Meshes[name]
+	local w, d, h = productFootprint(def)
+	local alongZ = (face == N.Left or face == N.Right)
+	local outward = (face == N.Left or face == N.Front) and -1 or 1
+	local a0, a1 = alongZ and z0 or x0, alongZ and z1 or x1
+	local d0, d1 = alongZ and x0 or z0, alongZ and x1 or z1
+	local frontPlane = outward < 0 and d0 or d1
+	local look = alongZ and Vector3.new(outward, 0, 0) or Vector3.new(0, 0, outward)
+	local gap = 0.04
+	local count = math.max(1, math.floor((a1 - a0 + gap) / (w + gap)))
+	local used = count * (w + gap) - gap
+	local first = a0 + ((a1 - a0) - used) / 2 + w / 2
+	-- тонкие коробки ставим в два ряда (иначе полка выглядит пустой), остальное — в один
+	local rows = (d < 0.35) and 2 or 1
+	rows = math.max(1, math.min(rows, math.floor((d1 - d0 + gap) / (d + gap))))
+	local layers = 1
+	if def.Pose == "Stack" then
+		layers = math.clamp(math.floor((clearance or 1.8) * 0.8 / h), 1, 2)
+	elseif def.Pose == "Flat" then
+		layers = math.clamp(math.floor((clearance or 1.8) * 0.3 / h), 1, 3)
+	end
+	-- не больше ~40 деталей на полку (телефоны)
+	while count * rows * layers > 40 and (rows > 1 or layers > 1) do
+		if rows > 1 then
+			rows = rows - 1
+		else
+			layers = layers - 1
+		end
+	end
+	local size = def.Size * PS
+	local parts = {}
+	for r = 0, rows - 1 do
+		local dc = frontPlane - outward * (0.06 + d / 2 + r * (d + gap))
+		for i = 0, count - 1 do
+			local a = first + i * (w + gap)
+			local pile = layers
+			if def.Pose == "Flat" then
+				pile = rng:NextInteger(math.max(1, layers - 2), layers)
+			end
+			for k = 0, pile - 1 do
+				local cy = y + h / 2 + k * (h + 0.004)
+				local jitter = rng:NextNumber(-0.03, 0.03)
+				local pos = alongZ and Vector3.new(dc + jitter, cy, a) or Vector3.new(a, cy, dc + jitter)
+				local cf = CFrame.lookAt(pos, pos + look) * CFrame.Angles(0, math.rad(rng:NextNumber(-3, 3)), 0)
+				if def.Pose == "Upright" then
+					cf = cf * CFrame.Angles(math.rad(-90), 0, 0)
+				end
+				local p = ModelKit.Make(name, parent, cf, size, { Name = "Product", CanCollide = false, CastShadow = false })
+				if p then
+					table.insert(parts, p)
+				end
+			end
+		end
+	end
+	return parts
+end
+
 -- Ряд товара на полке. Коробка (x0..x1, z0..z1) — место под товар, y — высота полки,
 -- face — куда смотрит покупатель (Left = -X, Right = +X, Front = -Z, Back = +Z).
 -- Если передан facings, ряд можно опустошать и пополнять (задание «выложить товар»).
-local function productLayer(parent, x0, x1, y, z0, z1, face, category, facings, info)
+local function productLayer(parent, x0, x1, y, z0, z1, face, category, facings, info, clearance)
+	local holderTop = y + math.min(clearance or 1.35, 1.6)
+	if Models.Shelf[category] and useModels(Models.Shelf[category]) then
+		local parts = modelProductLayer(parent, x0, x1, y, z0, z1, face, category, clearance)
+		local holder = B(parent, "Facing", x0, y, z0, x1, holderTop, z1, Color3.new(1, 1, 1), M.SmoothPlastic, {
+			Transparency = 1,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			CastShadow = false,
+		})
+		if facings then
+			info.Front = holder
+			info.Parts = parts
+			info.Category = category
+			table.insert(facings, info)
+		end
+		return holder, parts
+	end
 	local styles = Products.ShelfStyles[category]
 	if not styles then
 		return nil
@@ -749,7 +850,64 @@ local function metalSkin(part, faces)
 	skin(part, I.BrushedMetal, 4, faces, rgb(225, 228, 232))
 end
 
+-- Двусторонний стеллаж из моделей: 3 секции по 2 м, на торцах — пристенные стеллажи 1 м
+local function gondolaModel(parent, index, cx, z0, z1, category, map)
+	local m = model("Gondola" .. index, parent)
+	local def = Models.Meshes.GondolaDouble2m
+	local depth, height = def.Size.X * SS, def.Size.Y * SS
+	local modules = 3
+	local len = (z1 - z0) / modules
+	for k = 0, modules - 1 do
+		ModelKit.Make("GondolaDouble2m", m, CFrame.new(cx, height / 2, z0 + (k + 0.5) * len), Vector3.new(depth, height, len), { Name = "GondolaModule" })
+	end
+	local levels = Models.Levels.Gondola
+	local prices = PRICES[category] or { 99 }
+	for side = -1, 1, 2 do
+		local face = side < 0 and N.Left or N.Right
+		local inner, outer = cx + side * 0.2, cx + side * (depth / 2 - 0.05)
+		local xa, xb = math.min(inner, outer), math.max(inner, outer)
+		for level, ym in ipairs(levels) do
+			local y = ym * SS + 0.02
+			local top = levels[level + 1] and levels[level + 1] * SS or height
+			for sec = 1, modules do
+				local sz0 = z0 + (sec - 1) * len + 0.3
+				local sz1 = z0 + sec * len - 0.3
+				productLayer(m, xa, xb, y, sz0, sz1, face, category, map.Facings, {
+					Gondola = index,
+					Side = side,
+					Level = level,
+					Section = sec,
+					Aisle = cx + side * 7.5,
+					ZCenter = (sz0 + sz1) / 2,
+					Label = string.format("Ряд %d, %s", index, Products.Categories[category].Name),
+				}, top - y - 0.2)
+				priceTag(m, Vector3.new(cx + side * (depth / 2 + 0.03), y - 0.14, (sz0 + sz1) / 2 + rng:NextNumber(-1.5, 1.5)), face, prices[rng:NextInteger(1, #prices)])
+			end
+		end
+	end
+	-- торцы: пристенный стеллаж 1 м лицом в поперечный проход (перед модели — локальная -X)
+	local ed = Models.Meshes.WallShelf1m
+	local eDepth, eHeight, eWidth = ed.Size.X * SS, ed.Size.Y * SS, ed.Size.Z * SS
+	for _, e in ipairs({ { z0, -1, N.Front }, { z1, 1, N.Back } }) do
+		local zc = e[1] + e[2] * eDepth / 2
+		local rotY = e[2] < 0 and math.rad(-90) or math.rad(90)
+		ModelKit.Make("WallShelf1m", m, CFrame.new(cx, eHeight / 2, zc) * CFrame.Angles(0, rotY, 0), Vector3.new(eDepth, eHeight, eWidth), { Name = "EndCap" })
+		local front, back = e[1] + e[2] * (eDepth - 0.05), e[1] + e[2] * (eDepth * 0.16)
+		for level, ym in ipairs(Models.Levels.WallShelf) do
+			local y = ym * SS + 0.02
+			local top = Models.Levels.WallShelf[level + 1] and Models.Levels.WallShelf[level + 1] * SS or eHeight
+			productLayer(m, cx - eWidth / 2 + 0.2, cx + eWidth / 2 - 0.2, y, math.min(front, back), math.max(front, back), e[3], category, nil, nil, top - y - 0.2)
+		end
+		local za, zb = e[1] + e[2] * 0.25, e[1] + e[2] * 0.45
+		local header = B(m, "PromoSign", cx - eWidth / 2, eHeight + 0.1, math.min(za, zb), cx + eWidth / 2, eHeight + 1.4, math.max(za, zb), C.Red, M.SmoothPlastic)
+		sign(header, e[3], "АКЦИЯ −20%", { color = Color3.new(1, 1, 1), ppS = 30, font = Enum.Font.GothamBlack })
+	end
+end
+
 local function gondola(parent, index, cx, z0, z1, category, map)
+	if useModels({ "GondolaDouble2m", "WallShelf1m" }) then
+		return gondolaModel(parent, index, cx, z0, z1, category, map)
+	end
 	local m = model("Gondola" .. index, parent)
 	local len = z1 - z0
 	B(m, "Base", cx - 2, 0, z0, cx + 2, 0.5, z1, C.Dark, M.SmoothPlastic)
@@ -837,23 +995,48 @@ local function buildSalesFloor(root, map)
 
 	-- Хлеб: пристенный стеллаж слева, буханки и батоны
 	local bread = model("BreadWall", f)
-	local back = B(bread, "Back", -65.5, 0, -6, -65.2, 8, 24, C.Metal, M.Metal)
-	metalSkin(back, { N.Right })
-	for level, y in ipairs({ 0.6, 2.4, 4.2, 6.0 }) do
-		B(bread, "Shelf", -65.2, y - 0.12, -6, -62.6, y, 24, rgb(150, 110, 70), M.Wood)
-		B(bread, "PriceStrip", -62.66, y - 0.34, -6, -62.56, y - 0.02, 24, C.Price, M.SmoothPlastic)
-		if level == 1 then
-			B(bread, "Base", -65.2, 0, -6, -62.6, 0.6, 24, C.Dark, M.SmoothPlastic)
-		end
-		local z = -5.4
-		while z < 23 do
+	-- Ряд батонов и буханок на полке (x от xa до xb, z от za до zb)
+	local function loaves(xa, xb, y, za, zb)
+		local z = za
+		while z < zb - 1 do
 			local long = rng:NextNumber() < 0.6
 			local w = long and 1.5 or 1.1
-			local loaf = P(bread, "Loaf", Vector3.new(long and 0.9 or 1.0, long and 0.55 or 0.75, w), CFrame.new(-64.0 + rng:NextNumber(-0.2, 0.2), y + (long and 0.28 or 0.38), z + w / 2) * CFrame.Angles(0, math.rad(rng:NextNumber(-8, 8)), 0), long and rgb(206, 150, 82) or rgb(150, 98, 56), M.SmoothPlastic, { CastShadow = false })
+			local loaf = P(bread, "Loaf", Vector3.new(long and 0.9 or 1.0, long and 0.55 or 0.75, w), CFrame.new((xa + xb) / 2 + rng:NextNumber(-0.2, 0.2), y + (long and 0.28 or 0.38), z + w / 2) * CFrame.Angles(0, math.rad(rng:NextNumber(-8, 8)), 0), long and rgb(206, 150, 82) or rgb(150, 98, 56), M.SmoothPlastic, { CastShadow = false })
 			local mesh = Instance.new("SpecialMesh")
 			mesh.MeshType = Enum.MeshType.Sphere
 			mesh.Parent = loaf
 			z = z + w + 0.12
+		end
+	end
+	if useModels({ "WallShelf2m" }) then
+		-- пристенные стеллажи 2 м (перед модели — локальная -X, разворачиваем лицом в зал)
+		local def = Models.Meshes.WallShelf2m
+		local d, h, w = def.Size.X * SS, def.Size.Y * SS, def.Size.Z * SS
+		for k = 0, 3 do
+			ModelKit.Make("WallShelf2m", bread, CFrame.new(-65.5 + d / 2, h / 2, -6 + w / 2 + k * w) * CFrame.Angles(0, math.pi, 0), Vector3.new(d, h, w), { Name = "BreadShelf" })
+		end
+		for _, ym in ipairs(Models.Levels.WallShelf) do
+			loaves(-65.5 + d * 0.2, -65.5 + d - 0.1, ym * SS + 0.02, -5.6, -6 + 4 * w - 0.3)
+		end
+	else
+		local back = B(bread, "Back", -65.5, 0, -6, -65.2, 8, 24, C.Metal, M.Metal)
+		metalSkin(back, { N.Right })
+		for level, y in ipairs({ 0.6, 2.4, 4.2, 6.0 }) do
+			B(bread, "Shelf", -65.2, y - 0.12, -6, -62.6, y, 24, rgb(150, 110, 70), M.Wood)
+			B(bread, "PriceStrip", -62.66, y - 0.34, -6, -62.56, y - 0.02, 24, C.Price, M.SmoothPlastic)
+			if level == 1 then
+				B(bread, "Base", -65.2, 0, -6, -62.6, 0.6, 24, C.Dark, M.SmoothPlastic)
+			end
+			local z = -5.4
+			while z < 23 do
+				local long = rng:NextNumber() < 0.6
+				local w = long and 1.5 or 1.1
+				local loaf = P(bread, "Loaf", Vector3.new(long and 0.9 or 1.0, long and 0.55 or 0.75, w), CFrame.new(-64.0 + rng:NextNumber(-0.2, 0.2), y + (long and 0.28 or 0.38), z + w / 2) * CFrame.Angles(0, math.rad(rng:NextNumber(-8, 8)), 0), long and rgb(206, 150, 82) or rgb(150, 98, 56), M.SmoothPlastic, { CastShadow = false })
+				local mesh = Instance.new("SpecialMesh")
+				mesh.MeshType = Enum.MeshType.Sphere
+				mesh.Parent = loaf
+				z = z + w + 0.12
+			end
 		end
 	end
 	local breadSign = B(bread, "Header", -65.4, 8.4, -2, -65.2, 10, 20, rgb(170, 110, 50), M.SmoothPlastic)
@@ -861,18 +1044,55 @@ local function buildSalesFloor(root, map)
 
 	-- Напитки: пристенный стеллаж справа
 	local drinks = model("DrinksWall", f)
-	local dback = B(drinks, "Back", 39.2, 0, -6, 39.5, 8, 40, C.Metal, M.Metal)
-	metalSkin(dback, { N.Left })
-	for level, y in ipairs({ 0.6, 2.4, 4.2, 6.0 }) do
-		local shelf = B(drinks, "Shelf", 36.6, y - 0.12, -6, 39.2, y, 40, C.Metal, M.Metal)
-		skin(shelf, I.StainlessSteel, 3, { N.Top })
-		B(drinks, "PriceStrip", 36.56, y - 0.34, -6, 36.66, y - 0.02, 40, C.Price, M.SmoothPlastic)
-		if level == 1 then
-			B(drinks, "Base", 36.6, 0, -6, 39.2, 0.6, 40, C.Dark, M.SmoothPlastic)
+	if useModels({ "DrinkCooler2", "CoolerDoor2" }) then
+		-- шкафы-холодильники со стеклянными дверями вдоль восточной стены (перед модели — локальная -X)
+		local def = Models.Meshes.DrinkCooler2
+		local d, h, w = 2.6, def.Size.Y * SS, def.Size.Z * SS
+		local x1 = 39.5
+		local n = math.floor(46 / w)
+		local zStart = -6 + (46 - n * w) / 2
+		local door = Models.Meshes.CoolerDoor2
+		local dh, dw = door.Size.Y * SS, door.Size.Z * SS
+		for k = 0, n - 1 do
+			local zc = zStart + (k + 0.5) * w
+			ModelKit.Make("DrinkCooler2", drinks, CFrame.new(x1 - d / 2, h / 2, zc), Vector3.new(d, h, w), { Name = "DrinkCooler" })
+			local frontX = x1 - d
+			ModelKit.Make("CoolerDoor2", drinks, CFrame.new(frontX - 0.12, 1.1 * SS, zc), Vector3.new(0.22, dh, dw), { Name = "CoolerDoorFrame", CanCollide = false })
+			P(drinks, "CoolerGlass", Vector3.new(0.06, dh - 0.3, dw - 0.3), CFrame.new(frontX - 0.12, 1.1 * SS, zc), rgb(190, 215, 230), M.Glass, { Transparency = 0.72, Reflectance = 0.18, CastShadow = false })
+			B(drinks, "CoolerHandle", frontX - 0.32, 2.6, zc - 0.15, frontX - 0.22, 5.4, zc + 0.15, rgb(180, 182, 186), M.Metal)
+			-- холодная подсветка внутри
+			local strip = B(drinks, "CoolerLamp", frontX + 0.3, 1.84 * SS - 0.25, zc - w / 2 + 0.4, frontX + 0.5, 1.84 * SS - 0.15, zc + w / 2 - 0.4, C.LampCold, M.Neon, { CastShadow = false })
+			local sl = Instance.new("SurfaceLight")
+			sl.Face = N.Bottom
+			sl.Angle = 150
+			sl.Range = 8
+			sl.Brightness = 1.2
+			sl.Color = C.LampCold
+			sl.Parent = strip
+			strip:SetAttribute("Zone", "Drinks")
+			strip:SetAttribute("LampColor", C.LampCold)
+			tag(strip, "StoreLight")
+			local levels = Models.Levels.DrinkCooler
+			for level, ym in ipairs(levels) do
+				local y = ym * SS + 0.02
+				local top = levels[level + 1] and levels[level + 1] * SS or 1.84 * SS
+				productLayer(drinks, frontX + d * 0.22, x1 - 0.25, y, zc - w / 2 + 0.35, zc + w / 2 - 0.35, N.Left, "Drinks", nil, nil, top - y - 0.15)
+			end
 		end
-		for sec = 0, 4 do
-			local z0 = -5.8 + sec * 9.1
-			productLayer(drinks, 36.8, 39.1, y, z0, z0 + 8.9, N.Left, "Drinks", nil, nil)
+	else
+		local dback = B(drinks, "Back", 39.2, 0, -6, 39.5, 8, 40, C.Metal, M.Metal)
+		metalSkin(dback, { N.Left })
+		for level, y in ipairs({ 0.6, 2.4, 4.2, 6.0 }) do
+			local shelf = B(drinks, "Shelf", 36.6, y - 0.12, -6, 39.2, y, 40, C.Metal, M.Metal)
+			skin(shelf, I.StainlessSteel, 3, { N.Top })
+			B(drinks, "PriceStrip", 36.56, y - 0.34, -6, 36.66, y - 0.02, 40, C.Price, M.SmoothPlastic)
+			if level == 1 then
+				B(drinks, "Base", 36.6, 0, -6, 39.2, 0.6, 40, C.Dark, M.SmoothPlastic)
+			end
+			for sec = 0, 4 do
+				local z0 = -5.8 + sec * 9.1
+				productLayer(drinks, 36.8, 39.1, y, z0, z0 + 8.9, N.Left, "Drinks", nil, nil)
+			end
 		end
 	end
 	local drinksSign = B(drinks, "Header", 39.2, 8.4, 4, 39.4, 10, 30, rgb(30, 90, 170), M.SmoothPlastic)
@@ -952,54 +1172,98 @@ local function buildFridges(root, map)
 		local x0 = -8 + (i - 1) * 9.2
 		local x1 = x0 + 9.2
 		local m = model("Fridge" .. i, f)
-		local body = B(m, "Base", x0, 0, -12, x1, 0.6, -8.4, steel, M.Metal)
-		skin(B(m, "SideL", x0, 0.6, -12, x0 + 0.2, 8.2, -8.4, steel, M.Metal), I.StainlessSteel, 3, { N.Left, N.Right })
-		skin(B(m, "SideR", x1 - 0.2, 0.6, -12, x1, 8.2, -8.4, steel, M.Metal), I.StainlessSteel, 3, { N.Left, N.Right })
-		B(m, "Top", x0, 8.2, -12, x1, 9, -8.6, steel, M.Metal)
-		tag(body, "AmbFridge")
-		body:SetAttribute("Unit", i)
-		local back = B(m, "Interior", x0 + 0.3, 0.6, -11.9, x1 - 0.3, 8, -11.7, rgb(236, 240, 244), M.SmoothPlastic)
-		local lights = {}
-		local strip = B(m, "FridgeLamp", x0 + 0.4, 7.85, -11.6, x1 - 0.4, 7.95, -11.3, C.LampCold, M.Neon, { CastShadow = false })
-		local sl = Instance.new("SurfaceLight")
-		sl.Face = N.Bottom
-		sl.Angle = 140
-		sl.Range = 9
-		sl.Brightness = 1.4
-		sl.Color = C.LampCold
-		sl.Parent = strip
-		strip:SetAttribute("Zone", "Fridge" .. i)
-		strip:SetAttribute("LampColor", C.LampCold)
-		tag(strip, "StoreLight")
-		table.insert(lights, strip)
-		for level, y in ipairs({ 0.7, 2.2, 3.7, 5.2, 6.6 }) do
-			if level > 1 then
-				B(m, "Shelf", x0 + 0.3, y - 0.08, -11.7, x1 - 0.3, y, -9.0, rgb(200, 210, 220), M.Glass, { Transparency = 0.3 })
+		if useModels({ "OpenChiller2m" }) then
+			-- открытая холодильная горка (перед модели — локальная -X, поворачиваем лицом в зал)
+			local def = Models.Meshes.OpenChiller2m
+			local d, h = 2.6, def.Size.Y * SS
+			local cx, zc = (x0 + x1) / 2, -12 + d / 2
+			local frontZ = -12 + d
+			ModelKit.Make("OpenChiller2m", m, CFrame.new(cx, h / 2, zc) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(d, h, x1 - x0 - 0.1), { Name = "Chiller" })
+			local body = B(m, "Base", x0 + 0.2, 0, -11.9, x1 - 0.2, 0.6, frontZ - 0.3, steel, M.Metal, { Transparency = 1, CanCollide = false, CanQuery = false })
+			tag(body, "AmbFridge")
+			body:SetAttribute("Unit", i)
+			local back = B(m, "Interior", x0 + 0.4, 1.8, -11.95, x1 - 0.4, 7.2, -11.9, rgb(236, 240, 244), M.SmoothPlastic, { Transparency = 1, CanCollide = false, CanQuery = false })
+			local strip = B(m, "FridgeLamp", x0 + 0.5, 2.07 * SS - 0.3, frontZ - 0.9, x1 - 0.5, 2.07 * SS - 0.2, frontZ - 0.6, C.LampCold, M.Neon, { CastShadow = false })
+			local sl = Instance.new("SurfaceLight")
+			sl.Face = N.Bottom
+			sl.Angle = 140
+			sl.Range = 9
+			sl.Brightness = 1.4
+			sl.Color = C.LampCold
+			sl.Parent = strip
+			strip:SetAttribute("Zone", "Fridge" .. i)
+			strip:SetAttribute("LampColor", C.LampCold)
+			tag(strip, "StoreLight")
+			local levels = Models.Levels.OpenChiller
+			for level, ym in ipairs(levels) do
+				local y = ym * SS + 0.02
+				local top = levels[level + 1] and levels[level + 1] * SS or 2.07 * SS
+				local backZ = (level == 1) and (-12 + 0.35) or (-12 + d * 0.17)
+				productLayer(m, x0 + 0.5, x1 - 0.5, y, backZ, frontZ - 0.1, N.Back, "Chilled", nil, nil, top - y - 0.2)
 			end
-			productLayer(m, x0 + 0.4, x1 - 0.4, y, -11.5, -9.2, N.Back, "Chilled", nil, nil)
+			local header = B(m, "Header", x0, h - 0.05, frontZ - 0.2, x1, h + 0.75, frontZ, rgb(30, 90, 170), M.SmoothPlastic)
+			sign(header, N.Back, i <= 2 and "МОЛОЧНЫЕ ПРОДУКТЫ" or (i <= 4 and "МЯСО · КОЛБАСЫ · ПЕЛЬМЕНИ" or "СЫРЫ · ДЕСЕРТЫ"), { color = Color3.new(1, 1, 1), ppS = 30, light = 0, brightness = 1.4 })
+			local thermo = B(m, "Thermometer", x1 - 1.6, h - 0.75, frontZ, x1 - 0.4, h - 0.15, frontZ + 0.14, C.Black, M.SmoothPlastic)
+			local label = sign(thermo, N.Back, "+3 °C", { color = rgb(80, 255, 120), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
+			table.insert(map.Fridges, {
+				Index = i,
+				Body = body,
+				Lights = { strip },
+				Interior = back,
+				Thermo = thermo,
+				ThermoLabel = label,
+				Front = Vector3.new((x0 + x1) / 2, 0, -6.5),
+			})
+		else
+			local body = B(m, "Base", x0, 0, -12, x1, 0.6, -8.4, steel, M.Metal)
+			skin(B(m, "SideL", x0, 0.6, -12, x0 + 0.2, 8.2, -8.4, steel, M.Metal), I.StainlessSteel, 3, { N.Left, N.Right })
+			skin(B(m, "SideR", x1 - 0.2, 0.6, -12, x1, 8.2, -8.4, steel, M.Metal), I.StainlessSteel, 3, { N.Left, N.Right })
+			B(m, "Top", x0, 8.2, -12, x1, 9, -8.6, steel, M.Metal)
+			tag(body, "AmbFridge")
+			body:SetAttribute("Unit", i)
+			local back = B(m, "Interior", x0 + 0.3, 0.6, -11.9, x1 - 0.3, 8, -11.7, rgb(236, 240, 244), M.SmoothPlastic)
+			local lights = {}
+			local strip = B(m, "FridgeLamp", x0 + 0.4, 7.85, -11.6, x1 - 0.4, 7.95, -11.3, C.LampCold, M.Neon, { CastShadow = false })
+			local sl = Instance.new("SurfaceLight")
+			sl.Face = N.Bottom
+			sl.Angle = 140
+			sl.Range = 9
+			sl.Brightness = 1.4
+			sl.Color = C.LampCold
+			sl.Parent = strip
+			strip:SetAttribute("Zone", "Fridge" .. i)
+			strip:SetAttribute("LampColor", C.LampCold)
+			tag(strip, "StoreLight")
+			table.insert(lights, strip)
+			for level, y in ipairs({ 0.7, 2.2, 3.7, 5.2, 6.6 }) do
+				if level > 1 then
+					B(m, "Shelf", x0 + 0.3, y - 0.08, -11.7, x1 - 0.3, y, -9.0, rgb(200, 210, 220), M.Glass, { Transparency = 0.3 })
+				end
+				productLayer(m, x0 + 0.4, x1 - 0.4, y, -11.5, -9.2, N.Back, "Chilled", nil, nil)
+			end
+			-- Стеклянные двери (3 на секцию) с рамками и ручками
+			for d = 0, 2 do
+				local dx0 = x0 + 0.2 + d * 2.95
+				local dx1 = dx0 + 2.9
+				B(m, "GlassDoor", dx0, 0.6, -8.6, dx1, 8.2, -8.45, rgb(190, 215, 230), M.Glass, { Transparency = 0.66, Reflectance = 0.2, CastShadow = false })
+				B(m, "DoorFrame", dx0, 0.6, -8.62, dx0 + 0.12, 8.2, -8.4, C.Black, M.Metal)
+				B(m, "DoorHandle", dx1 - 0.35, 3, -8.42, dx1 - 0.22, 6, -8.3, rgb(180, 182, 186), M.Metal)
+			end
+			local header = B(m, "Header", x0, 8.2, -8.6, x1, 9, -8.4, rgb(30, 90, 170), M.SmoothPlastic)
+			sign(header, N.Back, i <= 2 and "МОЛОЧНЫЕ ПРОДУКТЫ" or (i <= 4 and "МЯСО · КОЛБАСЫ · ПЕЛЬМЕНИ" or "СЫРЫ · ДЕСЕРТЫ"), { color = Color3.new(1, 1, 1), ppS = 30, light = 0, brightness = 1.4 })
+			-- Термометр-табло
+			local thermo = B(m, "Thermometer", x1 - 1.5, 7.2, -8.44, x1 - 0.3, 7.9, -8.3, C.Black, M.SmoothPlastic)
+			local label = sign(thermo, N.Back, "+3 °C", { color = rgb(80, 255, 120), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
+			table.insert(map.Fridges, {
+				Index = i,
+				Body = body,
+				Lights = lights,
+				Interior = back,
+				Thermo = thermo,
+				ThermoLabel = label,
+				Front = Vector3.new((x0 + x1) / 2, 0, -6.5),
+			})
 		end
-		-- Стеклянные двери (3 на секцию) с рамками и ручками
-		for d = 0, 2 do
-			local dx0 = x0 + 0.2 + d * 2.95
-			local dx1 = dx0 + 2.9
-			B(m, "GlassDoor", dx0, 0.6, -8.6, dx1, 8.2, -8.45, rgb(190, 215, 230), M.Glass, { Transparency = 0.66, Reflectance = 0.2, CastShadow = false })
-			B(m, "DoorFrame", dx0, 0.6, -8.62, dx0 + 0.12, 8.2, -8.4, C.Black, M.Metal)
-			B(m, "DoorHandle", dx1 - 0.35, 3, -8.42, dx1 - 0.22, 6, -8.3, rgb(180, 182, 186), M.Metal)
-		end
-		local header = B(m, "Header", x0, 8.2, -8.6, x1, 9, -8.4, rgb(30, 90, 170), M.SmoothPlastic)
-		sign(header, N.Back, i <= 2 and "МОЛОЧНЫЕ ПРОДУКТЫ" or (i <= 4 and "МЯСО · КОЛБАСЫ · ПЕЛЬМЕНИ" or "СЫРЫ · ДЕСЕРТЫ"), { color = Color3.new(1, 1, 1), ppS = 30, light = 0, brightness = 1.4 })
-		-- Термометр-табло
-		local thermo = B(m, "Thermometer", x1 - 1.5, 7.2, -8.44, x1 - 0.3, 7.9, -8.3, C.Black, M.SmoothPlastic)
-		local label = sign(thermo, N.Back, "+3 °C", { color = rgb(80, 255, 120), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
-		table.insert(map.Fridges, {
-			Index = i,
-			Body = body,
-			Lights = lights,
-			Interior = back,
-			Thermo = thermo,
-			ThermoLabel = label,
-			Front = Vector3.new((x0 + x1) / 2, 0, -6.5),
-		})
 	end
 end
 
@@ -1107,6 +1371,11 @@ local function buildLanes(root, map)
 			ExitSpot = Vector3.new(cx, 0, 44.5),
 			CashierZone = { X + 1.4, X + 6.2, 30, 40 },
 		}
+		if useModels({ "Register" }) then
+			B(m, "RegisterStand", X + 1.45, 0, 37.6, X + 3.1, 2.9, 40.2, rgb(226, 228, 228), M.SmoothPlastic)
+			local rs = Models.Meshes.Register.Size * SS
+			ModelKit.Make("Register", m, CFrame.new(X + 2.27, 2.9 + rs.Y / 2, 38.9), rs, { Name = "CashRegister" })
+		end
 		table.insert(map.Lanes, lane)
 	end
 	-- Корзины у входа
@@ -1118,7 +1387,52 @@ end
 -------------------------------------------------------------------------------
 -- Склад
 -------------------------------------------------------------------------------
+local BOX_KINDS = { "BoxClosed", "BoxClosed", "BoxClosed", "BoxFlat", "BoxOpen", "BoxTray" }
+
+-- Коробка-модель на полке склада (размер подбирается под высоту и глубину полки)
+local function modelBox(parent, kind, cx, y, z, maxH, maxD)
+	local s = Models.Meshes[kind].Size
+	local k = rng:NextNumber(1.5, 2.1) * SS
+	k = math.min(k, maxH / s.Y, maxD / s.X)
+	local size = s * k
+	local cf = CFrame.new(cx + rng:NextNumber(-0.15, 0.15), y + size.Y / 2, z + size.Z / 2) * CFrame.Angles(0, math.rad((rng:NextNumber() < 0.5 and 0 or 180) + rng:NextNumber(-4, 4)), 0)
+	return ModelKit.Make(kind, parent, cf, size, { Name = "Box" }), size
+end
+
+local function rackModel(parent, x0, x1, z0, z1)
+	local m = model("Rack", parent)
+	local def = Models.Meshes.Rack2m
+	local d, h = x1 - x0, def.Size.Y * SS
+	local n = math.max(1, math.floor((z1 - z0) / (def.Size.Z * SS) + 0.5))
+	local w = (z1 - z0) / n
+	local cx = (x0 + x1) / 2
+	for k = 0, n - 1 do
+		ModelKit.Make("Rack2m", m, CFrame.new(cx, h / 2, z0 + (k + 0.5) * w), Vector3.new(d, h, w), { Name = "RackBay" })
+	end
+	local levels = Models.Levels.Rack
+	for level, ym in ipairs(levels) do
+		local y = ym * SS + 0.05
+		local top = levels[level + 1] and levels[level + 1] * SS or h
+		local z = z0 + 0.4
+		while z < z1 - 1.2 do
+			if rng:NextNumber() < 0.85 then
+				local _, size = modelBox(m, BOX_KINDS[rng:NextInteger(1, #BOX_KINDS)], cx, y, z, top - y - 0.25, d - 0.4)
+				z = z + size.Z + rng:NextNumber(0.15, 0.5)
+				if z > z1 - 0.3 then
+					break
+				end
+			else
+				z = z + rng:NextNumber(1.2, 2.2)
+			end
+		end
+	end
+	return m
+end
+
 local function rack(parent, x0, x1, z0, z1)
+	if useModels({ "Rack2m", "BoxClosed", "BoxFlat", "BoxOpen", "BoxTray" }) then
+		return rackModel(parent, x0, x1, z0, z1)
+	end
 	local m = model("Rack", parent)
 	local orange, blue = rgb(230, 110, 30), rgb(30, 70, 150)
 	local bays = math.max(1, math.floor((z1 - z0) / 8 + 0.5))
@@ -1163,9 +1477,15 @@ local function buildWarehouse(root, map)
 		B(f, "Pallet", x0, 0, -17, x0 + 2.8, 0.45, -14, rgb(160, 120, 70), M.WoodPlanks)
 		local h = 0.45
 		for k = 1, 3 do
-			local bh = rng:NextNumber(1.0, 1.3)
-			B(f, "PalletBox", x0 + 0.1, h, -16.9, x0 + 2.7, h + bh, -14.1, C.Cardboard, M.Cardboard)
-			h = h + bh
+			if useModels({ "BoxClosed" }) then
+				local size = Vector3.new(2.6, 1.15, 2.8)
+				ModelKit.Make("BoxClosed", f, CFrame.new(x0 + 1.4, h + size.Y / 2, -15.5) * CFrame.Angles(0, math.rad(rng:NextNumber(-3, 3)), 0), size, { Name = "PalletBox" })
+				h = h + size.Y
+			else
+				local bh = rng:NextNumber(1.0, 1.3)
+				B(f, "PalletBox", x0 + 0.1, h, -16.9, x0 + 2.7, h + bh, -14.1, C.Cardboard, M.Cardboard)
+				h = h + bh
+			end
 		end
 		local top = B(f, "BoxPile", x0 + 0.2, h, -16.6, x0 + 2.6, h + 1.2, -14.4, C.Cardboard, M.Cardboard)
 		skin(top, I.Cardboard, 3, { N.Top, N.Front, N.Back, N.Left, N.Right })
@@ -1791,6 +2111,8 @@ function MapBuilder.Build()
 	end
 	local root = Instance.new("Folder")
 	root.Name = "Store"
+	-- 3D-модели полок и продуктов (если не загрузятся — магазин соберётся из простых деталей)
+	ModelKit.Load(25)
 	local map = { Root = root, Points = {}, Stations = {}, Clues = {} }
 	buildShell(root, map)
 	buildFront(root, map)

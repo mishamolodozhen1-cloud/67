@@ -662,6 +662,9 @@ local function buildLobby()
 		HUD.RequestStart()
 	end)
 	lobbyCountdown = UI.text("", { Position = UDim2.fromOffset(256, 0), Size = UDim2.new(1, -256, 1, 0), TextSize = 14, TextColor3 = UI.Colors.Muted }, row)
+	-- авторы 3D-моделей (лицензия CC BY 4.0 требует их указывать)
+	local Models = require(Shared:WaitForChild("Models"))
+	UI.text("3D-модели: " .. table.concat(Models.Credits, " · "), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 11, TextColor3 = UI.Colors.Muted, LayoutOrder = 6 }, lobbyPanel)
 end
 
 function HUD.RequestStart()

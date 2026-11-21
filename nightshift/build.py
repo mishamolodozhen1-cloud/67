@@ -5,6 +5,7 @@
   src/ServerScriptService/*.server.lua       -> Script
   src/ServerScriptService/*.lua              -> ModuleScript
   src/StarterPlayerScripts/<папка>/          -> LocalScript (init.client.lua) + дочерние ModuleScript
+  src/StarterCharacterScripts/*.client.lua   -> LocalScript в StarterCharacterScripts (собственный Animate)
 
 Карту магазина строит сервер при запуске (MapBuilder.lua), поэтому в плейсе лежат только скрипты,
 точка появления в комнате персонала и настройка освещения Future.
@@ -88,7 +89,8 @@ def build():
             sss.add(script("ModuleScript", lua_name(fn), path))
     services.append(sss)
 
-    sp = Inst("StarterPlayer", "StarterPlayer")
+    # Аватары только R15: собственные анимации ходьбы сделаны для R15 (Enum.GameAvatarType.R15 = 1)
+    sp = Inst("StarterPlayer", "StarterPlayer", [("token", "GameSettingsAvatar", 1)])
     sps = sp.add(Inst("StarterPlayerScripts", "StarterPlayerScripts"))
     d = os.path.join(SRC, "StarterPlayerScripts")
     for entry in sorted(os.listdir(d)):
@@ -99,6 +101,13 @@ def build():
                 if fn.endswith(".lua") and fn != "init.client.lua":
                     local.add(script("ModuleScript", lua_name(fn), os.path.join(path, fn)))
             sps.add(local)
+    # StarterCharacterScripts: скрипты, которые копируются в персонажа (собственный «Animate»)
+    d = os.path.join(SRC, "StarterCharacterScripts")
+    if os.path.isdir(d):
+        scs = sp.add(Inst("StarterCharacterScripts", "StarterCharacterScripts"))
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith(".client.lua"):
+                scs.add(script("LocalScript", lua_name(fn), os.path.join(d, fn)))
     services.append(sp)
 
     os.makedirs(OUT_DIR, exist_ok=True)

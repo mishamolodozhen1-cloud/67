@@ -25,6 +25,7 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Texts = require(Shared:WaitForChild("Texts"))
+local Models = require(Shared:WaitForChild("Models"))
 
 local Cinematic = {}
 
@@ -199,8 +200,9 @@ local function makeActor(pos, yaw)
 		return a
 	end
 	local r15 = hum0.RigType == Enum.HumanoidRigType.R15
-	local walkId = animId(ch, "walk", "WalkAnim", r15 and "rbxassetid://507777826" or "rbxassetid://180426354")
-	local idleId = animId(ch, "idle", "Animation1", r15 and "rbxassetid://507766388" or "rbxassetid://180435571")
+	-- собственные анимации игры (R15); у R6 — анимации из его скрипта Animate или стандартные
+	local walkId = r15 and Models.Anim.Walk or animId(ch, "walk", "WalkAnim", "rbxassetid://180426354")
+	local idleId = r15 and Models.Anim.Idle or animId(ch, "idle", "Animation1", "rbxassetid://180435571")
 	ch.Archivable = true
 	local ok, m = pcall(function()
 		return ch:Clone()
@@ -234,7 +236,7 @@ local function makeActor(pos, yaw)
 	if r15 then
 		a.Height = hum.HipHeight + root.Size.Y / 2
 		local hs = hum:FindFirstChild("BodyHeightScale")
-		a.AnimScale = 0.156 / ((hs and hs:IsA("NumberValue") and hs.Value > 0) and hs.Value or 1)
+		a.AnimScale = 1 / (Models.Anim.WalkNatural * ((hs and hs:IsA("NumberValue") and hs.Value > 0) and hs.Value or 1))
 	else
 		a.Height = 3
 		a.AnimScale = 1 / 14.5
