@@ -1,5 +1,13 @@
 -- NIGHT SHIFT — точка входа сервера (Script «Main» в ServerScriptService).
--- Вся логика в модуле GameServer: он строит магазин MART 24 и запускает смену.
+-- Публичный сервер — главное меню (холл): там создают комнаты и выбирают, с кем играть.
+-- Комната (зарезервированный сервер) — сама игра: GameServer строит магазин MART 24 и запускает смену.
 local ServerScriptService = game:GetService("ServerScriptService")
 
-require(ServerScriptService:WaitForChild("GameServer")).Start()
+local GameServer = require(ServerScriptService:WaitForChild("GameServer"))
+local Rooms = require(ServerScriptService:WaitForChild("Rooms"))
+
+if Rooms.IsHub() then
+	GameServer.StartHub()
+else
+	GameServer.Start()
+end

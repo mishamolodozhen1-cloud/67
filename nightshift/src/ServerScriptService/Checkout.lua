@@ -8,6 +8,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Products = require(Shared:WaitForChild("Products"))
 local Util = require(Shared:WaitForChild("Util"))
+local Models = require(Shared:WaitForChild("Models"))
+local ModelKit = require(script.Parent:WaitForChild("ModelKit"))
 
 local Checkout = {}
 
@@ -71,7 +73,27 @@ end
 local function makeItem(lane, product, index)
 	local size = Products.ShapeSize[product.Shape] or Vector3.new(0.8, 0.8, 0.8)
 	local z = lane.ItemZ[math.min(index, #lane.ItemZ)]
-	local base = Vector3.new(lane.X + rng:NextNumber(-0.35, 0.35), 3.12, z)
+	local base = Vector3.new((lane.BeltX or lane.X) + rng:NextNumber(-0.3, 0.3), lane.BeltY or 3.12, z)
+	-- 3D-модель продукта (этикеткой к кассиру), если она загружена
+	local def = product.Model and Models.Meshes[product.Model]
+	if def and ModelKit.Has(product.Model) then
+		local msize = def.Size * Models.ProductScale
+		local look = Vector3.new(lane.Side or 1, 0, 0)
+		local h = msize.Y
+		local cf
+		if def.Pose == "Upright" then
+			h = msize.Z
+			cf = CFrame.lookAt(base, base + look) * CFrame.Angles(math.rad(-90), 0, 0)
+		else
+			cf = CFrame.lookAt(base, base + look)
+		end
+		cf = (cf - cf.Position) + base + Vector3.new(0, h / 2, 0)
+		cf = CFrame.new(cf.Position) * CFrame.Angles(0, math.rad(rng:NextNumber(-12, 12)), 0) * (cf - cf.Position)
+		local part = ModelKit.Make(product.Model, map.Dynamic, cf, msize, { Name = "Item", CanCollide = false, CastShadow = true })
+		if part then
+			return part
+		end
+	end
 	local part = Instance.new("Part")
 	part.Name = "Item"
 	part.Anchored = true

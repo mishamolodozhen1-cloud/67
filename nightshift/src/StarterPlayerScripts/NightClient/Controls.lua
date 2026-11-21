@@ -3,8 +3,9 @@
 --       P — телефон, M — меню, T — задания, Enter — начать смену
 --   Телефон: стандартный джойстик и обзор свайпом, круглые кнопки «фонарик» и «бег» у кнопки прыжка
 --            (бег включается касанием и выключается сам, когда вы остановились или устали)
--- Фонарик: модель в руке, узкий тёплый луч с тенями + мягкий рассеянный свет; луч чуть запаздывает
--- за поворотом головы, как у настоящего фонаря в руке. Батарейка садится, при низком заряде свет мигает.
+-- Фонарик: 3D-модель в руке, горячее пятно + ореол с тенями + рассеянный свет, отражение от поверхности,
+-- пыль в луче; луч чуть запаздывает за поворотом головы, как у настоящего фонаря в руке.
+-- Батарейка садится: свет тускнеет, желтеет, при низком заряде мигает.
 local ContextActionService = game:GetService("ContextActionService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -61,8 +62,27 @@ end
 
 -------------------------------------------------------------------------------
 -- Фонарик в руке
+-- Модель с текстурами (ReplicatedStorage.Assets.Flashlight; пока не загрузилась — простая из блоков).
+-- Свет как у настоящего фонаря: яркое горячее пятно в центре (узкий прожектор), широкий ореол с тенями,
+-- слабый рассеянный свет вокруг, тёплое стекло светится; там, куда попал луч, свет отражается от
+-- поверхности её цветом; в луче видна пыль. Садится батарейка — свет тускнеет, желтеет и мигает.
+-- Фонарик поднимается в кадр при включении и опускается при выключении, качается при ходьбе.
 -------------------------------------------------------------------------------
-local function localPart(name, size, color, material)
+local HAND_LENGTH = 0.92
+local OTHER_LENGTH = 0.85
+local LIGHT_COLOR = Color3.fromRGB(255, 240, 216)
+local LOW_COLOR = Color3.fromRGB(255, 190, 128)
+local CORE, MAIN, SPILL = 2.2, 1.7, 0.4
+
+local hand -- { Folder, Parts, Glow, Emitter, Dust }
+local coreLight
+local bouncePart
+local raise, raiseV = 0, 0
+local flashLevel, flashColor = 1, LIGHT_COLOR
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local function localPart(name, size, color, material, parent)
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Size = size
@@ -73,63 +93,171 @@ local function localPart(name, size, color, material)
 	p.CanQuery = false
 	p.CanTouch = false
 	p.CastShadow = false
+	p.Parent = parent
 	return p
 end
 
-local function buildFlashlight()
-	rig = Instance.new("Model")
-	rig.Name = "LocalFlashlight"
-	local body = localPart("Body", Vector3.new(0.72, 0.17, 0.17), Color3.fromRGB(34, 35, 38), Enum.Material.Metal)
-	body.Shape = Enum.PartType.Cylinder
-	body.Parent = rig
-	local head = localPart("Head", Vector3.new(0.2, 0.25, 0.25), Color3.fromRGB(46, 47, 50), Enum.Material.Metal)
-	head.Shape = Enum.PartType.Cylinder
-	head.Parent = rig
-	lens = localPart("Lens", Vector3.new(0.03, 0.21, 0.21), Color3.fromRGB(120, 120, 120), Enum.Material.Glass)
-	lens.Shape = Enum.PartType.Cylinder
-	lens.Parent = rig
-	local button = localPart("Button", Vector3.new(0.08, 0.05, 0.06), Color3.fromRGB(150, 30, 30), Enum.Material.SmoothPlastic)
-	button.Parent = rig
-	local emitter = localPart("Emitter", Vector3.new(0.1, 0.1, 0.1), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
+local CYL_FORWARD = CFrame.Angles(0, math.rad(90), 0) -- ось цилиндра (X) — вперёд (-Z)
+
+-- Модель фонарика длиной length: детали со смещениями от «рамки» (центр, LookVector — куда светит)
+local function makeFlashModel(length, parent)
+	local obj = { Parts = {} }
+	local f = Instance.new("Folder")
+	f.Name = "Flashlight"
+	f.Parent = parent
+	obj.Folder = f
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local tpl = assets and assets:FindFirstChild("Flashlight")
+	local lensZ, radius
+	if tpl then
+		local m = tpl:Clone()
+		local _, size0 = m:GetBoundingBox()
+		m:ScaleTo(length / math.max(size0.X, size0.Y, size0.Z))
+		local cf, size = m:GetBoundingBox()
+		local glass
+		for _, d in ipairs(m:GetDescendants()) do
+			if d:IsA("BasePart") and string.find(string.lower(d.Name), "glass", 1, true) then
+				glass = d
+			end
+		end
+		-- ось фонарика — самая длинная сторона, перёд — там, где стекло
+		local ax = (size.X >= size.Y and size.X >= size.Z) and Vector3.xAxis or ((size.Y >= size.Z) and Vector3.yAxis or Vector3.zAxis)
+		local g = glass and cf:PointToObjectSpace(glass.Position) or -Vector3.zAxis
+		local frontWorld = cf:VectorToWorldSpace(ax * ((g:Dot(ax) >= 0) and 1 or -1))
+		local up = math.abs(frontWorld.Y) < 0.9 and Vector3.yAxis or Vector3.xAxis
+		local frame = CFrame.lookAt(cf.Position, cf.Position + frontWorld, up)
+		for _, d in ipairs(m:GetDescendants()) do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+				d.CanCollide = false
+				d.CanQuery = false
+				d.CanTouch = false
+				d.CastShadow = false
+				d.Parent = f
+				table.insert(obj.Parts, { Part = d, Off = frame:ToObjectSpace(d.CFrame) })
+			end
+		end
+		m:Destroy()
+		lensZ = glass and frame:PointToObjectSpace(glass.Position).Z or -length / 2
+		local longest = math.max(size.X, size.Y, size.Z)
+		radius = (size.X + size.Y + size.Z - longest) / 4
+		obj.Real = true
+	else
+		local body = localPart("Body", Vector3.new(length * 0.78, 0.17, 0.17), Color3.fromRGB(34, 35, 38), Enum.Material.Metal, f)
+		body.Shape = Enum.PartType.Cylinder
+		table.insert(obj.Parts, { Part = body, Off = CFrame.new(0, 0, length * 0.1) * CYL_FORWARD })
+		local head = localPart("Head", Vector3.new(length * 0.22, 0.25, 0.25), Color3.fromRGB(46, 47, 50), Enum.Material.Metal, f)
+		head.Shape = Enum.PartType.Cylinder
+		table.insert(obj.Parts, { Part = head, Off = CFrame.new(0, 0, -length * 0.39) * CYL_FORWARD })
+		local button = localPart("Button", Vector3.new(0.08, 0.05, 0.06), Color3.fromRGB(150, 30, 30), Enum.Material.SmoothPlastic, f)
+		table.insert(obj.Parts, { Part = button, Off = CFrame.new(0, 0.1, 0) })
+		lensZ = -length / 2
+		radius = 0.115
+	end
+	-- светящееся стекло (видно только когда включён)
+	local glow = localPart("Glow", Vector3.new(0.012, radius * 1.7, radius * 1.7), Color3.fromRGB(255, 246, 228), Enum.Material.Neon, f)
+	glow.Shape = Enum.PartType.Cylinder
+	glow.Transparency = 1
+	table.insert(obj.Parts, { Part = glow, Off = CFrame.new(0, 0, lensZ - 0.004) * CYL_FORWARD })
+	obj.Glow = glow
+	-- точка, откуда идёт свет
+	local emitter = localPart("Emitter", Vector3.new(0.05, 0.05, 0.05), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, f)
 	emitter.Transparency = 1
-	emitter.Parent = rig
-	mainLight = Instance.new("SpotLight")
-	mainLight.Name = "Beam"
-	mainLight.Face = Enum.NormalId.Front
-	mainLight.Angle = 42
-	mainLight.Range = 60
-	mainLight.Brightness = 3.2
-	mainLight.Color = Color3.fromRGB(255, 236, 208)
-	mainLight.Shadows = true
-	mainLight.Enabled = false
-	mainLight.Parent = emitter
-	spillLight = Instance.new("SpotLight")
-	spillLight.Name = "Spill"
-	spillLight.Face = Enum.NormalId.Front
-	spillLight.Angle = 100
-	spillLight.Range = 22
-	spillLight.Brightness = 0.45
-	spillLight.Color = Color3.fromRGB(255, 232, 200)
-	spillLight.Enabled = false
-	spillLight.Parent = emitter
-	bounceLight = Instance.new("PointLight")
-	bounceLight.Name = "Bounce"
-	bounceLight.Range = 5
-	bounceLight.Brightness = 0.3
-	bounceLight.Color = Color3.fromRGB(255, 228, 196)
-	bounceLight.Enabled = false
-	bounceLight.Parent = emitter
-	rig.Parent = workspace
+	table.insert(obj.Parts, { Part = emitter, Off = CFrame.new(0, 0, lensZ - 0.05) })
+	obj.Emitter = emitter
+	return obj
 end
 
-local FORWARD = CFrame.Angles(0, math.rad(90), 0) -- ось цилиндра — вперёд
+local function placeFlashModel(obj, cf, show)
+	for _, p in ipairs(obj.Parts) do
+		p.Part.CFrame = cf * p.Off
+		if p.Part ~= obj.Emitter then
+			p.Part.LocalTransparencyModifier = show and 0 or 1
+		end
+	end
+end
+
+local function spotLight(name, parent, angle, range, brightness, shadows)
+	local l = Instance.new("SpotLight")
+	l.Name = name
+	l.Face = Enum.NormalId.Front
+	l.Angle = angle
+	l.Range = range
+	l.Brightness = brightness
+	l.Color = LIGHT_COLOR
+	l.Shadows = shadows
+	l.Enabled = false
+	l.Parent = parent
+	return l
+end
+
+-- Пыль в луче: крошечные частицы видны только там, куда падает свет
+local function dust(parent, rate)
+	local e = Instance.new("ParticleEmitter")
+	e.Name = "Dust"
+	e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	e.EmissionDirection = Enum.NormalId.Front
+	e.Rate = rate
+	e.Lifetime = NumberRange.new(2.5, 4.5)
+	e.Speed = NumberRange.new(1.5, 5)
+	e.SpreadAngle = Vector2.new(16, 16)
+	e.Drag = 1.4
+	e.Acceleration = Vector3.new(0, -0.04, 0)
+	e.RotSpeed = NumberRange.new(-20, 20)
+	e.Size = NumberSequence.new(0.045)
+	e.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.2, 0.55),
+		NumberSequenceKeypoint.new(0.8, 0.65),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	e.Color = ColorSequence.new(Color3.fromRGB(235, 228, 216))
+	e.LightInfluence = 1
+	e.LightEmission = 0
+	e.Enabled = false
+	e.Parent = parent
+	return e
+end
+
+local function buildFlashlight()
+	if hand and hand.Folder.Parent then
+		hand.Folder.Parent:Destroy()
+	end
+	local root = Instance.new("Folder")
+	root.Name = "LocalFlashlight"
+	root.Parent = workspace
+	hand = makeFlashModel(HAND_LENGTH, root)
+	local e = hand.Emitter
+	coreLight = spotLight("Core", e, 22, 72, CORE, false)
+	mainLight = spotLight("Beam", e, 46, 58, MAIN, true)
+	spillLight = spotLight("Spill", e, 110, 20, SPILL, false)
+	hand.Dust = dust(e, 9)
+	-- отражённый свет там, куда попал луч
+	bouncePart = localPart("Bounce", Vector3.new(0.1, 0.1, 0.1), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, root)
+	bouncePart.Transparency = 1
+	bounceLight = Instance.new("PointLight")
+	bounceLight.Name = "Bounce"
+	bounceLight.Range = 8
+	bounceLight.Brightness = 0
+	bounceLight.Shadows = false
+	bounceLight.Enabled = false
+	bounceLight.Parent = bouncePart
+	lens = hand.Glow
+	rig = root
+end
+
+local function spring(x, v, target, dt, k, damp)
+	v = v + (k * (target - x) - damp * v) * dt
+	return x + v * dt, v
+end
 
 local function placeFlashlight(dt, moving, sprinting)
 	local cam = workspace.CurrentCamera
-	if not (cam and rig) then
+	if not (cam and hand) then
 		return
 	end
-	local hidden = ctx.CameraLocked or not flashlightOn
+	local want = (flashlightOn and not ctx.CameraLocked) and 1 or 0
+	raise, raiseV = spring(raise, raiseV, want, math.min(dt, 0.05), 150, 19)
 	local camCF = cam.CFrame
 	local rot = camCF - camCF.Position
 	-- рука чуть запаздывает за поворотом головы
@@ -137,20 +265,37 @@ local function placeFlashlight(dt, moving, sprinting)
 	local bob = CFrame.new()
 	if moving and ctx.Settings.HeadBob ~= false then
 		local k = sprinting and 1.6 or 1
-		bob = CFrame.new(math.sin(bobTime) * 0.025 * k, math.abs(math.cos(bobTime)) * 0.03 * k, 0)
+		bob = CFrame.new(math.sin(bobTime) * 0.025 * k, math.abs(math.cos(bobTime)) * 0.03 * k, 0) * CFrame.Angles(0, 0, math.sin(bobTime) * 0.02 * k)
 	end
-	local base = CFrame.new(camCF.Position) * swayRot * CFrame.new(0.44, -0.42, -0.95) * bob * CFrame.Angles(math.rad(2), math.rad(4), 0)
-	local show = not hidden
-	for _, p in ipairs(rig:GetChildren()) do
-		if p:IsA("BasePart") and p.Name ~= "Emitter" then
-			p.Transparency = show and 0 or 1
+	local drop = math.clamp(1 - raise, 0, 1.2)
+	local base = CFrame.new(camCF.Position) * swayRot
+		* CFrame.new(0.44, -0.42 - drop * 0.6, -0.95 + drop * 0.12) * bob
+		* CFrame.Angles(math.rad(2 + drop * 38), math.rad(4 + drop * 8), 0)
+	local show = raise > 0.03
+	placeFlashModel(hand, base, show)
+	-- отражённый свет: точка на поверхности, куда смотрит луч
+	if mainLight.Enabled then
+		local list = { rig }
+		if ctx.Player.Character then
+			table.insert(list, ctx.Player.Character)
 		end
+		rayParams.FilterDescendantsInstances = list
+		local origin = hand.Emitter.Position
+		local hit = workspace:Raycast(origin, hand.Emitter.CFrame.LookVector * 50, rayParams)
+		if hit then
+			local d = (hit.Position - origin).Magnitude
+			local k = (1 - d / 50) ^ 1.4
+			bouncePart.CFrame = CFrame.new(hit.Position + hit.Normal * math.clamp(d * 0.08, 0.6, 2.4))
+			bounceLight.Enabled = true
+			bounceLight.Brightness = 0.55 * k * flashLevel
+			bounceLight.Range = 6 + d * 0.16
+			bounceLight.Color = flashColor:Lerp(hit.Instance.Color, 0.4)
+		else
+			bounceLight.Enabled = false
+		end
+	else
+		bounceLight.Enabled = false
 	end
-	rig.Body.CFrame = base * FORWARD
-	rig.Head.CFrame = base * CFrame.new(0, 0, -0.42) * FORWARD
-	lens.CFrame = base * CFrame.new(0, 0, -0.53) * FORWARD
-	rig.Button.CFrame = base * CFrame.new(0, 0.1, -0.05)
-	rig.Emitter.CFrame = base * CFrame.new(0, 0, -0.6)
 end
 
 local function setLights(on)
@@ -158,11 +303,25 @@ local function setLights(on)
 		return
 	end
 	local visible = on and not ctx.CameraLocked
+	coreLight.Enabled = visible
 	mainLight.Enabled = visible
 	spillLight.Enabled = visible
-	bounceLight.Enabled = visible
-	lens.Material = on and Enum.Material.Neon or Enum.Material.Glass
-	lens.Color = on and Color3.fromRGB(255, 244, 220) or Color3.fromRGB(120, 120, 120)
+	if not visible then
+		bounceLight.Enabled = false
+	end
+	hand.Dust.Enabled = visible
+	hand.Glow.Transparency = on and 0 or 1
+end
+
+-- Яркость и цвет (батарейка): level 0..1
+local function setFlashLevel(level, color)
+	flashLevel, flashColor = level, color
+	coreLight.Brightness = CORE * level
+	mainLight.Brightness = MAIN * level
+	spillLight.Brightness = SPILL * level
+	coreLight.Color, mainLight.Color, spillLight.Color = color, color, color
+	hand.Glow.Color = Color3.fromRGB(255, 246, 228):Lerp(color, 0.6)
+	hand.Glow.Transparency = 1 - math.clamp(level * 1.1, 0, 1)
 end
 
 local function refreshButtons()
@@ -201,35 +360,112 @@ function Controls.RefillBattery()
 	ctx.HUD.SetBattery(battery, flashlightOn)
 end
 
--- Фонарики других игроков: свет у них в голове (создаётся только у нас)
+-- Фонарики других игроков (создаются только у нас): модель в правой руке, рука поднята вперёд,
+-- прожектор с тенями и видимый конус света в пыльном воздухе магазина
+local otherRoot = nil
+local GRIP = CFrame.new(0, -0.12, -0.03) * CFrame.Angles(math.rad(-90), 0, 0) -- луч вдоль пальцев
+
+local function dropOther(p)
+	local o = otherLights[p]
+	if o then
+		if o.Obj then
+			o.Obj.Folder:Destroy()
+		end
+		otherLights[p] = nil
+	end
+end
+
 local function updateOtherLights()
+	if not otherRoot or not otherRoot.Parent then
+		otherRoot = Instance.new("Folder")
+		otherRoot.Name = "OtherFlashlights"
+		otherRoot.Parent = workspace
+	end
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p ~= ctx.Player then
 			local ch = p.Character
-			local head = ch and ch:FindFirstChild("Head")
-			if head then
-				local light = otherLights[p]
-				if not (light and light.Parent == head) then
-					light = Instance.new("SpotLight")
-					light.Name = "NS_Flashlight"
-					light.Face = Enum.NormalId.Front
-					light.Range = 50
-					light.Angle = 44
-					light.Brightness = 2.6
-					light.Color = Color3.fromRGB(255, 236, 208)
-					light.Shadows = true
-					light.Parent = head
-					otherLights[p] = light
+			local handPart = ch and (ch:FindFirstChild("RightHand") or ch:FindFirstChild("Right Arm"))
+			local o = otherLights[p]
+			if o and o.Character ~= ch then
+				dropOther(p)
+				o = nil
+			end
+			if handPart and not o then
+				local obj = makeFlashModel(OTHER_LENGTH, otherRoot)
+				local light = spotLight("Beam", obj.Emitter, 42, 46, 2.4, true)
+				local a0 = Instance.new("Attachment")
+				a0.Parent = obj.Emitter
+				local a1 = Instance.new("Attachment")
+				a1.Position = Vector3.new(0, 0, -18)
+				a1.Parent = obj.Emitter
+				local cone = Instance.new("Beam")
+				cone.Attachment0, cone.Attachment1 = a0, a1
+				cone.Width0, cone.Width1 = 0.3, 9
+				cone.FaceCamera = true
+				cone.LightEmission = 1
+				cone.LightInfluence = 0
+				cone.Segments = 10
+				cone.Color = ColorSequence.new(LIGHT_COLOR)
+				cone.Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0.82),
+					NumberSequenceKeypoint.new(0.4, 0.93),
+					NumberSequenceKeypoint.new(1, 1),
+				})
+				cone.Enabled = false
+				cone.Parent = obj.Emitter
+				o = { Obj = obj, Light = light, Cone = cone, Character = ch, Hand = handPart, Raise = 0, RaiseV = 0 }
+				local hum = ch:FindFirstChildOfClass("Humanoid")
+				if hum and hum.RigType == Enum.HumanoidRigType.R15 then
+					local upper = ch:FindFirstChild("RightUpperArm")
+					local lower = ch:FindFirstChild("RightLowerArm")
+					o.Shoulder = upper and upper:FindFirstChild("RightShoulder")
+					o.Elbow = lower and lower:FindFirstChild("RightElbow")
 				end
-				light.Enabled = ch:GetAttribute("Flashlight") == true
+				otherLights[p] = o
+			end
+			if o then
+				o.On = ch:GetAttribute("Flashlight") == true
 			end
 		end
 	end
-	for p, light in pairs(otherLights) do
+	for p in pairs(otherLights) do
 		if not p.Parent then
-			light:Destroy()
-			otherLights[p] = nil
+			dropOther(p)
 		end
+	end
+end
+
+-- Поднять руку с фонариком: поверх анимации ходьбы (до шага физики)
+local SHOULDER_UP = CFrame.Angles(1.22, 0, 0)
+local ELBOW_UP = CFrame.Angles(0.32, 0, 0)
+local function poseOthers(dt)
+	for _, o in pairs(otherLights) do
+		o.Raise, o.RaiseV = spring(o.Raise, o.RaiseV, o.On and 1 or 0, math.min(dt, 0.05), 90, 15)
+		local w = math.clamp(o.Raise, 0, 1)
+		if w > 0.01 then
+			if o.Shoulder and o.Shoulder.Parent then
+				o.Shoulder.Transform = o.Shoulder.Transform:Lerp(SHOULDER_UP, w)
+			end
+			if o.Elbow and o.Elbow.Parent then
+				o.Elbow.Transform = o.Elbow.Transform:Lerp(ELBOW_UP, w)
+			end
+		end
+	end
+end
+
+-- Поставить фонарики в руки (после шага физики, когда руки уже на месте)
+local function placeOthers()
+	for _, o in pairs(otherLights) do
+		local show = o.Raise > 0.05 and o.Hand.Parent ~= nil
+		if show then
+			placeFlashModel(o.Obj, o.Hand.CFrame * GRIP, true)
+		else
+			placeFlashModel(o.Obj, CFrame.new(0, -500, 0), false)
+		end
+		local lit = show and o.On
+		o.Light.Enabled = lit
+		o.Cone.Enabled = lit
+		o.Obj.Glow.Transparency = lit and 0 or 1
 	end
 end
 
@@ -413,6 +649,24 @@ function Controls.Init(c)
 		end
 	end)
 
+	-- фонарики других игроков: поднять руку до шага физики, поставить модель после
+	RunService.Stepped:Connect(function(_, dt)
+		poseOthers(dt)
+	end)
+	RunService.Heartbeat:Connect(placeOthers)
+	-- модель фонарика приходит с сервера чуть позже: тогда заменяем простую
+	task.spawn(function()
+		local assets = ReplicatedStorage:WaitForChild("Assets", 120)
+		local tpl = assets and assets:WaitForChild("Flashlight", 120)
+		if tpl and hand and not hand.Real then
+			buildFlashlight()
+			setLights(flashlightOn)
+			for p in pairs(otherLights) do
+				dropOther(p)
+			end
+		end
+	end)
+
 	local otherTimer = 0
 	RENDER:Connect(function(dt)
 		local hum = humanoid()
@@ -464,9 +718,10 @@ function Controls.Init(c)
 			elseif battery < 0.15 then
 				flick = (math.random() < 0.06) and 0.3 or 0.9
 			end
-			mainLight.Brightness = 3.2 * flick
-			spillLight.Brightness = 0.45 * flick
+			-- садится батарейка: последние 25% свет тускнеет и желтеет
+			local charge = math.clamp(battery / 0.25, 0, 1)
 			setLights(true)
+			setFlashLevel(flick * (0.6 + 0.4 * charge), LOW_COLOR:Lerp(LIGHT_COLOR, charge))
 			if battery <= 0 then
 				Controls.SetFlashlight(false)
 			end

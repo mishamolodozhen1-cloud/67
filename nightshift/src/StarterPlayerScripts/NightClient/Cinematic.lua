@@ -165,6 +165,9 @@ local function updateGroundFilter()
 			table.insert(list, p.Character)
 		end
 	end
+	if car and car.Real then
+		table.insert(list, car.Real)
+	end
 	groundParams.FilterDescendantsInstances = list
 end
 
@@ -363,23 +366,29 @@ local function updateActor(dt)
 end
 
 -------------------------------------------------------------------------------
--- Машина сотрудника (копия StaffCar) и её путь с дороги на парковку
+-- Машина сотрудника (копия StaffCar) и её путь с дороги на парковку.
+-- Детализированная модель: кузов на «подвеске» (клюёт носом при торможении, кренится в повороте,
+-- покачивается, когда водитель выходит и хлопает дверью), колёса крутятся, передние поворачивают,
+-- фары и стоп-сигналы горят по-настоящему (свет на асфальте и видимые конусы в дожде).
 -------------------------------------------------------------------------------
-local CAR_PATH = {
-	Vector3.new(95, 0, 123.5),
-	Vector3.new(40, 0, 123.5),
-	Vector3.new(-4, 0, 123.2),
-	Vector3.new(-25, 0, 115),
-	Vector3.new(-37.4, 0, 99),
-	Vector3.new(-39.5, 0, 82),
-	Vector3.new(-39.5, 0, 68),
-}
+local function carPath(spot)
+	local x, z = spot.X, spot.Z
+	return {
+		Vector3.new(95, 0, 123.5),
+		Vector3.new(40, 0, 123.5),
+		Vector3.new(-4, 0, 123.2),
+		Vector3.new(x + 14.5, 0, 115),
+		Vector3.new(x + 2.1, 0, z + 31),
+		Vector3.new(x, 0, z + 14),
+		Vector3.new(x, 0, z),
+	}
+end
 
-local function buildCarCurve()
+local function buildCarCurve(path)
 	local pts, lens = {}, { 0 }
 	local n = 240
 	for i = 0, n do
-		pts[i + 1] = spline(CAR_PATH, i / n)
+		pts[i + 1] = spline(path, i / n)
 	end
 	for i = 2, #pts do
 		lens[i] = lens[i - 1] + (pts[i] - pts[i - 1]).Magnitude
@@ -409,20 +418,156 @@ local function curveAt(pts, lens, s)
 	return pos, Vector3.new(dir.X, 0, dir.Z).Unit
 end
 
+local HEAD_ON = Color3.fromRGB(255, 246, 226)
+local TAIL_ON = Color3.fromRGB(150, 8, 6)
+local BRAKE_ON = Color3.fromRGB(255, 28, 18)
+
 local function setCarLights(on, brake)
 	if not car then
 		return
 	end
-	for _, l in ipairs(car.Lights) do
-		local lit = on
-		l.Light.Enabled = lit
-		l.Part.Material = lit and Enum.Material.Neon or Enum.Material.Glass
-		l.Part.Color = lit and l.On or l.Off
-		if l.Tail then
-			l.Light.Brightness = brake and 3 or 1.2
-			l.Light.Range = brake and 10 or 6
+	car.LightsOn, car.Brake = on, brake
+	for _, l in ipairs(car.Lamps) do
+		if on then
+			l.Part.Material = Enum.Material.Neon
+			l.Part.Color = l.Tail and (brake and BRAKE_ON or TAIL_ON) or HEAD_ON
+			if l.Part:IsA("MeshPart") then
+				l.Part.TextureID = ""
+			end
+		else
+			l.Part.Material = l.Material
+			l.Part.Color = l.Color
+			if l.Part:IsA("MeshPart") then
+				l.Part.TextureID = l.Texture
+			end
 		end
 	end
+	for _, l in ipairs(car.Lights) do
+		l.Light.Enabled = on
+		if l.Beam then
+			l.Beam.Enabled = on
+		end
+		if l.Tail then
+			l.Light.Brightness = brake and 3.2 or 1.1
+			l.Light.Range = brake and 12 or 7
+		end
+	end
+end
+
+-- Невидимая деталь-держатель света (двигается вместе с кузовом)
+local function lightHolder(name)
+	local h = Instance.new("Part")
+	h.Name = name
+	h.Size = Vector3.new(0.2, 0.2, 0.2)
+	h.Transparency = 1
+	h.Anchored = true
+	h.CanCollide = false
+	h.CanQuery = false
+	h.CanTouch = false
+	h.CastShadow = false
+	h.Parent = folder
+	return h
+end
+
+-- Видимый конус света фары в дожде (плоский луч, всегда повёрнут к камере)
+local function lightCone(holder, length, width, color, alpha)
+	local a0 = Instance.new("Attachment")
+	a0.Parent = holder
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, 0, -length)
+	a1.Parent = holder
+	local beam = Instance.new("Beam")
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Width0 = 0.5
+	beam.Width1 = width
+	beam.FaceCamera = true
+	beam.LightEmission = 1
+	beam.LightInfluence = 0
+	beam.Segments = 12
+	beam.Color = ColorSequence.new(color)
+	beam.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, alpha),
+		NumberSequenceKeypoint.new(0.35, alpha + (1 - alpha) * 0.45),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	beam.Parent = holder
+	return beam
+end
+
+local function makeMeshCar(m, real, c)
+	c.Mesh = true
+	c.YawFix = real:GetAttribute("YawFix")
+	c.Fwd = c.YawFix < 0 and -1 or 1 -- перёд машины по оси X её модели
+	c.Parts, c.Wheels, c.Lamps = {}, {}, {}
+	c.Pitch, c.PitchV, c.Roll, c.RollV, c.Heave, c.HeaveV = 0, 0, 0, 0, 0, 0
+	c.Spin, c.Steer, c.Speed = 0, 0, 0
+	local base = m:GetPivot()
+	local heads, tails = {}, {}
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			local off = base:ToObjectSpace(d.CFrame)
+			local role = d:GetAttribute("Role")
+			if role == "Wheel" or role == "WheelFront" then
+				table.insert(c.Wheels, { Part = d, Pos = off.Position, Rot = off - off.Position, Front = role == "WheelFront", R = math.max(d.Size.X, d.Size.Y) / 2 })
+			else
+				table.insert(c.Parts, { Part = d, Off = off })
+			end
+			if role == "Headlight" or role == "Taillight" then
+				table.insert(c.Lamps, { Part = d, Tail = role == "Taillight", Material = d.Material, Color = d.Color, Texture = d:IsA("MeshPart") and d.TextureID or "" })
+				table.insert(role == "Headlight" and heads or tails, off.Position)
+			end
+		end
+	end
+	local function centre(list, fallback)
+		if #list == 0 then
+			return fallback
+		end
+		local sum = Vector3.zero
+		for _, v in ipairs(list) do
+			sum = sum + v
+		end
+		return sum / #list
+	end
+	local len = real:GetAttribute("Length") or 14
+	local wid = real:GetAttribute("Width") or 7
+	local head = centre(heads, Vector3.new(c.Fwd * len * 0.46, 2.2, 0))
+	local tail = centre(tails, Vector3.new(-c.Fwd * len * 0.46, 2.6, 0))
+	local fwd = Vector3.new(c.Fwd, 0, 0)
+	-- две фары: прожектор с тенями + конус в дожде; держатели крепятся к кузову
+	for _, side in ipairs({ -1, 1 }) do
+		local p = head + Vector3.new(c.Fwd * 0.25, 0, side * wid * 0.34)
+		local holder = lightHolder("HeadBeam")
+		local s = Instance.new("SpotLight")
+		s.Face = Enum.NormalId.Front
+		s.Angle = 62
+		s.Range = 60
+		s.Brightness = 6
+		s.Color = Color3.fromRGB(255, 240, 214)
+		s.Shadows = true
+		s.Parent = holder
+		local cone = lightCone(holder, 26, 11, Color3.fromRGB(255, 236, 205), 0.9)
+		table.insert(c.Parts, { Part = holder, Off = CFrame.lookAt(p, p + fwd + Vector3.new(0, -0.09, 0)) })
+		table.insert(c.Lights, { Light = s, Beam = cone })
+	end
+	-- общий тёплый засвет перед машиной (мокрый асфальт отражает)
+	local fillHolder = lightHolder("HeadFill")
+	local fill = Instance.new("PointLight")
+	fill.Range = 16
+	fill.Brightness = 0.9
+	fill.Color = Color3.fromRGB(255, 232, 200)
+	fill.Parent = fillHolder
+	table.insert(c.Parts, { Part = fillHolder, Off = CFrame.new(head + fwd * 3 + Vector3.new(0, -0.6, 0)) })
+	table.insert(c.Lights, { Light = fill })
+	-- задние фонари: красный отсвет
+	local tailHolder = lightHolder("TailGlow")
+	local glow = Instance.new("PointLight")
+	glow.Range = 7
+	glow.Brightness = 1.1
+	glow.Color = Color3.fromRGB(255, 30, 20)
+	glow.Parent = tailHolder
+	table.insert(c.Parts, { Part = tailHolder, Off = CFrame.new(tail - fwd * 0.9) })
+	table.insert(c.Lights, { Light = glow, Tail = true })
 end
 
 local function makeCar()
@@ -445,51 +590,129 @@ local function makeCar()
 	end
 	m.Parent = folder
 	hideModel(real)
-	local c = { Model = m, Real = real, Body = m.PrimaryPart, BodyY = real.PrimaryPart.Position.Y, Lights = {} }
-	for _, name in ipairs({ "HeadL", "HeadR" }) do
-		local p = m:FindFirstChild(name)
-		if p then
-			local s = Instance.new("SpotLight")
-			s.Face = Enum.NormalId.Front
-			s.Angle = 55
-			s.Range = 55
-			s.Brightness = 5
-			s.Color = Color3.fromRGB(255, 240, 214)
-			s.Shadows = true
-			s.Parent = p
-			table.insert(c.Lights, { Part = p, Light = s, On = Color3.fromRGB(255, 250, 236), Off = p.Color })
+	local spot = real:GetPivot().Position
+	local c = { Model = m, Real = real, Body = m.PrimaryPart, BodyY = real.PrimaryPart.Position.Y, Lights = {}, Lamps = {} }
+	if real:GetAttribute("YawFix") then
+		makeMeshCar(m, real, c)
+	else
+		-- простая машина из блоков (если модель не загрузилась)
+		spot = Vector3.new(-39.5, 0, 68)
+		for _, name in ipairs({ "HeadL", "HeadR" }) do
+			local p = m:FindFirstChild(name)
+			if p then
+				local s = Instance.new("SpotLight")
+				s.Face = Enum.NormalId.Front
+				s.Angle = 55
+				s.Range = 55
+				s.Brightness = 5
+				s.Color = Color3.fromRGB(255, 240, 214)
+				s.Shadows = true
+				s.Parent = p
+				table.insert(c.Lights, { Light = s })
+				table.insert(c.Lamps, { Part = p, Material = p.Material, Color = p.Color, Texture = "" })
+			end
+		end
+		for _, name in ipairs({ "TailL", "TailR" }) do
+			local p = m:FindFirstChild(name)
+			if p then
+				local s = Instance.new("PointLight")
+				s.Range = 6
+				s.Brightness = 1.2
+				s.Color = Color3.fromRGB(255, 30, 20)
+				s.Parent = p
+				table.insert(c.Lights, { Light = s, Tail = true })
+				table.insert(c.Lamps, { Part = p, Tail = true, Material = p.Material, Color = p.Color, Texture = "" })
+			end
 		end
 	end
-	for _, name in ipairs({ "TailL", "TailR" }) do
-		local p = m:FindFirstChild(name)
-		if p then
-			local s = Instance.new("PointLight")
-			s.Range = 6
-			s.Brightness = 1.2
-			s.Color = Color3.fromRGB(255, 30, 20)
-			s.Parent = p
-			table.insert(c.Lights, { Part = p, Light = s, On = Color3.fromRGB(255, 36, 28), Off = p.Color, Tail = true })
-		end
-	end
-	c.Pts, c.Lens = buildCarCurve()
+	c.Spot = Vector3.new(spot.X, 0, spot.Z)
+	c.Pts, c.Lens = buildCarCurve(carPath(c.Spot))
 	c.Length = c.Lens[#c.Lens]
 	c.S = 0
 	return c
 end
 
-local function placeCar(s)
+-- Толчок подвески: h — вверх/вниз, r — крен (водитель вышел, хлопнула дверь)
+local function carBump(h, r)
+	if car and car.Mesh then
+		car.HeaveV = car.HeaveV + h
+		car.RollV = car.RollV + (r or 0)
+	end
+end
+
+local function spring(x, v, target, dt, k, damp)
+	local a = k * (target - x) - damp * v
+	v = v + a * dt
+	return x + v * dt, v
+end
+
+-- Поставить машину в точку s пути (studs от начала); dt — время кадра (для подвески и колёс)
+local function placeCar(s, dt)
 	if not car then
 		return
 	end
+	dt = dt or 0
+	local ds = s - car.S
 	car.S = s
 	local pos, dir = curveAt(car.Pts, car.Lens, s)
-	local at = Vector3.new(pos.X, car.BodyY, pos.Z)
-	car.Model:PivotTo(CFrame.lookAt(at, at + dir))
+	if not car.Mesh then
+		local at = Vector3.new(pos.X, car.BodyY, pos.Z)
+		car.Model:PivotTo(CFrame.lookAt(at, at + dir))
+		return
+	end
+	-- скорость, ускорение, поворот
+	local speed = dt > 0 and ds / dt or 0
+	local accel = dt > 0 and (speed - car.Speed) / dt or 0
+	car.Speed = speed
+	car.Accel = (car.Accel or 0) + (accel - (car.Accel or 0)) * math.min(1, dt * 6)
+	accel = car.Accel
+	local _, ahead = curveAt(car.Pts, car.Lens, s + 6)
+	local turn = math.atan2(dir:Cross(ahead).Y, dir:Dot(ahead))
+	car.Steer = car.Steer + (math.clamp(turn * 1.7, -0.5, 0.5) - car.Steer) * math.min(1, dt * 6)
+	local yawRate = turn * speed / 6
+	if dt > 0 then
+		-- кузов: клюёт носом при торможении, кренится наружу в повороте, пружинит
+		local pitchTarget = -car.Fwd * math.clamp(-accel * 0.0045, -0.035, 0.035)
+		local rollTarget = car.Fwd * math.clamp(yawRate * speed * 0.0016, -0.03, 0.03)
+		car.Pitch, car.PitchV = spring(car.Pitch, car.PitchV, pitchTarget, dt, 70, 8)
+		car.Roll, car.RollV = spring(car.Roll, car.RollV, rollTarget, dt, 80, 7)
+		car.Heave, car.HeaveV = spring(car.Heave, car.HeaveV, 0, dt, 90, 7)
+		car.Spin = car.Spin + ds
+	end
+	local base = CFrame.lookAt(pos, pos + dir) * CFrame.Angles(0, car.YawFix, 0)
+	local body = base * CFrame.new(0, car.Heave, 0) * CFrame.Angles(car.Roll, 0, car.Pitch)
+	for _, p in ipairs(car.Parts) do
+		p.Part.CFrame = body * p.Off
+	end
+	for _, w in ipairs(car.Wheels) do
+		local spin = -car.Fwd * car.Spin / math.max(0.3, w.R)
+		local steer = w.Front and CFrame.Angles(0, car.Steer, 0) or CFrame.identity
+		w.Part.CFrame = base * CFrame.new(w.Pos + Vector3.new(0, car.Heave * 0.15, 0)) * steer * CFrame.Angles(0, 0, spin) * w.Rot
+	end
 end
 
--- Водительская дверь: панель и стекло на левом боку, петля спереди
-local function makeCarDoor()
+-- Каждый кадр: машина едет по пути (car.Drive: начало и длительность, плавное торможение до места),
+-- подвеска дорабатывает покачивание, даже когда машина уже стоит
+local function updateCar(dt)
 	if not car then
+		return
+	end
+	local s = car.S
+	if car.Drive then
+		local u = clamp01((now() - car.Drive.Start) / car.Drive.Dur)
+		s = car.Length * (1 - (1 - u) ^ 2.1)
+		if u >= 1 then
+			car.Drive = nil
+		end
+	end
+	if car.Mesh or s ~= car.S then
+		placeCar(s, dt)
+	end
+end
+
+-- Водительская дверь простой машины: панель и стекло на левом боку, петля спереди
+local function makeCarDoor()
+	if not car or car.Mesh then
 		return nil
 	end
 	local body = car.Body
@@ -821,22 +1044,26 @@ local function timeline()
 	local camFrom, camTo = Vector3.new(-19.5, 2.7, 99), Vector3.new(-23.8, 3.1, 93)
 	setShot(14, function(u, _, dt)
 		local p = camFrom:Lerp(camTo, easeSine(u))
-		local target = (car and car.Body.Position or Vector3.new(-39.5, 1.6, 68)) + Vector3.new(0, 0.4, 0)
+		local target = (car and car.Body.Position or Vector3.new(-39.5, 1.6, 70)) + Vector3.new(0, 0.4, 0)
 		lookSm = lookSm:Lerp(target, math.min(1, dt * 2.2))
 		return CFrame.lookAt(p, lookSm), 50 - 4 * easeSine(u)
 	end)
 	if car then
 		setCarLights(true, false)
+		car.Drive = { Start = carStart, Dur = carDur }
+		-- стоп-сигналы: водитель тормозит перед поворотом на парковку и до самой остановки
 		task.spawn(function()
-			while now() < carStart + carDur + 0.2 and not cancelled do
+			while now() < carStart + carDur + 0.2 and not cancelled and car do
 				local u = clamp01((now() - carStart) / carDur)
-				local s = car.Length * (1 - (1 - u) ^ 2.1)
-				placeCar(s)
-				setCarLights(true, u > 0.55 and u < 1)
+				local brake = u > 0.55 and u < 1
+				if brake ~= car.Brake then
+					setCarLights(true, brake)
+				end
 				RunService.Heartbeat:Wait()
 			end
-			placeCar(car.Length)
-			setCarLights(true, false)
+			if car then
+				setCarLights(true, false)
+			end
 		end)
 	end
 	at(29.8)
@@ -847,26 +1074,55 @@ local function timeline()
 
 	-- 3. ВОДИТЕЛЬ ВЫХОДИТ -----------------------------------------------------
 	at(31)
-	actor = makeActor(Vector3.new(-41.3, 0, 67.4), math.rad(90))
-	actor.Lift = -1.7 -- сидит за рулём
-	updateGroundFilter()
 	local carDoor = makeCarDoor()
-	setShot(7.5, track({ Vector3.new(-50.8, 4.5, 80.6), Vector3.new(-49.6, 4.2, 77.6) }, { Vector3.new(-43.4, 3.1, 67.6), Vector3.new(-44.8, 3.5, 67.6) }, 42, 40))
-	at(31.6)
-	swingDoor(carDoor, 0, 68, 1.2)
-	ctx.Audio.Play("CarDoorOpen", Vector3.new(-42.6, 2.5, 66.5), 0.9)
-	at(32.1)
-	actorLift(-1.7, 0, 1.3)
-	at(32.3)
-	actorGo({ Vector3.new(-43.9, 0, 67.9), Vector3.new(-45.2, 0, 70.1) }, 2.4)
-	at(34.0)
-	actorFace(Vector3.new(-42.6, 0, 67.2))
-	at(34.6)
-	swingDoor(carDoor, 68, 0, 0.55)
-	at(35.1)
-	ctx.Audio.Play("CarDoorClose", Vector3.new(-42.6, 2.5, 66.5), 1)
-	at(35.8)
-	actorFace(Vector3.new(-52, 0, 50)) -- смотрит на магазин
+	if car and car.Mesh then
+		-- Детализированная машина: камера с пассажирской стороны, водитель выходит за кузовом
+		-- (дверь не видно, слышно), машина покачивается, когда он выходит и хлопает дверью
+		local sp = car.Spot
+		local doorAt = Vector3.new(sp.X - 3.6, 2.6, sp.Z - 0.2)
+		actor = makeActor(Vector3.new(sp.X - 4.6, 0, sp.Z + 0.3), math.rad(90))
+		actor.Lift = -2.4 -- пригнулся в проёме двери
+		updateGroundFilter()
+		setShot(7.5, track(
+			{ Vector3.new(sp.X + 11.2, 3.7, sp.Z + 12.4), Vector3.new(sp.X + 9.6, 4.1, sp.Z + 10.2), Vector3.new(sp.X + 8.4, 4.5, sp.Z + 8.6) },
+			{ Vector3.new(sp.X - 3.4, 3.2, sp.Z - 0.4), Vector3.new(sp.X - 4.4, 3.7, sp.Z + 0.2), Vector3.new(sp.X - 5.6, 4.0, sp.Z + 1.2) },
+			40, 37))
+		at(31.6)
+		ctx.Audio.Play("CarDoorOpen", doorAt, 0.9)
+		carBump(-0.05, 0.05)
+		at(32.1)
+		actorLift(-2.4, 0, 1.4)
+		carBump(0.12, -0.06) -- вес ушёл из машины
+		at(32.3)
+		actorGo({ Vector3.new(sp.X - 5.4, 0, sp.Z + 1.2), Vector3.new(sp.X - 6.4, 0, sp.Z + 2.9) }, 2.4)
+		at(34.0)
+		actorFace(Vector3.new(sp.X - 3.4, 0, sp.Z))
+		at(35.1)
+		ctx.Audio.Play("CarDoorClose", doorAt, 1)
+		carBump(-0.1, 0.09)
+		at(35.8)
+		actorFace(Vector3.new(-52, 0, 50)) -- смотрит на магазин
+	else
+		actor = makeActor(Vector3.new(-41.3, 0, 67.4), math.rad(90))
+		actor.Lift = -1.7 -- сидит за рулём
+		updateGroundFilter()
+		setShot(7.5, track({ Vector3.new(-50.8, 4.5, 80.6), Vector3.new(-49.6, 4.2, 77.6) }, { Vector3.new(-43.4, 3.1, 67.6), Vector3.new(-44.8, 3.5, 67.6) }, 42, 40))
+		at(31.6)
+		swingDoor(carDoor, 0, 68, 1.2)
+		ctx.Audio.Play("CarDoorOpen", Vector3.new(-42.6, 2.5, 66.5), 0.9)
+		at(32.1)
+		actorLift(-1.7, 0, 1.3)
+		at(32.3)
+		actorGo({ Vector3.new(-43.9, 0, 67.9), Vector3.new(-45.2, 0, 70.1) }, 2.4)
+		at(34.0)
+		actorFace(Vector3.new(-42.6, 0, 67.2))
+		at(34.6)
+		swingDoor(carDoor, 68, 0, 0.55)
+		at(35.1)
+		ctx.Audio.Play("CarDoorClose", Vector3.new(-42.6, 2.5, 66.5), 1)
+		at(35.8)
+		actorFace(Vector3.new(-52, 0, 50)) -- смотрит на магазин
+	end
 
 	-- 4. К ВХОДУ И ВНУТРЬ (камера идёт сзади) ---------------------------------
 	at(38.5)
@@ -1233,6 +1489,11 @@ function Cinematic.Play(data)
 			if not okA then
 				warn("[Кат-сцена] " .. tostring(errA))
 				actor = nil
+			end
+			local okC, errC = pcall(updateCar, dt)
+			if not okC then
+				warn("[Кат-сцена] машина: " .. tostring(errC))
+				car = nil
 			end
 			hideCharacters(true)
 			for _, layer in ipairs(feeds) do

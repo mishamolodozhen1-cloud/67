@@ -39,6 +39,49 @@ local ctx = {
 ctx.UI = require(script:WaitForChild("UI"))
 ctx.Audio = require(script:WaitForChild("Audio"))
 ctx.Weather = require(script:WaitForChild("Weather"))
+
+-------------------------------------------------------------------------------
+-- Главное меню (публичный сервер): только меню на фоне ночного магазина
+-------------------------------------------------------------------------------
+while State:GetAttribute("Mode") == nil do
+	State:GetAttributeChangedSignal("Mode"):Wait()
+end
+ctx.Mode = State:GetAttribute("Mode")
+if ctx.Mode == "Hub" then
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+	end)
+	ctx.Menu = require(script:WaitForChild("Menu"))
+	ctx.Effects = require(script:WaitForChild("Effects"))
+	ctx.Audio.Init(ctx)
+	ctx.Weather.Init(ctx)
+	ctx.Menu.Init(ctx)
+	ctx.Audio.SetVolumes(ctx.Settings.Music, ctx.Settings.Sfx)
+	Remotes:WaitForChild("Notify").OnClientEvent:Connect(function(text, style)
+		ctx.Menu.Toast(text, style)
+	end)
+	task.spawn(function()
+		ctx.Effects.Init(ctx)
+	end)
+	task.spawn(function()
+		local ok, profile = pcall(function()
+			return Remotes:WaitForChild("GetProfile"):InvokeServer()
+		end)
+		if ok and type(profile) == "table" then
+			if type(profile.Settings) == "table" then
+				for k, v in pairs(profile.Settings) do
+					if ctx.Settings[k] ~= nil and type(v) == type(ctx.Settings[k]) then
+						ctx.Settings[k] = v
+					end
+				end
+			end
+			ctx.Audio.SetVolumes(ctx.Settings.Music, ctx.Settings.Sfx)
+			ctx.Menu.SetProfile(profile)
+		end
+	end)
+	return
+end
+
 ctx.HUD = require(script:WaitForChild("HUD"))
 ctx.Controls = require(script:WaitForChild("Controls"))
 ctx.Cameras = require(script:WaitForChild("CameraSystem"))

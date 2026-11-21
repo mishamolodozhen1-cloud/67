@@ -18,7 +18,36 @@ ModelKit.Ready = false
 
 local templates = {}
 local appearance = {}
+local assets = {}
 local loaded = false
+
+-- Целая модель с текстурами (касса, машина, фонарик): все детали в одну модель, опора — центр низа
+local function loadAsset(name, def)
+	local ok, m = pcall(function()
+		return InsertService:LoadAsset(def.Id)
+	end)
+	if not ok then
+		warn("[Модели] " .. name .. " не загрузилась: " .. tostring(m))
+		return
+	end
+	local tpl = Instance.new("Model")
+	tpl.Name = name
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanTouch = false
+			d.Parent = tpl
+		end
+	end
+	m:Destroy()
+	if #tpl:GetChildren() == 0 then
+		return
+	end
+	local cf, size = tpl:GetBoundingBox()
+	tpl.WorldPivot = CFrame.new(cf.Position - Vector3.new(0, size.Y / 2, 0))
+	tpl:SetAttribute("SourceSize", size)
+	assets[name] = tpl
+end
 
 local function loadCarrier(atlas, assetId)
 	local ok, model = pcall(function()
@@ -91,8 +120,29 @@ function ModelKit.Load(timeout)
 	while pending > 0 and os.clock() - started < (timeout or 30) do
 		task.wait(0.05)
 	end
+	-- 3) целые модели (касса, машины, фонарик)
+	for name, def in pairs(Models.Assets or {}) do
+		pending = pending + 1
+		task.spawn(function()
+			loadAsset(name, def)
+			pending = pending - 1
+		end)
+	end
+	while pending > 0 and os.clock() - started < (timeout or 30) do
+		task.wait(0.05)
+	end
+	-- фонарик нужен клиенту (модель в руке): кладём копию в ReplicatedStorage.Assets
+	local shared = ReplicatedStorage:FindFirstChild("Assets") or Instance.new("Folder")
+	shared.Name = "Assets"
+	shared.Parent = ReplicatedStorage
+	if assets.Flashlight and not shared:FindFirstChild("Flashlight") then
+		assets.Flashlight:Clone().Parent = shared
+	end
 	local count = 0
 	for _ in pairs(templates) do
+		count = count + 1
+	end
+	for _ in pairs(assets) do
 		count = count + 1
 	end
 	ModelKit.Count = count
@@ -103,6 +153,30 @@ end
 
 function ModelKit.Has(name)
 	return templates[name] ~= nil
+end
+
+function ModelKit.HasAsset(name)
+	return assets[name] ~= nil
+end
+
+-- Размер целой модели в studs до масштабирования
+function ModelKit.AssetSize(name)
+	return assets[name] and assets[name]:GetAttribute("SourceSize") or nil
+end
+
+-- Копия целой модели: cf — где стоит центр её низа (и куда повёрнута), scale — во сколько раз увеличить
+function ModelKit.MakeAsset(name, parent, cf, scale)
+	local tpl = assets[name]
+	if not tpl then
+		return nil
+	end
+	local m = tpl:Clone()
+	if scale and scale ~= 1 then
+		m:ScaleTo(scale)
+	end
+	m:PivotTo(cf)
+	m.Parent = parent
+	return m
 end
 
 -- Все ли модели из списка загружены

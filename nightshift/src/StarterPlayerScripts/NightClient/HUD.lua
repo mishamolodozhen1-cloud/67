@@ -29,7 +29,7 @@ local messages = {}
 local subtitleLabel
 local carryFrame, carryLabel
 local staminaBack, staminaFill
-local lobbyPanel, lobbyStats, lobbyCountdown
+local lobbyPanel, lobbyStats, lobbyCountdown, lobbyRoom
 local countdownLabel
 local modals = {}
 local settingsRows = {}
@@ -315,7 +315,8 @@ local function updateClock()
 	local phase = s:GetAttribute("Phase")
 	waitPanel.Visible = phase == "Intro" and not ctx.IntroPlaying
 	clockLabel.Text = Util.clock(minutes)
-	nightLabel.Text = string.format("НОЧЬ %d · %s", math.max(1, s:GetAttribute("Night") or 1), Texts.StoreName)
+	local code = s:GetAttribute("RoomCode") or ""
+	nightLabel.Text = string.format("НОЧЬ %d · %s", math.max(1, s:GetAttribute("Night") or 1), code ~= "" and ("КОМНАТА " .. code) or Texts.StoreName)
 	barFill.Size = UDim2.new(math.clamp(minutes / (Config.ShiftHours * 60), 0, 1), 0, 1, 0)
 	local power = s:GetAttribute("Power") ~= false
 	powerLabel.Visible = not power and phase == "Shift"
@@ -327,6 +328,17 @@ local function updateClock()
 	if phase == "Lobby" then
 		local left = s:GetAttribute("Countdown") or 0
 		lobbyCountdown.Text = string.format("Смена начнётся сама через %d с", left)
+		-- комната: код для друзей и сколько сотрудников уже здесь
+		local count = #Players:GetPlayers()
+		if code ~= "" then
+			lobbyRoom.Text = string.format("КОМНАТА %s  ·  сотрудников: %d из %d  ·  назовите код друзьям", code, count, s:GetAttribute("RoomMax") or 4)
+			lobbyRoom.Visible = true
+		elseif s:GetAttribute("RoomSolo") then
+			lobbyRoom.Text = "ОДИНОЧНАЯ СМЕНА  ·  сюда никто не войдёт"
+			lobbyRoom.Visible = true
+		else
+			lobbyRoom.Visible = false
+		end
 	end
 end
 
@@ -651,9 +663,21 @@ local function buildLobby()
 	UI.list(lobbyPanel, 6)
 	UI.text("NIGHT SHIFT", { Size = UDim2.new(1, 0, 0, 34), TextSize = 32, Font = Enum.Font.GothamBlack, TextColor3 = UI.Colors.Accent, LayoutOrder = 1 }, lobbyPanel)
 	UI.text(Texts.StoreName .. " · ночная смена с 00:00 до 06:00 · 1–4 сотрудника", { Size = UDim2.new(1, 0, 0, 18), TextSize = 15, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, lobbyPanel)
-	lobbyStats = UI.text("Загрузка профиля…", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, LayoutOrder = 3 }, lobbyPanel)
-	UI.text(Texts.LobbyHint .. (UI.IsTouch and "." or " — или нажмите Enter."), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, TextColor3 = UI.Colors.Amber, LayoutOrder = 4 }, lobbyPanel)
-	local row = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 5 }, lobbyPanel)
+	lobbyRoom = UI.text("", {
+		Size = UDim2.new(1, 0, 0, 34),
+		TextSize = 16,
+		Font = Enum.Font.GothamBlack,
+		TextColor3 = UI.Colors.Text,
+		BackgroundColor3 = UI.Colors.PanelLight,
+		BackgroundTransparency = 0.1,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Visible = false,
+		LayoutOrder = 3,
+	}, lobbyPanel)
+	UI.corner(lobbyRoom, 8)
+	lobbyStats = UI.text("Загрузка профиля…", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, LayoutOrder = 4 }, lobbyPanel)
+	UI.text(Texts.LobbyHint .. (UI.IsTouch and "." or " — или нажмите Enter."), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, TextColor3 = UI.Colors.Amber, LayoutOrder = 5 }, lobbyPanel)
+	local row = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 6 }, lobbyPanel)
 	UI.button("НАЧАТЬ СМЕНУ" .. keyHint("Enter"), {
 		Size = UDim2.fromOffset(240, 42),
 		BackgroundColor3 = UI.Colors.Accent,
@@ -664,7 +688,7 @@ local function buildLobby()
 	lobbyCountdown = UI.text("", { Position = UDim2.fromOffset(256, 0), Size = UDim2.new(1, -256, 1, 0), TextSize = 14, TextColor3 = UI.Colors.Muted }, row)
 	-- авторы 3D-моделей (лицензия CC BY 4.0 требует их указывать)
 	local Models = require(Shared:WaitForChild("Models"))
-	UI.text("3D-модели: " .. table.concat(Models.Credits, " · "), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 11, TextColor3 = UI.Colors.Muted, LayoutOrder = 6 }, lobbyPanel)
+	UI.text("3D-модели: " .. table.concat(Models.Credits, " · "), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 11, TextColor3 = UI.Colors.Muted, LayoutOrder = 7 }, lobbyPanel)
 end
 
 function HUD.RequestStart()
@@ -675,7 +699,7 @@ end
 
 local function buildModals()
 	-- Настройки
-	local _, sp = makeModal("Settings", UDim2.fromOffset(460, 520), false)
+	local _, sp = makeModal("Settings", UDim2.fromOffset(460, 570), false)
 	UI.list(sp, 8)
 	UI.text("НАСТРОЙКИ", { Size = UDim2.new(1, 0, 0, 26), TextSize = 22, Font = Enum.Font.GothamBlack, ZIndex = 22, LayoutOrder = 0 }, sp)
 	for i, def in ipairs(SETTINGS) do
@@ -702,6 +726,38 @@ local function buildModals()
 	UI.text(help, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 13, TextColor3 = UI.Colors.Muted, ZIndex = 22, LayoutOrder = 20 }, sp)
 	UI.button("Закрыть", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = UI.Colors.Accent, ZIndex = 22, LayoutOrder = 21 }, sp, function()
 		HUD.CloseModals()
+	end)
+	-- выход в главное меню: второе нажатие в течение 4 секунд подтверждает
+	local leaveArmed = 0
+	local leave
+	leave = UI.button("Выйти в главное меню", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = UI.Colors.PanelLight, ZIndex = 22, LayoutOrder = 22 }, sp, function()
+		if os.clock() - leaveArmed > 4 then
+			leaveArmed = os.clock()
+			leave.Text = "Нажмите ещё раз, чтобы выйти"
+			leave.BackgroundColor3 = UI.Colors.Warn
+			task.delay(4, function()
+				if os.clock() - leaveArmed >= 4 then
+					leave.Text = "Выйти в главное меню"
+					leave.BackgroundColor3 = UI.Colors.PanelLight
+				end
+			end)
+			return
+		end
+		HUD.SaveSettings()
+		HUD.CloseModals()
+		HUD.Fade(0, 0.8)
+		HUD.Notify("Возвращаемся в главное меню…", "info")
+		local rooms = ctx.Remotes:FindFirstChild("Rooms")
+		local ok = rooms and pcall(function()
+			return rooms:InvokeServer("Leave")
+		end)
+		task.delay(20, function()
+			-- телепорт не случился: вернуть картинку
+			HUD.Fade(1, 0.8)
+			if not ok then
+				HUD.Notify("Не удалось выйти в меню. Попробуйте ещё раз.", "warn")
+			end
+		end)
 	end)
 
 	-- История сообщений
@@ -778,7 +834,7 @@ function HUD.Init(c)
 
 	-- Состояние смены
 	local s = ctx.State
-	for _, key in ipairs({ "Minutes", "Phase", "Power", "Countdown", "Night" }) do
+	for _, key in ipairs({ "Minutes", "Phase", "Power", "Countdown", "Night", "RoomCode", "RoomSolo" }) do
 		s:GetAttributeChangedSignal(key):Connect(updateClock)
 	end
 	s:GetAttributeChangedSignal("Percent"):Connect(updatePlan)
@@ -802,6 +858,10 @@ function HUD.Init(c)
 	end)
 	updateClock()
 	updatePlan()
+	Players.PlayerAdded:Connect(updateClock)
+	Players.PlayerRemoving:Connect(function()
+		task.defer(updateClock)
+	end)
 
 	-- Задания
 	local tasksFolder = ReplicatedStorage:WaitForChild("Tasks")

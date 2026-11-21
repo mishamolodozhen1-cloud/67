@@ -18,6 +18,38 @@ local Models = {}
 Models.Credits = {
 	"«[FREE] Store Props» — SimplePolygon, CC BY 4.0",
 	"«Food Collection - Game Ready» — Melon Polygons, CC BY 4.0",
+	"«Cash register» — Dester, CC BY 4.0",
+	"машины «Milano '95», «Fairheaven LT '80», «Fairheaven SW '84», «Negotiator '80», «Ace '11» — Daniel Zhabotinsky, CC BY 4.0",
+	"«Flashlight» — Brandon Baldwin, CC BY 4.0",
+}
+
+-- Целые модели с текстурами (загружаются через InsertService:LoadAsset):
+--   Checkout — кассовый стол с лентой, кассовым аппаратом и денежным ящиком
+--     https://sketchfab.com/3d-models/cash-register-ac4a966b35da48ddb0621a821c351074 (Dester)
+--   Car* — машины вымышленных марок, значки на кузове заменены однотонным хромом
+--     https://sketchfab.com/DanielZhabotinsky
+--   Flashlight — фонарик https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c (Brandon Baldwin)
+-- Scale — во сколько раз увеличить модель (в файле 1 единица = 1 stud).
+Models.Assets = {
+	Checkout = { Id = 140224040413189, Scale = 7.56 },
+	Flashlight = { Id = 79324152063738 },
+	CarMilano = { Id = 108547573785421, Scale = 3.6 },
+	CarFairheavenLT = { Id = 77110994894817, Scale = 3.6 },
+	CarNegotiator = { Id = 120487318164975, Scale = 3.6 },
+	CarFairheavenSW = { Id = 103191321469470, Scale = 3.6 },
+	CarAce = { Id = 105040233127033, Scale = 3.6 },
+}
+Models.StaffCar = "CarMilano"
+Models.ParkedCars = { "CarFairheavenLT", "CarNegotiator", "CarFairheavenSW", "CarAce" }
+
+-- Кассовый стол: где лента, столешница и ящик (единицы модели; ось X модели — длина, Z — глубина).
+-- Roblox при импорте разворачивает модель на 180°, поэтому в игре знаки X и Z противоположны файлу.
+Models.Checkout = {
+	BeltTop = 0.41, -- верх ленты от низа модели
+	Top = 0.432, -- столешница
+	BeltLength = { -0.475, 0.205 }, -- лента вдоль X (в файле)
+	BeltDepth = { 0.009, 0.25 }, -- лента по Z (в файле, сторона кассира)
+	Drawer = { 0.22, 0.46 }, -- денежный ящик вдоль X (в файле)
 }
 
 -- Собственные анимации (tools/make_anims.py): ходьба, бег, ожидание

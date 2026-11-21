@@ -29,15 +29,12 @@ local MonsterAI = mod("MonsterAI")
 local Secrets = mod("Secrets")
 local EventDirector = mod("EventDirector")
 local ShiftManager = mod("ShiftManager")
+local Rooms = mod("Rooms")
 
 local GameServer = {}
 
-function GameServer.Start()
-	Net.Init()
-
-	-------------------------------------------------------------------------------
-	-- Ночное освещение (технология Future задана в файле плейса)
-	-------------------------------------------------------------------------------
+-- Ночное освещение (технология Future задана в файле плейса)
+local function setupLighting()
 	Lighting.ClockTime = 0.4
 	Lighting.GeographicLatitude = 55
 	Lighting.Brightness = 0.35
@@ -89,6 +86,39 @@ function GameServer.Start()
 	cc.Contrast = 0.1
 	cc.TintColor = Color3.fromRGB(236, 242, 248)
 	cc.Parent = Lighting
+end
+
+-- Холл (публичный сервер): главное меню. Магазин строится только как фон, смены нет, персонажей нет.
+function GameServer.StartHub()
+	Net.Init("Hub")
+	setupLighting()
+	Players.CharacterAutoLoads = false
+	local started = os.clock()
+	local map = MapBuilder.Build()
+	DataService.Init()
+	Net.Remote("GetProfile").OnServerInvoke = function(player)
+		for _ = 1, 20 do
+			if DataService.Get(player) then
+				break
+			end
+			task.wait(0.25)
+		end
+		return DataService.Get(player)
+	end
+	Net.OnAction(function(player, action, settings)
+		if action == "SaveSettings" then
+			pcall(DataService.SaveSettings, player, settings)
+		end
+	end)
+	Rooms.InitHub(Net.Remote("Rooms"))
+	workspace:SetAttribute("StoreReady", true)
+	print(string.format("[NIGHT SHIFT] главное меню готово за %.1f с", os.clock() - started))
+	return { Net = Net, Map = map, Rooms = Rooms }
+end
+
+function GameServer.Start()
+	Net.Init("Game")
+	setupLighting()
 
 	-------------------------------------------------------------------------------
 	-- Магазин и системы
@@ -213,6 +243,10 @@ function GameServer.Start()
 		end
 		return DataService.Get(player)
 	end
+
+	-- комната: код для друзей, обновление списка комнат, выход в меню
+	Rooms.InitGame(Net.State(), Net.Remote("Rooms"))
+	S.Rooms = Rooms
 
 	Doors.Start()
 	CustomerManager.Start()

@@ -659,6 +659,94 @@ local function car(parent, x, z, color, rot, name)
 	return m
 end
 
+-- Детализированная машина (модель с текстурами). heading — куда смотрит перёд: 0 = к магазину (-Z).
+-- Перёд модели определяем по фарам; поворот для этого сохраняем в атрибуте YawFix (нужен кат-сцене).
+-- Детали помечены атрибутом Role: Headlight / Taillight / Window / Wheel / WheelFront — по ним кат-сцена
+-- включает фары и стоп-сигналы и крутит колёса. Столкновения — один невидимый блок по размеру кузова.
+local LIGHT_ROLES = {
+	{ "Headlights", "Headlight" },
+	{ "Taillights", "Taillight" },
+	{ "Brakelights", "Taillight" },
+	{ "Reverse", "Reverse" },
+	{ "Blinkers", "Blinker" },
+}
+local function carRole(name)
+	for _, r in ipairs(LIGHT_ROLES) do
+		if string.find(name, r[1], 1, true) then
+			return r[2]
+		end
+	end
+	if string.find(name, "Wheel%a*_F[LR]") then
+		return "WheelFront"
+	elseif string.find(name, "Wheel%a*_R[LR]") then
+		return "Wheel"
+	end
+	local low = string.lower(name)
+	if string.find(low, "glass", 1, true) or string.find(low, "windshield", 1, true) then
+		return "Window"
+	end
+	return nil
+end
+
+local function carModel(parent, assetName, x, z, heading, name)
+	local def = Models.Assets[assetName]
+	local m = ModelKit.MakeAsset(assetName, parent, CFrame.new(x, 0, z), def.Scale)
+	if not m then
+		return nil
+	end
+	m.Name = name or "Car"
+	local pivot = m:GetPivot()
+	local fwd = -1
+	local body, bodyVolume = nil, 0
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.CanCollide = false
+			p.CanQuery = false
+			local role = carRole(p.Name)
+			if role then
+				p:SetAttribute("Role", role)
+			end
+			if role == "Headlight" then
+				-- перёд — в той стороне по оси X модели, где фары
+				fwd = (pivot:PointToObjectSpace(p.Position).X > 0) and 1 or -1
+			elseif role == "Window" then
+				-- тонированное стекло: видно салон и отражения
+				p.Material = Enum.Material.Glass
+				p.Transparency = 0.42
+				p.Reflectance = 0.14
+				p.CastShadow = false
+			end
+			local v = p.Size.X * p.Size.Y * p.Size.Z
+			if string.find(string.lower(p.Name), "body", 1, true) and not role and v > bodyVolume then
+				body, bodyVolume = p, v
+			end
+		end
+	end
+	-- блок столкновений по размеру машины (без окон и колёс)
+	local _, size = m:GetBoundingBox()
+	local hit = Instance.new("Part")
+	hit.Name = "Collision"
+	hit.Size = Vector3.new(size.X * 0.96, size.Y * 0.62, size.Z * 0.94)
+	hit.CFrame = pivot * CFrame.new(0, size.Y * 0.36, 0)
+	hit.Transparency = 1
+	hit.Anchored = true
+	hit.CanTouch = false
+	hit.CastShadow = false
+	hit.Parent = m
+	local yawFix = (fwd < 0) and math.rad(-90) or math.rad(90)
+	m:SetAttribute("YawFix", yawFix)
+	m:SetAttribute("Length", size.X)
+	m:SetAttribute("Width", size.Z)
+	local placed = CFrame.new(x, 0, z) * CFrame.Angles(0, math.rad(heading or 0), 0) * CFrame.Angles(0, yawFix, 0)
+	m:PivotTo(placed)
+	-- главная деталь — кузов; опора модели остаётся в центре низа
+	if body then
+		body.PivotOffset = body.CFrame:ToObjectSpace(placed)
+		m.PrimaryPart = body
+	end
+	return m
+end
+
 local function building(parent, x0, z0, x1, z1, h, seed)
 	local r = Random.new(seed)
 	local m = model("Building", parent)
@@ -778,10 +866,17 @@ local function buildFront(root, map)
 	for x = -250, 250, 14 do
 		B(f, "RoadLine", x, -0.04, 126.8, x + 7, -0.02, 127.2, rgb(220, 220, 210), M.SmoothPlastic)
 	end
+	local realCars = ModelKit.HasAsset(Models.StaffCar)
 	for i = 0, 12 do
 		local x = -78 + i * 11
-		B(f, "ParkingLine", x - 0.15, 0, 62, x + 0.15, 0.04, 74, rgb(214, 214, 208), M.SmoothPlastic)
-		B(f, "ParkingLine", x - 0.15, 0, 92, x + 0.15, 0.04, 104, rgb(214, 214, 208), M.SmoothPlastic)
+		if realCars then
+			-- места под настоящий размер машин (около 5 м)
+			B(f, "ParkingLine", x - 0.15, 0, 60, x + 0.15, 0.04, 80, rgb(214, 214, 208), M.SmoothPlastic)
+			B(f, "ParkingLine", x - 0.15, 0, 90, x + 0.15, 0.04, 110, rgb(214, 214, 208), M.SmoothPlastic)
+		else
+			B(f, "ParkingLine", x - 0.15, 0, 62, x + 0.15, 0.04, 74, rgb(214, 214, 208), M.SmoothPlastic)
+			B(f, "ParkingLine", x - 0.15, 0, 92, x + 0.15, 0.04, 104, rgb(214, 214, 208), M.SmoothPlastic)
+		end
 	end
 	-- Фонари парковки и вдоль дороги (натриевый свет)
 	local function streetLamp(x, z, armDir, broken)
@@ -795,13 +890,23 @@ local function buildFront(root, map)
 	for x = -200, 200, 50 do
 		streetLamp(x, 136, -1, false)
 	end
-	-- Машины на парковке (большинство мест пустые)
-	car(f, -78 + 5.5, 67, rgb(140, 30, 34), 0)
-	car(f, 10 + 5.5, 98, rgb(54, 62, 80), 180)
-	car(f, 48.5, 67, rgb(190, 190, 186), 0)
-	-- Машина сотрудника (на ней игрок приезжает в начале смены)
-	local staff = car(f, -39.5, 68, rgb(72, 80, 66), 0, "StaffCar")
-	map.StaffCar = staff
+	-- Машины на парковке (большинство мест пустые) и машина сотрудника (на ней игрок приезжает в начале смены)
+	if realCars then
+		local parked = Models.ParkedCars
+		carModel(f, parked[1], -72.5, 70, 0)
+		carModel(f, parked[2], 15.5, 100, 180)
+		carModel(f, parked[3], 48.5, 70, 0)
+		carModel(f, parked[4], -6.5, 100, 180)
+		map.StaffCar = carModel(f, Models.StaffCar, -39.5, 70, 0, "StaffCar")
+		map.StaffCarSpot = Vector3.new(-39.5, 0, 70)
+	else
+		car(f, -78 + 5.5, 67, rgb(140, 30, 34), 0)
+		car(f, 10 + 5.5, 98, rgb(54, 62, 80), 180)
+		car(f, 48.5, 67, rgb(190, 190, 186), 0)
+		map.StaffCar = car(f, -39.5, 68, rgb(72, 80, 66), 0, "StaffCar")
+		map.StaffCarSpot = Vector3.new(-39.5, 0, 68)
+	end
+	local staff = map.StaffCar
 	-- Тележки у входа
 	for i = 0, 3 do
 		local m = model("Cart", f)
@@ -1272,109 +1377,221 @@ end
 -------------------------------------------------------------------------------
 local LANE_X = { -24, -8, 8, 24 }
 
+-- Касса из простых деталей (если модель кассового стола не загрузилась)
+local function laneSimple(m, i, X)
+	local open = i <= 3
+	local counter = B(m, "Counter", X - 1.4, 0, 28, X + 1.4, 3, 40, rgb(226, 228, 228), M.SmoothPlastic)
+	skin(counter, I.DarkPlastic, 4, { N.Left, N.Right }, rgb(150, 154, 160))
+	B(m, "CounterKick", X - 1.45, 0, 28, X + 1.45, 0.6, 40, C.Dark, M.SmoothPlastic)
+	B(m, "CounterTrim", X - 1.45, 2.9, 28, X + 1.45, 3.02, 40, rgb(200, 36, 40), M.SmoothPlastic)
+	local belt = B(m, "Belt", X - 1.2, 3.02, 28.4, X + 1.2, 3.12, 35.2, rgb(26, 26, 28), M.Rubber)
+	skin(belt, I.RubberMat, 2, { N.Top })
+	B(m, "BeltEnd", X - 1.25, 3.0, 35.2, X + 1.25, 3.2, 35.45, C.Metal, M.Metal)
+	local scanner = B(m, "Scanner", X - 0.9, 3.02, 35.6, X + 0.9, 3.08, 36.8, rgb(40, 50, 56), M.Glass, { Transparency = 0.15 })
+	local laser = B(m, "Laser", X - 0.7, 3.085, 36.15, X + 0.7, 3.09, 36.25, rgb(255, 40, 40), M.Neon, { CastShadow = false })
+	skin(B(m, "ScannerTower", X + 0.9, 3.0, 35.6, X + 1.35, 4.3, 36.8, C.Dark, M.SmoothPlastic), I.DarkPlastic, 2, { N.Left, N.Front, N.Back })
+	skin(B(m, "BagArea", X - 1.2, 3.02, 37.2, X + 1.2, 3.07, 39.6, rgb(180, 182, 186), M.Metal), I.StainlessSteel, 2, { N.Top })
+	B(m, "RailCustomer", X - 1.5, 3.0, 28, X - 1.4, 3.5, 40, C.Metal, M.Metal)
+	-- Монитор кассира (+X) и табло покупателя (−X)
+	Cyl(m, "MonitorPole", 0.2, 2.2, Vector3.new(X + 1.7, 4.1, 37.2), C.Dark, M.Metal)
+	local screen = B(m, "Monitor", X + 1.15, 4.6, 36.4, X + 2.25, 5.7, 38.0, C.Black, M.SmoothPlastic)
+	local cashierLabel = sign(screen, N.Right, open and "КАССА " .. i .. "\nСвободна" or "КАССА НЕ РАБОТАЕТ", {
+		color = rgb(120, 220, 255),
+		light = 0,
+		brightness = 1.6,
+		ppS = 70,
+		font = Enum.Font.Code,
+		alignY = Enum.TextYAlignment.Top,
+		padding = 4,
+		name = "CashierScreen",
+	})
+	local customerLabel = sign(screen, N.Left, open and "Добро пожаловать!" or "", {
+		color = rgb(255, 230, 120),
+		light = 0,
+		brightness = 1.6,
+		ppS = 70,
+		font = Enum.Font.Code,
+		padding = 4,
+		name = "CustomerScreen",
+	})
+	-- Терминал оплаты
+	Cyl(m, "TerminalPole", 0.15, 0.9, Vector3.new(X - 1.75, 3.45, 37.6), C.Dark, M.Metal)
+	local terminal = B(m, "Terminal", X - 2.05, 3.9, 37.1, X - 1.45, 4.3, 38.1, rgb(36, 36, 40), M.SmoothPlastic)
+	local terminalLabel = sign(terminal, N.Left, "", { color = rgb(120, 255, 160), light = 0, brightness = 1.5, ppS = 60, font = Enum.Font.Code, name = "TerminalScreen" })
+	-- Номер кассы на стойке
+	Cyl(m, "NumberPole", 0.22, 8.4, Vector3.new(X + 1.2, 4.2, 28.4), C.Dark, M.Metal)
+	local numberBox = B(m, "NumberSign", X + 0.4, 8.4, 27.9, X + 2.0, 9.8, 28.9, open and rgb(40, 200, 90) or rgb(70, 70, 72), M.Neon, { CastShadow = false })
+	sign(numberBox, N.Back, tostring(i), { color = Color3.new(1, 1, 1), light = 0, brightness = 2, ppS = 30, font = Enum.Font.GothamBlack })
+	sign(numberBox, N.Front, tostring(i), { color = Color3.new(1, 1, 1), light = 0, brightness = 2, ppS = 30, font = Enum.Font.GothamBlack })
+	-- коврик кассира
+	skin(B(m, "Mat", X + 1.5, 0, 32, X + 5.5, 0.06, 39, rgb(36, 36, 38), M.Rubber), I.RubberMat, 2, { N.Top })
+	-- Стойка с мелочами (жвачка, шоколад) между кассами
+	if i < 4 then
+		local rackPart = B(m, "ImpulseRack", X + 6.2, 0, 29, X + 7.2, 4.6, 38, C.Metal, M.Metal)
+		metalSkin(rackPart, { N.Right })
+		for _, y in ipairs({ 1.2, 2.6 }) do
+			B(m, "ImpulseShelf", X + 7.2, y - 0.08, 29.2, X + 7.9, y, 37.8, C.Metal, M.Metal)
+			productLayer(m, X + 7.25, X + 7.9, y, 29.3, 37.7, N.Right, "Snacks", nil, nil)
+		end
+	end
+	if not open then
+		local chain = B(m, "Chain", X - 5.6, 2.6, 27.9, X - 1.5, 2.75, 28.1, rgb(230, 190, 30), M.Metal)
+		local closedSign = P(m, "ClosedSign", Vector3.new(2.4, 1, 0.08), CFrame.new(X - 3.5, 2.1, 28), Color3.new(1, 1, 1), M.SmoothPlastic)
+		sign(closedSign, N.Back, "КАССА НЕ РАБОТАЕТ", { color = C.Red, ppS = 40 })
+		sign(closedSign, N.Front, "КАССА НЕ РАБОТАЕТ", { color = C.Red, ppS = 40 })
+		chain:SetAttribute("Lane", i)
+	end
+	local cx = X - 3.4
+	local lane = {
+		Index = i,
+		X = X,
+		Model = m,
+		Open = open,
+		Belt = belt,
+		Scanner = scanner,
+		Laser = laser,
+		Monitor = screen,
+		CashierLabel = cashierLabel,
+		CustomerLabel = customerLabel,
+		Terminal = terminal,
+		TerminalLabel = terminalLabel,
+		NumberSign = numberBox,
+		QueueSpots = {
+			Vector3.new(cx, 0, 35.8),
+			Vector3.new(cx, 0, 31.4),
+			Vector3.new(cx, 0, 27.2),
+			Vector3.new(cx, 0, 23.4),
+			Vector3.new(cx - 1.5, 0, 21.2),
+		},
+		ItemZ = { 34.6, 33.6, 32.6, 31.6, 30.6, 29.6, 28.8 },
+		BagSpot = Vector3.new(X, 3.07, 38.4),
+		ScanSpot = Vector3.new(X, 3.3, 36.2),
+		CashierSpot = Vector3.new(X + 3.4, 0, 35),
+		ExitSpot = Vector3.new(cx, 0, 44.5),
+		CashierZone = { X + 1.4, X + 6.2, 30, 40 },
+	}
+	return lane
+end
+
+-- Касса из модели кассового стола «Cash register» (Dester): лента и денежный ящик со стороны кассира (-X),
+-- кассовый аппарат с экраном у дальнего края, столешница для пакетов со стороны покупателя (+X).
+-- Покупатели стоят в очереди справа от стола (+X), кассир — слева (-X). Кресел у касс нет: кассир стоит.
+local function laneModel(m, i, X)
+	local open = i <= 3
+	local CK = Models.Checkout
+	local k = Models.Assets.Checkout.Scale
+	local zc = 36
+	-- в игре: смещение по X = -z_файла * k, по Z = x_файла * k (поворот на 90° после разворота импорта)
+	ModelKit.MakeAsset("Checkout", m, CFrame.new(X, 0, zc) * CFrame.Angles(0, math.rad(90), 0), k)
+	local beltX = X - (CK.BeltDepth[1] + CK.BeltDepth[2]) / 2 * k
+	local beltZ0, beltZ1 = zc + CK.BeltLength[1] * k, zc + CK.BeltLength[2] * k
+	local beltY = CK.BeltTop * k
+	local topY = CK.Top * k
+	local belt = B(m, "Belt", beltX - 0.8, beltY - 0.1, beltZ0, beltX + 0.8, beltY, beltZ1, rgb(26, 26, 28), M.Rubber, { Transparency = 1, CanCollide = false, CanQuery = false })
+	-- сканер в конце ленты: стойка с красным стеклом, луч лазера
+	local scanZ = beltZ1 - 0.95
+	local tower = B(m, "ScannerTower", beltX - 0.55, beltY, beltZ1 - 0.35, beltX + 0.55, beltY + 1.0, beltZ1 - 0.05, rgb(34, 36, 40), M.SmoothPlastic)
+	local scanner = B(m, "Scanner", beltX - 0.45, beltY + 0.12, beltZ1 - 0.37, beltX + 0.45, beltY + 0.82, beltZ1 - 0.35, rgb(120, 20, 20), M.Glass, { Transparency = 0.25, CastShadow = false })
+	local laser = B(m, "Laser", beltX - 0.4, beltY + 0.02, scanZ - 0.03, beltX + 0.4, beltY + 0.03, scanZ + 0.03, rgb(255, 40, 40), M.Neon, { CastShadow = false })
+	-- дисплей на стойке: сторона кассира (-X) и сторона покупателя (+X)
+	Cyl(m, "MonitorPole", 0.16, 1.4, Vector3.new(X + 0.3, topY + 0.7, zc + 3.45), C.Dark, M.Metal)
+	local screen = B(m, "Monitor", X + 0.24, topY + 1.3, zc + 2.7, X + 0.36, topY + 2.3, zc + 4.2, C.Black, M.SmoothPlastic)
+	local cashierLabel = sign(screen, N.Left, open and "КАССА " .. i .. "\nСвободна" or "КАССА НЕ РАБОТАЕТ", {
+		color = rgb(120, 220, 255),
+		light = 0,
+		brightness = 1.6,
+		ppS = 70,
+		font = Enum.Font.Code,
+		alignY = Enum.TextYAlignment.Top,
+		padding = 4,
+		name = "CashierScreen",
+	})
+	local customerLabel = sign(screen, N.Right, open and "Добро пожаловать!" or "", {
+		color = rgb(255, 230, 120),
+		light = 0,
+		brightness = 1.6,
+		ppS = 70,
+		font = Enum.Font.Code,
+		padding = 4,
+		name = "CustomerScreen",
+	})
+	-- терминал для карт на краю стола со стороны покупателя
+	Cyl(m, "TerminalPole", 0.12, 0.6, Vector3.new(X + 2.35, topY + 0.3, zc + 1.4), C.Dark, M.Metal)
+	local terminal = B(m, "Terminal", X + 2.1, topY + 0.55, zc + 0.95, X + 2.6, topY + 0.95, zc + 1.85, rgb(36, 36, 40), M.SmoothPlastic)
+	local terminalLabel = sign(terminal, N.Right, "", { color = rgb(120, 255, 160), light = 0, brightness = 1.5, ppS = 60, font = Enum.Font.Code, name = "TerminalScreen" })
+	-- номер кассы над входом в очередь
+	Cyl(m, "NumberPole", 0.22, 8.4, Vector3.new(X + 2.6, 4.2, beltZ0 - 0.4), C.Dark, M.Metal)
+	local numberBox = B(m, "NumberSign", X + 1.8, 8.4, beltZ0 - 0.9, X + 3.4, 9.8, beltZ0 + 0.1, open and rgb(40, 200, 90) or rgb(70, 70, 72), M.Neon, { CastShadow = false })
+	sign(numberBox, N.Back, tostring(i), { color = Color3.new(1, 1, 1), light = 0, brightness = 2, ppS = 30, font = Enum.Font.GothamBlack })
+	sign(numberBox, N.Front, tostring(i), { color = Color3.new(1, 1, 1), light = 0, brightness = 2, ppS = 30, font = Enum.Font.GothamBlack })
+	-- коврик кассира
+	skin(B(m, "Mat", X - 5.4, 0, zc - 3, X - 2.2, 0.06, zc + 4, rgb(36, 36, 38), M.Rubber), I.RubberMat, 2, { N.Top })
+	-- стойка с мелочами для очереди (между кассами, смотрит на покупателей этой кассы)
+	if i < 4 then
+		local rackPart = B(m, "ImpulseRack", X + 6.2, 0, 29, X + 7.0, 4.6, 38, C.Metal, M.Metal)
+		metalSkin(rackPart, { N.Left })
+		for _, y in ipairs({ 1.2, 2.6, 4.0 }) do
+			B(m, "ImpulseShelf", X + 5.4, y - 0.08, 29.2, X + 6.2, y, 37.8, C.Metal, M.Metal)
+			productLayer(m, X + 5.45, X + 6.15, y, 29.3, 37.7, N.Left, "Snacks", nil, nil, 1.2)
+		end
+	end
+	if not open then
+		local chain = B(m, "Chain", X + 2.2, 2.6, beltZ0 - 0.6, X + 5.8, 2.75, beltZ0 - 0.4, rgb(230, 190, 30), M.Metal)
+		local closedSign = P(m, "ClosedSign", Vector3.new(2.4, 1, 0.08), CFrame.new(X + 4, 2.1, beltZ0 - 0.5), Color3.new(1, 1, 1), M.SmoothPlastic)
+		sign(closedSign, N.Back, "КАССА НЕ РАБОТАЕТ", { color = C.Red, ppS = 40 })
+		sign(closedSign, N.Front, "КАССА НЕ РАБОТАЕТ", { color = C.Red, ppS = 40 })
+		chain:SetAttribute("Lane", i)
+	end
+	local cx = X + 3.4
+	local spacing = math.min(0.62, (beltZ1 - 1.6 - beltZ0 - 0.2) / 6)
+	local itemZ = {}
+	for n = 0, 6 do
+		table.insert(itemZ, beltZ1 - 1.6 - n * spacing)
+	end
+	return {
+		Index = i,
+		X = X,
+		BeltX = beltX,
+		BeltY = beltY + 0.02,
+		Model = m,
+		Open = open,
+		Belt = belt,
+		Scanner = scanner,
+		Laser = laser,
+		Tower = tower,
+		Monitor = screen,
+		CashierLabel = cashierLabel,
+		CustomerLabel = customerLabel,
+		Terminal = terminal,
+		TerminalLabel = terminalLabel,
+		NumberSign = numberBox,
+		QueueSpots = {
+			Vector3.new(cx - 0.1, 0, zc + 1.4),
+			Vector3.new(cx, 0, zc - 2.4),
+			Vector3.new(cx + 0.1, 0, zc - 6),
+			Vector3.new(cx + 0.2, 0, zc - 9.4),
+			Vector3.new(cx + 0.6, 0, 25),
+		},
+		ItemZ = itemZ,
+		BagSpot = Vector3.new(X + 1.0, topY, zc - 1.6),
+		ScanSpot = Vector3.new(beltX, beltY + 0.4, scanZ),
+		CashierSpot = Vector3.new(X - 3.2, 0, zc + 1),
+		ExitSpot = Vector3.new(cx, 0, 44.5),
+		CashierZone = { X - 6.2, X - 1.9, zc - 5, zc + 5 },
+		Side = -1, -- кассир с -X
+	}
+end
+
 local function buildLanes(root, map)
 	local f = folder("Checkouts", root)
 	map.Lanes = {}
 	for i, X in ipairs(LANE_X) do
 		local m = model("Lane" .. i, f)
-		local open = i <= 3
-		local counter = B(m, "Counter", X - 1.4, 0, 28, X + 1.4, 3, 40, rgb(226, 228, 228), M.SmoothPlastic)
-		skin(counter, I.DarkPlastic, 4, { N.Left, N.Right }, rgb(150, 154, 160))
-		B(m, "CounterKick", X - 1.45, 0, 28, X + 1.45, 0.6, 40, C.Dark, M.SmoothPlastic)
-		B(m, "CounterTrim", X - 1.45, 2.9, 28, X + 1.45, 3.02, 40, rgb(200, 36, 40), M.SmoothPlastic)
-		local belt = B(m, "Belt", X - 1.2, 3.02, 28.4, X + 1.2, 3.12, 35.2, rgb(26, 26, 28), M.Rubber)
-		skin(belt, I.RubberMat, 2, { N.Top })
-		B(m, "BeltEnd", X - 1.25, 3.0, 35.2, X + 1.25, 3.2, 35.45, C.Metal, M.Metal)
-		local scanner = B(m, "Scanner", X - 0.9, 3.02, 35.6, X + 0.9, 3.08, 36.8, rgb(40, 50, 56), M.Glass, { Transparency = 0.15 })
-		local laser = B(m, "Laser", X - 0.7, 3.085, 36.15, X + 0.7, 3.09, 36.25, rgb(255, 40, 40), M.Neon, { CastShadow = false })
-		skin(B(m, "ScannerTower", X + 0.9, 3.0, 35.6, X + 1.35, 4.3, 36.8, C.Dark, M.SmoothPlastic), I.DarkPlastic, 2, { N.Left, N.Front, N.Back })
-		skin(B(m, "BagArea", X - 1.2, 3.02, 37.2, X + 1.2, 3.07, 39.6, rgb(180, 182, 186), M.Metal), I.StainlessSteel, 2, { N.Top })
-		B(m, "RailCustomer", X - 1.5, 3.0, 28, X - 1.4, 3.5, 40, C.Metal, M.Metal)
-		-- Монитор кассира (+X) и табло покупателя (−X)
-		Cyl(m, "MonitorPole", 0.2, 2.2, Vector3.new(X + 1.7, 4.1, 37.2), C.Dark, M.Metal)
-		local screen = B(m, "Monitor", X + 1.15, 4.6, 36.4, X + 2.25, 5.7, 38.0, C.Black, M.SmoothPlastic)
-		local cashierLabel = sign(screen, N.Right, open and "КАССА " .. i .. "\nСвободна" or "КАССА НЕ РАБОТАЕТ", {
-			color = rgb(120, 220, 255),
-			light = 0,
-			brightness = 1.6,
-			ppS = 70,
-			font = Enum.Font.Code,
-			alignY = Enum.TextYAlignment.Top,
-			padding = 4,
-			name = "CashierScreen",
-		})
-		local customerLabel = sign(screen, N.Left, open and "Добро пожаловать!" or "", {
-			color = rgb(255, 230, 120),
-			light = 0,
-			brightness = 1.6,
-			ppS = 70,
-			font = Enum.Font.Code,
-			padding = 4,
-			name = "CustomerScreen",
-		})
-		-- Терминал оплаты
-		Cyl(m, "TerminalPole", 0.15, 0.9, Vector3.new(X - 1.75, 3.45, 37.6), C.Dark, M.Metal)
-		local terminal = B(m, "Terminal", X - 2.05, 3.9, 37.1, X - 1.45, 4.3, 38.1, rgb(36, 36, 40), M.SmoothPlastic)
-		local terminalLabel = sign(terminal, N.Left, "", { color = rgb(120, 255, 160), light = 0, brightness = 1.5, ppS = 60, font = Enum.Font.Code, name = "TerminalScreen" })
-		-- Номер кассы на стойке
-		Cyl(m, "NumberPole", 0.22, 8.4, Vector3.new(X + 1.2, 4.2, 28.4), C.Dark, M.Metal)
-		local numberBox = B(m, "NumberSign", X + 0.4, 8.4, 27.9, X + 2.0, 9.8, 28.9, open and rgb(40, 200, 90) or rgb(70, 70, 72), M.Neon, { CastShadow = false })
-		sign(numberBox, N.Back, tostring(i), { color = Color3.new(1, 1, 1), light = 0, brightness = 2, ppS = 30, font = Enum.Font.GothamBlack })
-		sign(numberBox, N.Front, tostring(i), { color = Color3.new(1, 1, 1), light = 0, brightness = 2, ppS = 30, font = Enum.Font.GothamBlack })
-		-- Кресло кассира и коврик
-		skin(B(m, "Mat", X + 1.5, 0, 32, X + 5.5, 0.06, 39, rgb(36, 36, 38), M.Rubber), I.RubberMat, 2, { N.Top })
-		Cyl(m, "ChairPole", 0.3, 1.8, Vector3.new(X + 4, 0.9, 35), C.Dark, M.Metal)
-		B(m, "ChairSeat", X + 3.2, 1.8, 34.2, X + 4.8, 2.1, 35.8, rgb(40, 40, 46), M.Fabric)
-		B(m, "ChairBack", X + 4.6, 2.1, 34.2, X + 4.85, 4, 35.8, rgb(40, 40, 46), M.Fabric)
-		-- Стойка с мелочами (жвачка, шоколад) между кассами
-		if i < 4 then
-			local rackPart = B(m, "ImpulseRack", X + 6.2, 0, 29, X + 7.2, 4.6, 38, C.Metal, M.Metal)
-			metalSkin(rackPart, { N.Right })
-			for _, y in ipairs({ 1.2, 2.6 }) do
-				B(m, "ImpulseShelf", X + 7.2, y - 0.08, 29.2, X + 7.9, y, 37.8, C.Metal, M.Metal)
-				productLayer(m, X + 7.25, X + 7.9, y, 29.3, 37.7, N.Right, "Snacks", nil, nil)
-			end
-		end
-		if not open then
-			local chain = B(m, "Chain", X - 5.6, 2.6, 27.9, X - 1.5, 2.75, 28.1, rgb(230, 190, 30), M.Metal)
-			local closedSign = P(m, "ClosedSign", Vector3.new(2.4, 1, 0.08), CFrame.new(X - 3.5, 2.1, 28), Color3.new(1, 1, 1), M.SmoothPlastic)
-			sign(closedSign, N.Back, "КАССА НЕ РАБОТАЕТ", { color = C.Red, ppS = 40 })
-			sign(closedSign, N.Front, "КАССА НЕ РАБОТАЕТ", { color = C.Red, ppS = 40 })
-			chain:SetAttribute("Lane", i)
-		end
-		local cx = X - 3.4
-		local lane = {
-			Index = i,
-			X = X,
-			Model = m,
-			Open = open,
-			Belt = belt,
-			Scanner = scanner,
-			Laser = laser,
-			Monitor = screen,
-			CashierLabel = cashierLabel,
-			CustomerLabel = customerLabel,
-			Terminal = terminal,
-			TerminalLabel = terminalLabel,
-			NumberSign = numberBox,
-			QueueSpots = {
-				Vector3.new(cx, 0, 35.8),
-				Vector3.new(cx, 0, 31.4),
-				Vector3.new(cx, 0, 27.2),
-				Vector3.new(cx, 0, 23.4),
-				Vector3.new(cx - 1.5, 0, 21.2),
-			},
-			ItemZ = { 34.6, 33.6, 32.6, 31.6, 30.6, 29.6, 28.8 },
-			BagSpot = Vector3.new(X, 3.07, 38.4),
-			ScanSpot = Vector3.new(X, 3.3, 36.2),
-			CashierSpot = Vector3.new(X + 3.4, 0, 35),
-			ExitSpot = Vector3.new(cx, 0, 44.5),
-			CashierZone = { X + 1.4, X + 6.2, 30, 40 },
-		}
-		if useModels({ "Register" }) then
-			B(m, "RegisterStand", X + 1.45, 0, 37.6, X + 3.1, 2.9, 40.2, rgb(226, 228, 228), M.SmoothPlastic)
-			local rs = Models.Meshes.Register.Size * SS
-			ModelKit.Make("Register", m, CFrame.new(X + 2.27, 2.9 + rs.Y / 2, 38.9), rs, { Name = "CashRegister" })
+		local lane
+		if ModelKit.HasAsset("Checkout") then
+			lane = laneModel(m, i, X)
+		else
+			lane = laneSimple(m, i, X)
 		end
 		table.insert(map.Lanes, lane)
 	end
@@ -2043,7 +2260,8 @@ local function buildNavigation(map)
 	table.insert(edges, { "EntranceIn", "F2" })
 	table.insert(edges, { "EntranceIn", "EntranceOut" })
 	-- Выход за кассами
-	local frontX = { -44, -27.4, -11.4, 4.6, 20.6 }
+	-- проходы за кассами (сторона покупателей каждой кассы)
+	local frontX = ModelKit.HasAsset("Checkout") and { -44, -20.6, -4.6, 11.4, 27.4 } or { -44, -27.4, -11.4, 4.6, 20.6 }
 	for k, x in ipairs(frontX) do
 		node("X" .. k, x, 45)
 		if k == 1 then

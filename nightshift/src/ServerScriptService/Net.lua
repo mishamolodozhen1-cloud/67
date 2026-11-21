@@ -9,7 +9,8 @@ local Net = {}
 
 local remotes, state
 
-function Net.Init()
+-- mode: "Game" (смена) или "Hub" (главное меню на публичном сервере)
+function Net.Init(mode)
 	remotes = Instance.new("Folder")
 	remotes.Name = "Remotes"
 	-- Сервер -> клиент
@@ -25,12 +26,17 @@ function Net.Init()
 	local profile = Instance.new("RemoteFunction")
 	profile.Name = "GetProfile"
 	profile.Parent = remotes
+	-- комнаты: создать, войти по коду, список, выйти в меню
+	local rooms = Instance.new("RemoteFunction")
+	rooms.Name = "Rooms"
+	rooms.Parent = remotes
 	remotes.Parent = ReplicatedStorage
 
 	-- Общее состояние смены. Клиенты читают атрибуты: Phase, Minutes, Power, Countdown, Percent…
 	state = Instance.new("Folder")
 	state.Name = "GameState"
-	state:SetAttribute("Phase", "Lobby")
+	state:SetAttribute("Mode", mode or "Game")
+	state:SetAttribute("Phase", mode == "Hub" and "Hub" or "Lobby")
 	state:SetAttribute("Minutes", 0)
 	state:SetAttribute("Power", true)
 	state:SetAttribute("Countdown", 0)
