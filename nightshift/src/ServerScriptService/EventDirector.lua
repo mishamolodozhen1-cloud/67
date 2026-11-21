@@ -119,7 +119,7 @@ end
 function E.Delivery()
 	local door = S.Doors.Get("BackExit")
 	E.Knocks(door.Parts[1].Position, false, 3)
-	S.Tasks.Add({ Id = "delivery_1", Kind = "delivery", Text = "Принять поставку у заднего выхода", Room = "Служебный коридор → задний двор", Count = 1 })
+	S.Tasks.Add({ Id = "delivery_1", Kind = "delivery", Text = "Принять поставку у заднего выхода", Room = "Служебный коридор — задний двор", Count = 1 })
 end
 
 function E.ItemsOnFloor()

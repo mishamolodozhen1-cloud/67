@@ -3,7 +3,7 @@
 --   List  — короткие звуки. Несколько звуков склеены в один файл («спрайт»), а здесь записано,
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
--- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop.
+-- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic.
 local Sounds = {}
 
 Sounds.Files = {
@@ -12,6 +12,7 @@ Sounds.Files = {
 	Voice = "rbxassetid://95082023556735",
 	Music = "rbxassetid://124959931909471",
 	Sfx2 = "rbxassetid://99267307944697",
+	Sfx3 = "rbxassetid://89980517795896", -- интерфейс, касса, фонарик
 }
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
@@ -75,6 +76,18 @@ Sounds.List = {
 	StepWet3 = { File = "Sfx2", Start = 58.579, Stop = 58.899, Loop = false, Volume = 0.5 },
 	StepWet4 = { File = "Sfx2", Start = 59.499, Stop = 59.819, Loop = false, Volume = 0.5 },
 	StepWet5 = { File = "Sfx2", Start = 60.419, Stop = 60.739, Loop = false, Volume = 0.5 },
+	-- интерфейс
+	UiClick = { File = "Sfx3", Start = 0.02, Stop = 0.09, Loop = false, Volume = 0.35 },
+	UiHover = { File = "Sfx3", Start = 0.69, Stop = 0.737, Loop = false, Volume = 0.18 },
+	UiOpen = { File = "Sfx3", Start = 1.337, Stop = 1.647, Loop = false, Volume = 0.3 },
+	-- касса: ящик с чеком, ящик закрылся, карта к терминалу, сигнал «оплачено», сдача монетами
+	CashDrawer = { File = "Sfx3", Start = 2.247, Stop = 4.513, Loop = false, Volume = 0.6 },
+	CashClose = { File = "Sfx3", Start = 5.113, Stop = 6.998, Loop = false, Volume = 0.55 },
+	CardTap = { File = "Sfx3", Start = 8.342, Stop = 8.452, Loop = false, Volume = 0.5 },
+	CardBeep = { File = "Sfx3", Start = 9.052, Stop = 9.213, Loop = false, Volume = 0.35 },
+	Coins = { File = "Sfx3", Start = 9.813, Stop = 10.17, Loop = false, Volume = 0.5 },
+	-- щелчок кнопки фонарика
+	FlashClick = { File = "Sfx3", Start = 7.598, Stop = 7.742, Loop = false, Volume = 0.6 },
 }
 
 -- Фоновые петли: отдельный файл, громкость
@@ -89,6 +102,8 @@ Sounds.Loops = {
 	CctvStatic = { Id = "rbxassetid://107209527430817", Volume = 0.35 },
 	TensionDrone = { Id = "rbxassetid://125613290392026", Volume = 0.6 },
 	LowRoom = { Id = "rbxassetid://105916043267847", Volume = 0.5 },
+	-- музыка главного меню (петля)
+	MenuMusic = { Id = "rbxassetid://111386435897248", Volume = 0.45 },
 }
 
 -- Шаги по типу пола

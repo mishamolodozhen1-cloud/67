@@ -33,6 +33,7 @@ local lobbyPanel, lobbyStats, lobbyCountdown, lobbyRoom
 local countdownLabel
 local modals = {}
 local settingsRows = {}
+local settingsToggles = {}
 local docTitle, docBody
 local phoneList
 local endingTitle, endingSubtitle, endingBody, endingStats, endingFooter
@@ -50,7 +51,24 @@ end
 -------------------------------------------------------------------------------
 -- Окна
 -------------------------------------------------------------------------------
-local function makeModal(name, size, paper)
+-- Окна не должны вылезать за экран (телефон в горизонтальном положении — всего ~360 точек в высоту):
+-- высота окна ограничивается экраном, а содержимое длинных окон прокручивается.
+local fitList = {}
+local function fitModals()
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	local v = cam.ViewportSize
+	local s = UI.Scale()
+	for _, f in ipairs(fitList) do
+		local h = math.min(f.H, math.max(220, (v.Y - 24) / s))
+		local w = math.min(f.W, math.max(260, (v.X - 24) / s))
+		f.Holder.Size = UDim2.fromOffset(w, h)
+	end
+end
+
+local function makeModal(name, size, paper, scroll)
 	local holder = UI.new("Frame", {
 		Name = name,
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -80,6 +98,21 @@ local function makeModal(name, size, paper)
 	}, holder)
 	UI.padding(panel, 18)
 	modals[name] = holder
+	table.insert(fitList, { Holder = holder, W = size.X.Offset, H = size.Y.Offset })
+	if scroll then
+		local content = UI.new("ScrollingFrame", {
+			Name = "Scroll",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollBarThickness = 5,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+			ZIndex = 22,
+		}, panel)
+		UI.new("UIPadding", { PaddingRight = UDim.new(0, 8) }, content)
+		return holder, content
+	end
 	return holder, panel
 end
 
@@ -103,6 +136,15 @@ function HUD.OpenModal(name)
 	HUD.CloseModals()
 	if not wasOpen then
 		m.Visible = true
+		-- окно мягко «всплывает» снизу
+		local panel = m:FindFirstChild("Panel")
+		if panel then
+			panel.Position = UDim2.fromOffset(0, 16)
+			tween(panel, 0.28, { Position = UDim2.fromOffset(0, 0) })
+		end
+		if ctx.Audio then
+			ctx.Audio.Play("UiOpen", nil, 0.35)
+		end
 	end
 end
 
@@ -171,7 +213,7 @@ end
 
 function HUD.Phone(sender, text)
 	table.insert(messages, { Sender = sender, Text = text, Time = Util.clock(ctx.State:GetAttribute("Minutes") or 0) })
-	phoneSender.Text = "📱 " .. sender
+	phoneSender.Text = sender
 	phoneText.Text = text
 	phoneCard.Visible = true
 	local stamp = os.clock()
@@ -242,7 +284,8 @@ local function rowFor(folder)
 	}, tasksBody)
 	UI.list(row, 2)
 	local top = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1 }, row)
-	local mark = UI.text("○", { Size = UDim2.fromOffset(18, 20), TextSize = 16, TextColor3 = UI.Colors.Amber, TextXAlignment = Enum.TextXAlignment.Center }, top)
+	local mark = UI.dot(top, 12, UI.Colors.Amber, false)
+	mark.Position = UDim2.fromOffset(3, 4)
 	local title = UI.text("", { Position = UDim2.fromOffset(22, 0), Size = UDim2.new(1, -72, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 16 }, top)
 	local count = UI.text("", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Size = UDim2.fromOffset(46, 20), TextSize = 15, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = UI.Colors.Amber }, top)
 	local detail = UI.text("", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 13, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, row)
@@ -263,8 +306,7 @@ local function updateRow(folder)
 	local room = folder:GetAttribute("Room") or ""
 	r.Detail.Text = detail ~= "" and detail or room
 	r.Detail.Visible = r.Detail.Text ~= ""
-	r.Mark.Text = done and "✓" or "○"
-	r.Mark.TextColor3 = done and UI.Colors.Good or UI.Colors.Amber
+	UI.setDot(r.Mark, done and UI.Colors.Good or UI.Colors.Amber, done)
 	r.Title.TextColor3 = done and UI.Colors.Muted or UI.Colors.Text
 	r.Count.TextColor3 = done and UI.Colors.Good or UI.Colors.Amber
 	r.Frame.LayoutOrder = (done and 100000 or 0) + (folder:GetAttribute("Order") or 0)
@@ -289,9 +331,27 @@ local function watchTask(folder)
 	end)
 end
 
+-- Пока открыт экран кассы, список заданий убирается (освобождает место справа)
+local tasksHidden = false
+function HUD.SetTasksHidden(on)
+	tasksHidden = on
+	if tasksPanel then
+		tasksPanel.Visible = not on
+	end
+end
+
+local tasksChevron
 function HUD.ToggleTasks()
 	tasksCollapsed = not tasksCollapsed
 	tasksBody.Visible = not tasksCollapsed
+	if tasksChevron then
+		local parent = tasksChevron.Parent
+		tasksChevron:Destroy()
+		tasksChevron = UI.chevron(parent, tasksCollapsed and "Left" or "Down", 14, UI.Colors.Text, 3)
+		if not UI.IsTouch then
+			tasksChevron.Position = UDim2.new(0.5, -8, 0.5, 0)
+		end
+	end
 end
 
 local function updatePlan()
@@ -363,10 +423,10 @@ function HUD.SetProfile(profile)
 		return
 	end
 	local function mark(n)
-		return (n or 0) > 0 and "✓" or "—"
+		return (n or 0) > 0 and "есть" or "нет"
 	end
 	lobbyStats.Text = string.format(
-		"Смен отработано: %d · заработано: %d ₽ · лучший план: %d%%\nКонцовки: хорошая %s · плохая %s · секретная %s",
+		"Смен отработано: %d · заработано: %d руб. · лучший план: %d%%\nКонцовки: хорошая %s · плохая %s · секретная %s",
 		profile.Nights or 0,
 		profile.Earnings or 0,
 		profile.BestPercent or 0,
@@ -427,7 +487,7 @@ function HUD.ShowEnding(stats)
 	endingSubtitle.Text = e.Subtitle
 	endingBody.Text = e.Body
 	endingStats.Text = string.format(
-		"План выполнен: %d%%\nОбслужено покупателей: %d\nВыручка: %d ₽\nЗарплата за смену: %d ₽\nНайдено улик: %d из 4",
+		"План выполнен: %d%%\nОбслужено покупателей: %d\nВыручка: %d руб.\nЗарплата за смену: %d руб.\nНайдено улик: %d из 4",
 		stats.Percent or 0,
 		stats.Served or 0,
 		stats.Revenue or 0,
@@ -474,6 +534,9 @@ function HUD.RefreshSettings()
 	for _, row in ipairs(settingsRows) do
 		row.Value.Text = formatSetting(row.Def, ctx.Settings[row.Def.Key])
 	end
+	for _, refresh in ipairs(settingsToggles) do
+		refresh(false)
+	end
 end
 
 function HUD.SaveSettings()
@@ -515,7 +578,7 @@ local function buildTopLeft()
 		UI.new("Frame", { Position = UDim2.new(h / Config.ShiftHours, -1, 0, -2), Size = UDim2.new(0, 2, 1, 4), BackgroundColor3 = UI.Colors.Muted, BackgroundTransparency = 0.4 }, bar)
 	end
 	batteryLabel = UI.text("ФОНАРИК 100%", { Position = UDim2.fromOffset(0, 74), Size = UDim2.new(0.5, 0, 0, 16), TextSize = 13, TextColor3 = UI.Colors.Muted }, panel)
-	powerLabel = UI.text("⚡ НЕТ СВЕТА", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 74), Size = UDim2.new(0.5, 0, 0, 16), TextSize = 13, Font = Enum.Font.GothamBold, TextColor3 = UI.Colors.Warn, TextXAlignment = Enum.TextXAlignment.Right, Visible = false }, panel)
+	powerLabel = UI.text("НЕТ СВЕТА", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 74), Size = UDim2.new(0.5, 0, 0, 16), TextSize = 13, Font = Enum.Font.GothamBold, TextColor3 = UI.Colors.Warn, TextXAlignment = Enum.TextXAlignment.Right, Visible = false }, panel)
 
 	buttonsRow = UI.new("Frame", {
 		Name = "Buttons",
@@ -525,10 +588,10 @@ local function buildTopLeft()
 	}, main)
 	UI.scaled(buttonsRow)
 	UI.list(buttonsRow, 8, true)
-	UI.button("📱 Телефон" .. keyHint("P"), { Size = UDim2.fromOffset(UI.IsTouch and 118 or 140, 38), TextSize = 14, LayoutOrder = 1 }, buttonsRow, function()
+	UI.button("Телефон" .. keyHint("P"), { Size = UDim2.fromOffset(UI.IsTouch and 118 or 140, 38), TextSize = 14, LayoutOrder = 1 }, buttonsRow, function()
 		HUD.OpenModal("Phone")
 	end)
-	UI.button("⚙ Меню" .. keyHint("M"), { Size = UDim2.fromOffset(UI.IsTouch and 100 or 102, 38), TextSize = 14, LayoutOrder = 2 }, buttonsRow, function()
+	UI.button("Меню" .. keyHint("M"), { Size = UDim2.fromOffset(UI.IsTouch and 100 or 102, 38), TextSize = 14, LayoutOrder = 2 }, buttonsRow, function()
 		HUD.OpenModal("Settings")
 	end)
 end
@@ -546,17 +609,43 @@ local function buildTasks()
 	UI.list(tasksPanel, 8)
 	local header = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, LayoutOrder = 1 }, tasksPanel)
 	UI.text("ЗАДАНИЯ", { Size = UDim2.new(0.5, 0, 1, 0), TextSize = 15, Font = Enum.Font.GothamBlack }, header)
-	UI.button(UI.IsTouch and "▾" or "▾ T", {
+	-- свернуть/развернуть список (стрелка нарисована полосками, на ПК рядом клавиша T)
+	local toggle = UI.button(UI.IsTouch and "" or "     T", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 0, 0, -2),
-		Size = UDim2.fromOffset(UI.IsTouch and 40 or 46, 26),
-		TextSize = 14,
+		Position = UDim2.new(1, 0, 0, -4),
+		Size = UDim2.fromOffset(UI.IsTouch and 44 or 52, 30),
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Center,
 	}, header, function()
 		HUD.ToggleTasks()
 	end)
+	tasksChevron = UI.chevron(toggle, "Down", 14, UI.Colors.Text, 3)
+	if not UI.IsTouch then
+		tasksChevron.Position = UDim2.new(0.5, -8, 0.5, 0)
+	end
 	planLabel = UI.text("", { Size = UDim2.new(1, 0, 0, 16), TextSize = 13, TextColor3 = UI.Colors.Muted, LayoutOrder = 2 }, tasksPanel)
-	tasksBody = UI.new("Frame", { Name = "Body", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 3 }, tasksPanel)
+	-- список заданий не опускается ниже середины экрана (на телефоне там кнопки), лишнее прокручивается
+	tasksBody = UI.new("ScrollingFrame", {
+		Name = "Body",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		ScrollBarThickness = 4,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 3,
+	}, tasksPanel)
 	UI.list(tasksBody, 10)
+	local limit = UI.new("UISizeConstraint", {}, tasksBody)
+	local function fitTasks()
+		local cam = workspace.CurrentCamera
+		local vy = cam and cam.ViewportSize.Y or 720
+		local frac = UI.IsTouch and 0.42 or 0.62
+		limit.MaxSize = Vector2.new(math.huge, math.max(120, vy * frac / UI.Scale()))
+	end
+	fitTasks()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitTasks)
 	tasksCollapsed = false
 end
 
@@ -699,7 +788,7 @@ end
 
 local function buildModals()
 	-- Настройки
-	local _, sp = makeModal("Settings", UDim2.fromOffset(460, 570), false)
+	local _, sp = makeModal("Settings", UDim2.fromOffset(460, 570), false, true)
 	UI.list(sp, 8)
 	UI.text("НАСТРОЙКИ", { Size = UDim2.new(1, 0, 0, 26), TextSize = 22, Font = Enum.Font.GothamBlack, ZIndex = 22, LayoutOrder = 0 }, sp)
 	for i, def in ipairs(SETTINGS) do
@@ -707,17 +796,22 @@ local function buildModals()
 		UI.text(def.Name, { Size = UDim2.new(0.5, 0, 1, 0), TextSize = 16, ZIndex = 22 }, row)
 		local value = UI.text("", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -50, 0, 0), Size = UDim2.fromOffset(90, 38), TextSize = 16, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 22 }, row)
 		if def.Kind == "Bool" then
-			UI.button("⇄", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Size = UDim2.fromOffset(44, 36), ZIndex = 22 }, row, function()
+			-- переключатель вместо кнопки: сразу видно, включено или нет
+			local _, refresh = UI.toggle(row, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), ZIndex = 22 }, function()
+				return ctx.Settings[def.Key] == true
+			end, function()
 				changeSetting(def, 1)
 			end)
+			table.insert(settingsToggles, refresh)
 		else
-			UI.button("−", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -144, 0, 0), Size = UDim2.fromOffset(44, 36), TextSize = 20, ZIndex = 22 }, row, function()
+			UI.button("-", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -144, 0, 0), Size = UDim2.fromOffset(44, 36), TextSize = 20, ZIndex = 22 }, row, function()
 				changeSetting(def, -1)
 			end)
 			UI.button("+", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Size = UDim2.fromOffset(44, 36), TextSize = 20, ZIndex = 22 }, row, function()
 				changeSetting(def, 1)
 			end)
 		end
+		value.Visible = def.Kind ~= "Bool"
 		table.insert(settingsRows, { Def = def, Value = value })
 	end
 	local help = UI.IsTouch
@@ -762,7 +856,7 @@ local function buildModals()
 
 	-- История сообщений
 	local _, pp = makeModal("Phone", UDim2.fromOffset(440, 500), false)
-	UI.text("📱 СООБЩЕНИЯ", { Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Enum.Font.GothamBlack, ZIndex = 22 }, pp)
+	UI.text("СООБЩЕНИЯ", { Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Enum.Font.GothamBlack, ZIndex = 22 }, pp)
 	phoneList = UI.new("ScrollingFrame", {
 		Position = UDim2.fromOffset(0, 34),
 		Size = UDim2.new(1, 0, 1, -86),
@@ -786,7 +880,7 @@ local function buildModals()
 	end)
 
 	-- Концовка
-	local _, ep = makeModal("Ending", UDim2.fromOffset(560, 470), false)
+	local _, ep = makeModal("Ending", UDim2.fromOffset(560, 470), false, true)
 	UI.list(ep, 10)
 	endingTitle = UI.text("", { Size = UDim2.new(1, 0, 0, 36), TextSize = 30, Font = Enum.Font.GothamBlack, ZIndex = 22, LayoutOrder = 1 }, ep)
 	endingSubtitle = UI.text("", { Size = UDim2.new(1, 0, 0, 20), TextSize = 17, TextColor3 = UI.Colors.Muted, ZIndex = 22, LayoutOrder = 2 }, ep)
@@ -831,6 +925,8 @@ function HUD.Init(c)
 	buildLobby()
 	buildModals()
 	HUD.RefreshSettings()
+	fitModals()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitModals)
 
 	-- Состояние смены
 	local s = ctx.State

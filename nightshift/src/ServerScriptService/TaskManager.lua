@@ -17,29 +17,29 @@ local folder
 local SCHEDULE = {
 	[0] = {
 		{ Kind = "serve", Text = "Обслужить покупателей на кассе", Room = "Кассы", Count = function(n) return 2 + n end },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад → торговый зал", Count = function(n) return 1 + n end },
+		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 1 + n end },
 		{ Kind = "fridgecheck", Text = "Проверить температуру холодильников", Room = "Торговый зал, у задней стены", Count = 5 },
 		{ Kind = "spill", Text = "Вымыть пол (швабра — в комнате персонала)", Room = "Торговый зал", Count = 1 },
 	},
 	[1] = {
 		{ Kind = "serve", Text = "Обслужить покупателей на кассе", Room = "Кассы", Count = function(n) return 2 + n end },
 		{ Kind = "coldtemp", Text = "Записать температуру в холодильной камере", Room = "Холодильная камера", Count = 1 },
-		{ Kind = "trash", Text = "Вынести мусор со склада на задний двор", Room = "Склад → задний двор", Count = function(n) return 1 + math.floor(n / 2) end },
+		{ Kind = "trash", Text = "Вынести мусор со склада на задний двор", Room = "Склад — задний двор", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[2] = {
 		{ Kind = "cctv", Text = "Проверить все камеры наблюдения", Room = "Охрана или кабинет менеджера", Count = Config.CameraCount },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад → торговый зал", Count = function(n) return 2 + n end },
+		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 2 + n end },
 		{ Kind = "serve", Text = "Обслужить покупателей на кассе", Room = "Кассы", Count = function(n) return 1 + n end },
 		{ Kind = "spill", Text = "Вымыть пол (швабра — в комнате персонала)", Room = "Торговый зал", Count = 1 },
 	},
 	[3] = {
 		{ Kind = "serve", Text = "Обслужить последних покупателей", Room = "Кассы", Count = 1 },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад → торговый зал", Count = function(n) return 1 + math.floor(n / 2) end },
+		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[4] = {
 		{ Kind = "cctv", Text = "Снова проверить все камеры", Room = "Охрана или кабинет менеджера", Count = Config.CameraCount },
 		{ Kind = "lockback", Text = "Запереть задний выход", Room = "Служебный коридор", Count = 1 },
-		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад → торговый зал", Count = function(n) return 1 + math.floor(n / 2) end },
+		{ Kind = "restock", Text = "Выложить товар на полки", Room = "Склад — торговый зал", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[5] = {
 		{ Kind = "closelanes", Text = "Закрыть кассы 1–3", Room = "Кассы", Count = 3 },

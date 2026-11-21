@@ -455,8 +455,11 @@ local function setCarLights(on, brake)
 end
 
 -- Невидимая деталь-держатель света (двигается вместе с кузовом)
-local function lightHolder(name)
+local function lightHolder(name, c)
 	local h = Instance.new("Part")
+	if c and c.Holders then
+		table.insert(c.Holders, h)
+	end
 	h.Name = name
 	h.Size = Vector3.new(0.2, 0.2, 0.2)
 	h.Transparency = 1
@@ -499,7 +502,7 @@ local function makeMeshCar(m, real, c)
 	c.Mesh = true
 	c.YawFix = real:GetAttribute("YawFix")
 	c.Fwd = c.YawFix < 0 and -1 or 1 -- перёд машины по оси X её модели
-	c.Parts, c.Wheels, c.Lamps = {}, {}, {}
+	c.Parts, c.Wheels, c.Lamps, c.Holders = {}, {}, {}, {}
 	c.Pitch, c.PitchV, c.Roll, c.RollV, c.Heave, c.HeaveV = 0, 0, 0, 0, 0, 0
 	c.Spin, c.Steer, c.Speed = 0, 0, 0
 	local base = m:GetPivot()
@@ -537,7 +540,7 @@ local function makeMeshCar(m, real, c)
 	-- две фары: прожектор с тенями + конус в дожде; держатели крепятся к кузову
 	for _, side in ipairs({ -1, 1 }) do
 		local p = head + Vector3.new(c.Fwd * 0.25, 0, side * wid * 0.34)
-		local holder = lightHolder("HeadBeam")
+		local holder = lightHolder("HeadBeam", c)
 		local s = Instance.new("SpotLight")
 		s.Face = Enum.NormalId.Front
 		s.Angle = 62
@@ -551,7 +554,7 @@ local function makeMeshCar(m, real, c)
 		table.insert(c.Lights, { Light = s, Beam = cone })
 	end
 	-- общий тёплый засвет перед машиной (мокрый асфальт отражает)
-	local fillHolder = lightHolder("HeadFill")
+	local fillHolder = lightHolder("HeadFill", c)
 	local fill = Instance.new("PointLight")
 	fill.Range = 16
 	fill.Brightness = 0.9
@@ -560,7 +563,7 @@ local function makeMeshCar(m, real, c)
 	table.insert(c.Parts, { Part = fillHolder, Off = CFrame.new(head + fwd * 3 + Vector3.new(0, -0.6, 0)) })
 	table.insert(c.Lights, { Light = fill })
 	-- задние фонари: красный отсвет
-	local tailHolder = lightHolder("TailGlow")
+	local tailHolder = lightHolder("TailGlow", c)
 	local glow = Instance.new("PointLight")
 	glow.Range = 7
 	glow.Brightness = 1.1
@@ -1182,6 +1185,9 @@ local function timeline()
 			carDoor.Glass:Destroy()
 		end
 		car.Model:Destroy()
+		for _, h in ipairs(car.Holders or {}) do
+			h:Destroy()
+		end
 		car = nil
 	end
 	at(56.7)
@@ -1326,7 +1332,7 @@ local function buildGui()
 		ZIndex = 6,
 	}, titleHolder)
 	-- Modal: пока идёт сцена, курсор мыши свободен (можно нажать «Пропустить»)
-	skipButton = UI.button("Пропустить  ▸", {
+	skipButton = UI.button("Пропустить", {
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -24, 1, -20),
 		Size = UDim2.fromOffset(170, 40),

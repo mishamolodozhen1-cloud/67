@@ -10,6 +10,9 @@
   • руки идут навстречу ногам, локти чуть согнуты (сильнее, когда рука впереди);
   • таз два раза за цикл опускается и поднимается, слегка поворачивается и кренится,
     грудь поворачивается навстречу тазу, голова держит взгляд ровно.
+  • вес и инерция (v4): руки и особенно кисти чуть запаздывают за ногами (follow-through),
+    грудь поворачивается с небольшой задержкой после таза, таз переносит вес вперёд-назад,
+    голова слегка кивает против подъёма корпуса.
 
 Запуск: python3 tools/make_anims.py  ->  build/anims/walk.rbxm, run.rbxm, idle.rbxm
 """
@@ -109,18 +112,21 @@ def gait(hip, knee, knee_stance, ankle_up, ankle_push, arm, elbow, elbow_swing, 
             j[side + "LowerLeg"] = ((0, 0, 0), -(knee * swing ** 1.3 + knee_stance * pos_part(s) * stance), 0, 0)
             # стопа: носок вверх в переносе, толчок носком в конце опоры
             j[side + "Foot"] = ((0, 0, 0), ankle_up * swing - ankle_push * pos_part(-s) * stance, 0, 0)
-            # рука навстречу ноге той же стороны
-            a = -arm * s
+            # рука навстречу ноге той же стороны, с небольшим запаздыванием; кисть запаздывает сильнее
+            sa = math.sin(w + ph - 0.22)
+            a = -arm * sa
             j[side + "UpperArm"] = ((0, 0, 0), a, 0, (0.06 if side == "Left" else -0.06))
-            j[side + "LowerArm"] = ((0, 0, 0), elbow + elbow_swing * pos_part(-s), 0, 0)
-            j[side + "Hand"] = ((0, 0, 0), 0.05, 0, 0)
+            j[side + "LowerArm"] = ((0, 0, 0), elbow + elbow_swing * pos_part(-math.sin(w + ph - 0.4)), 0, 0)
+            j[side + "Hand"] = ((0, 0, 0), 0.05 + 0.08 * arm * math.sin(w + ph - 0.9), 0, 0)
         # таз: два подъёма за цикл (выше всего, когда ноги проходят друг мимо друга), поворот и крен
         y = bob * math.cos(2 * w)
-        j["LowerTorso"] = ((0, y, 0), 0, -twist * math.sin(w), sway * math.sin(w))
-        # грудь: наклон вперёд, поворот навстречу тазу
-        j["UpperTorso"] = ((0, 0, 0), -lean, twist * 1.6 * math.sin(w), -sway * 0.6 * math.sin(w))
-        # голова гасит повороты и наклон
-        j["Head"] = ((0, 0, 0), lean * head_hold, -twist * 0.6 * math.sin(w), 0)
+        shift = bob * 0.25 * math.sin(2 * w)  # перенос веса вперёд-назад
+        j["LowerTorso"] = ((0, y, shift), 0, -twist * math.sin(w), sway * math.sin(w))
+        # грудь: наклон вперёд, поворот навстречу тазу (чуть позже таза — инерция корпуса)
+        lag = math.sin(w - 0.3)
+        j["UpperTorso"] = ((0, 0, 0), -lean - bob * 0.25 * math.cos(2 * w - 0.5), twist * 1.6 * lag, -sway * 0.6 * lag)
+        # голова гасит повороты и наклон, слегка кивает против подъёма корпуса
+        j["Head"] = ((0, 0, 0), lean * head_hold + bob * 0.35 * math.cos(2 * w - 0.9), -twist * 0.6 * lag, 0)
         return j
 
     return sample

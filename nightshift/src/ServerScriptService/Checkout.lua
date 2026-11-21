@@ -1,8 +1,12 @@
--- Checkout: кассы. Покупатель выкладывает товары на ленту, игрок пробивает каждый товар
--- (подсказка «Пробить» на товаре), затем принимает оплату на терминале.
+-- Checkout: кассы. Покупатель выкладывает товары на ленту, игрок пробивает их и принимает оплату.
+-- Удобнее всего — экран кассы (POS) у кассира: список товаров, кнопка «Пробить товар», затем оплата
+-- картой (приложить к терминалу) или наличными (выбрать правильную сдачу из трёх вариантов).
+-- То же можно сделать и подсказками: «Пробить» на товаре, «Принять оплату» на терминале.
+-- Состояние каждой кассы для экрана POS — в ReplicatedStorage.Lanes (атрибуты папки LaneN).
 -- Здесь же задания «Закрыть кассы» и аномалия «касса №4 включилась сама».
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -18,6 +22,8 @@ local rng = Random.new()
 local lanes
 local lane4Active = false
 local revenue = 0
+local laneFolders = {}
+local NOTES = { 100, 200, 500, 1000, 2000, 5000 }
 
 local CYLINDER_SHAPES = { Bottle = true, Can = true, Jar = true, Cup = true }
 local GREEN = Color3.fromRGB(40, 200, 90)
@@ -51,11 +57,11 @@ local function refreshScreens(lane)
 		local first = math.max(1, #lane.Scanned - 4)
 		for i = first, #lane.Scanned do
 			local item = lane.Scanned[i]
-			table.insert(lines, short(item.Name, 16) .. "  " .. item.Price .. " ₽")
+			table.insert(lines, short(item.Name, 16) .. "  " .. item.Price .. " руб.")
 		end
-		table.insert(lines, string.format("ИТОГО: %d ₽", lane.Total))
+		table.insert(lines, string.format("ИТОГО: %d руб.", lane.Total))
 		local last = lane.Scanned[#lane.Scanned]
-		lane.CustomerLabel.Text = last and (last.Name .. "\n" .. last.Price .. " ₽\nИтого: " .. lane.Total .. " ₽") or "Добро пожаловать!"
+		lane.CustomerLabel.Text = last and (last.Name .. "\n" .. last.Price .. " руб.\nИтого: " .. lane.Total .. " руб.") or "Добро пожаловать!"
 	else
 		table.insert(lines, "Свободна")
 		lane.CustomerLabel.Text = "Добро пожаловать!"
@@ -180,6 +186,89 @@ local function slide(part, target, seconds)
 	end
 end
 
+local function allScannedRaw(lane)
+	for _, it in ipairs(lane.Items) do
+		if not it.Scanned then
+			return false
+		end
+	end
+	return #lane.Items > 0
+end
+
+-- Состояние кассы для экрана POS у игроков
+local function publish(lane)
+	local f = laneFolders[lane]
+	if not f then
+		return
+	end
+	local items = {}
+	for _, it in ipairs(lane.Items) do
+		table.insert(items, { N = it.Product.Name, P = it.Product.Price, S = it.Scanned == true })
+	end
+	local c = lane.Customer
+	local stage = "Idle"
+	if c then
+		if c.Paid then
+			stage = "Paid"
+		elseif allScannedRaw(lane) then
+			stage = "Payment"
+		else
+			stage = "Scanning"
+		end
+	end
+	f:SetAttribute("Items", HttpService:JSONEncode(items))
+	f:SetAttribute("Total", lane.Total or 0)
+	f:SetAttribute("Stage", stage)
+	f:SetAttribute("Method", c and c.PayMethod or "")
+	f:SetAttribute("Given", c and c.Given or 0)
+	f:SetAttribute("Options", HttpService:JSONEncode(c and c.ChangeOptions or {}))
+	f:SetAttribute("Closed", lane.Closed == true)
+	f:SetAttribute("Open", lane.Open ~= false)
+	f:SetAttribute("Version", (f:GetAttribute("Version") or 0) + 1)
+end
+Checkout.Publish = publish
+
+-- Как покупатель платит: картой или наличными (купюра не меньше суммы, иногда крупнее)
+local function choosePayment(customer)
+	local sum = 0
+	for _, p in ipairs(customer.Items or {}) do
+		sum = sum + (p.Price or 0)
+	end
+	customer.Mistakes = 0
+	if rng:NextNumber() < 0.55 then
+		customer.PayMethod = "Card"
+		customer.Given, customer.Change, customer.ChangeOptions = 0, 0, nil
+		return
+	end
+	customer.PayMethod = "Cash"
+	local given = NOTES[#NOTES]
+	for i, n in ipairs(NOTES) do
+		if n >= sum then
+			given = (rng:NextNumber() < 0.3 and NOTES[i + 1]) or n
+			break
+		end
+	end
+	if given < sum then
+		given = math.ceil(sum / 1000) * 1000
+	end
+	local change = given - sum
+	-- три варианта сдачи: правильный и два похожих
+	local options = { change }
+	local deltas = { 10, 20, 50, 100 }
+	while #options < 3 do
+		local d = deltas[rng:NextInteger(1, #deltas)] * (rng:NextNumber() < 0.5 and -1 or 1)
+		local v = change + d
+		if v >= 0 and not table.find(options, v) then
+			table.insert(options, v)
+		end
+	end
+	for i = #options, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		options[i], options[j] = options[j], options[i]
+	end
+	customer.Given, customer.Change, customer.ChangeOptions = given, change, options
+end
+
 local function clearItems(lane)
 	for _, it in ipairs(lane.Items) do
 		if it.Part and it.Part.Parent then
@@ -191,6 +280,7 @@ local function clearItems(lane)
 	lane.Total = 0
 	lane.PayPrompt.Enabled = false
 	lane.TerminalLabel.Text = ""
+	publish(lane)
 end
 
 local function allScanned(lane)
@@ -216,6 +306,10 @@ local function scanItem(lane, it, player)
 		S.Net.Sound("ScanError", lane.ScanSpot, 0.7)
 		it.Prompt.ActionText = "Пробить ещё раз"
 		S.Net.Notify(player, "Штрихкод не считался — пробейте ещё раз", "warn")
+		local f = laneFolders[lane]
+		if f then
+			f:SetAttribute("ScanError", os.clock())
+		end
 		return
 	end
 	it.Scanned = true
@@ -232,13 +326,17 @@ local function scanItem(lane, it, player)
 		slide(part, CFrame.new(bag) * (part.CFrame - part.CFrame.Position), 0.3)
 	end)
 	if allScanned(lane) then
-		lane.TerminalLabel.Text = "К ОПЛАТЕ\n" .. lane.Total .. " ₽"
-		lane.PayPrompt.ObjectText = "К оплате " .. lane.Total .. " ₽"
+		local c = lane.Customer
+		local cash = c and c.PayMethod == "Cash"
+		lane.TerminalLabel.Text = "К ОПЛАТЕ\n" .. lane.Total .. " руб."
+		lane.PayPrompt.ActionText = cash and "Принять наличные" or "Принять оплату"
+		lane.PayPrompt.ObjectText = cash and ("Дали " .. c.Given .. " руб. · сдача " .. c.Change .. " руб.") or ("К оплате " .. lane.Total .. " руб.")
 		lane.PayPrompt.Enabled = true
-		if lane.Customer and lane.Customer.Alive then
-			S.Customers.Say(lane.Customer, rng:NextNumber() < 0.5 and "Картой, пожалуйста." or "Пакет не нужен, спасибо.")
+		if c and c.Alive then
+			S.Customers.Say(c, cash and ("Наличными. Вот, " .. c.Given .. ".") or "Картой, пожалуйста.")
 		end
 	end
+	publish(lane)
 end
 
 -- Принять оплату на терминале
@@ -254,13 +352,87 @@ function Checkout.Pay(lane, player)
 	c.Paid = true
 	lane.PayPrompt.Enabled = false
 	revenue = revenue + lane.Total
-	S.Net.Sound("Payment", lane.Terminal.Position, 0.7)
-	lane.TerminalLabel.Text = "ОПЛАЧЕНО ✓"
+	if c.PayMethod == "Cash" then
+		-- ящик с чеком, сдача монетами, ящик закрылся
+		S.Net.Sound("CashDrawer", lane.BagSpot or lane.Terminal.Position, 0.8)
+		task.delay(1.1, function()
+			S.Net.Sound("Coins", lane.BagSpot or lane.Terminal.Position, 0.7)
+		end)
+		task.delay(2.4, function()
+			S.Net.Sound("CashClose", lane.BagSpot or lane.Terminal.Position, 0.7)
+		end)
+	else
+		-- карту приложили к терминалу: короткий сигнал и печать чека
+		S.Net.Sound("CardTap", lane.Terminal.Position, 0.7)
+		task.delay(0.45, function()
+			S.Net.Sound("CardBeep", lane.Terminal.Position, 0.6)
+		end)
+		task.delay(0.9, function()
+			S.Net.Sound("Payment", lane.Terminal.Position, 0.6)
+		end)
+	end
+	lane.TerminalLabel.Text = "ОПЛАЧЕНО"
 	lane.CustomerLabel.Text = c.Weird and "СПАСИБО, ЧТО ОСТАЛИСЬ" or "Спасибо за покупку!"
 	if player then
-		S.Net.Notify(player, "Покупатель обслужен: " .. lane.Total .. " ₽", "info")
+		S.Net.Notify(player, "Покупатель обслужен: " .. lane.Total .. " руб.", "info")
 	end
+	publish(lane)
 	return true
+end
+
+-- Стоит ли игрок за этой кассой (в зоне кассира)
+local function playerAtLane(lane, player)
+	local root = Util.rootOf(player)
+	local z = lane.CashierZone
+	if not (root and z) then
+		return false
+	end
+	local pos = root.Position
+	return pos.X >= z[1] - 1 and pos.X <= z[2] + 1 and pos.Z >= z[3] - 1 and pos.Z <= z[4] + 1
+end
+
+-- Действие с экрана кассы: "Scan" — пробить следующий товар, "Card" — оплата картой,
+-- "Change" — выдать сдачу (arg — сумма, которую выбрал игрок)
+function Checkout.PosAction(player, index, op, arg)
+	local lane = lanes and lanes[index]
+	if not (lane and lane.Customer) or lane.Customer.Paid then
+		return
+	end
+	if not playerAtLane(lane, player) then
+		return
+	end
+	local c = lane.Customer
+	if op == "Scan" then
+		for _, it in ipairs(lane.Items) do
+			if not it.Scanned then
+				scanItem(lane, it, player)
+				return
+			end
+		end
+	elseif op == "Card" then
+		if c.PayMethod ~= "Cash" then
+			Checkout.Pay(lane, player)
+		end
+	elseif op == "Change" then
+		if c.PayMethod ~= "Cash" or not allScanned(lane) then
+			return
+		end
+		if tonumber(arg) == c.Change then
+			Checkout.Pay(lane, player)
+		else
+			c.Mistakes = (c.Mistakes or 0) + 1
+			S.Net.Sound("ScanError", lane.Terminal.Position, 0.6)
+			local more = (tonumber(arg) or 0) > c.Change
+			S.Net.Notify(player, more and "Это больше, чем нужно. Пересчитайте сдачу." or "Сдачи не хватает. Пересчитайте.", "warn")
+			if c.Alive then
+				S.Customers.Say(c, more and "Вы дали мне лишнее." or "Мне не хватает сдачи.")
+			end
+			local f = laneFolders[lane]
+			if f then
+				f:SetAttribute("ScanError", os.clock())
+			end
+		end
+	end
 end
 
 -- Пробить товар (вызывается подсказкой «Пробить» на товаре)
@@ -270,12 +442,27 @@ Checkout.Scan = scanItem
 function Checkout.Init(m, services)
 	map, S = m, services
 	lanes = map.Lanes
+	local root = ReplicatedStorage:FindFirstChild("Lanes") or Instance.new("Folder")
+	root.Name = "Lanes"
+	root.Parent = ReplicatedStorage
 	for _, lane in ipairs(lanes) do
 		lane.Queue = {}
 		lane.Items = {}
 		lane.Scanned = {}
 		lane.Total = 0
 		lane.Closed = false
+		local f = Instance.new("Folder")
+		f.Name = "Lane" .. lane.Index
+		f:SetAttribute("Index", lane.Index)
+		local z = lane.CashierZone
+		if z then
+			f:SetAttribute("X0", z[1])
+			f:SetAttribute("X1", z[2])
+			f:SetAttribute("Z0", z[3])
+			f:SetAttribute("Z1", z[4])
+		end
+		f.Parent = root
+		laneFolders[lane] = f
 		local pay = Util.prompt(lane.Terminal, "Принять оплату", "Терминал", 0.3, 8)
 		pay.Enabled = false
 		lane.PayPrompt = pay
@@ -297,6 +484,7 @@ function Checkout.Init(m, services)
 			close.Enabled = false
 			setNumberSign(lane, GREY)
 			refreshScreens(lane)
+			publish(lane)
 			S.Net.Sound("PowerDown", lane.Monitor.Position, 0.3)
 			S.Tasks.ProgressKind("closelanes", 1)
 		end)
@@ -375,6 +563,7 @@ function Checkout.Leave(customer)
 		lane.Items = {}
 		lane.Scanned = {}
 		lane.Total = 0
+		publish(lane)
 		-- оплаченные товары покупатель забирает, неоплаченные остаются и исчезают
 		task.delay(customer.Paid and 0.6 or 2, function()
 			for _, it in ipairs(items) do
@@ -396,10 +585,11 @@ function Checkout.BeginService(lane, customer)
 	clearItems(lane)
 	lane.Customer = customer
 	customer.Paid = false
+	choosePayment(customer)
 	for i, product in ipairs(customer.Items) do
 		local part = makeItem(lane, product, i)
 		local it = { Part = part, Product = product, Customer = customer }
-		local prompt = Util.prompt(part, "Пробить", product.Name .. " · " .. product.Price .. " ₽", 0, 8)
+		local prompt = Util.prompt(part, "Пробить", product.Name .. " · " .. product.Price .. " руб.", 0, 8)
 		it.Prompt = prompt
 		prompt.Triggered:Connect(function(player)
 			scanItem(lane, it, player)
@@ -408,6 +598,7 @@ function Checkout.BeginService(lane, customer)
 	end
 	lane.TerminalLabel.Text = "Ожидание…"
 	refreshScreens(lane)
+	publish(lane)
 end
 
 -------------------------------------------------------------------------------
@@ -481,6 +672,7 @@ function Checkout.Reset()
 			setNumberSign(lane, GREEN)
 		end
 		refreshScreens(lane)
+		publish(lane)
 	end
 	Checkout.Lane4(false)
 end

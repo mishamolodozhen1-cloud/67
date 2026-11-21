@@ -70,9 +70,11 @@ end
 -- Отправить событие одному игроку (player) или всем (player == nil)
 local function send(name, player, ...)
 	local e = remotes:FindFirstChild(name)
-	if player then
-		e:FireClient(player, ...)
-	else
+	if typeof(player) == "Instance" then
+		if player:IsA("Player") and player.Parent then
+			e:FireClient(player, ...)
+		end
+	elseif player == nil then
 		e:FireAllClients(...)
 	end
 end

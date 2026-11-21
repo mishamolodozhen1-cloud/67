@@ -209,7 +209,7 @@ local function panelButton(parent, text, props, onClick)
 	local b = UI.button(text, props, parent)
 	b.AutoButtonColor = false
 	local base = b.BackgroundColor3
-	local sc = UI.new("UIScale", { Scale = 1 }, b)
+	local sc = b:FindFirstChild("Press") or UI.new("UIScale", { Scale = 1 }, b)
 	b.MouseEnter:Connect(function()
 		tween(b, 0.15, { BackgroundColor3 = base:Lerp(Color3.new(1, 1, 1), 0.12) })
 	end)
@@ -891,9 +891,13 @@ function Menu.Init(c)
 	end)
 
 	-- музыка меню (если её нет — тревожный гул)
-	music = ctx.Audio.Loop("MenuMusic", nil) or ctx.Audio.Loop("TensionDrone", nil)
+	local defVolume
+	music, defVolume = ctx.Audio.Loop("MenuMusic", nil)
+	if not music then
+		music, defVolume = ctx.Audio.Loop("TensionDrone", nil)
+	end
 	if music then
-		local base = music.Volume > 0 and math.min(music.Volume, 0.5) or 0.4
+		local base = math.clamp(defVolume or 0.4, 0.1, 0.6)
 		local group = game:GetService("SoundService"):FindFirstChild("NS_Music")
 		if group then
 			music.SoundGroup = group

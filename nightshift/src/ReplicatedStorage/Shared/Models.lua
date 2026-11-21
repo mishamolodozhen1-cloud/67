@@ -54,8 +54,8 @@ Models.Checkout = {
 
 -- Собственные анимации (tools/make_anims.py): ходьба, бег, ожидание
 Models.Anim = {
-	Walk = "rbxassetid://121232738276859",
-	Run = "rbxassetid://112957538743681",
+	Walk = "rbxassetid://86928421934534",
+	Run = "rbxassetid://136012315059297",
 	Idle = "rbxassetid://109915448085677",
 	WalkNatural = 9, -- скорость (studs/с), при которой шаг идёт в своём темпе
 	RunNatural = 17,

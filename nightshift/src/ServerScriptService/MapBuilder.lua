@@ -543,7 +543,7 @@ local function priceTag(parent, pos, face, price)
 	local cf = CFrame.new(pos)
 	local size = (face == N.Left or face == N.Right) and Vector3.new(0.05, 0.3, 0.7) or Vector3.new(0.7, 0.3, 0.05)
 	local p = P(parent, "PriceTag", size, cf, Color3.new(1, 1, 1), M.SmoothPlastic, { CanCollide = false, CastShadow = false })
-	sign(p, face, price .. " ₽", { color = rgb(200, 30, 30), ppS = 80, maxDistance = 22, font = Enum.Font.GothamBlack })
+	sign(p, face, price .. " руб.", { color = rgb(200, 30, 30), ppS = 80, maxDistance = 22, font = Enum.Font.GothamBlack })
 	return p
 end
 
@@ -790,7 +790,7 @@ local function buildFront(root, map)
 	-- Плакаты на стекле
 	for i, x in ipairs({ -40, -16, 14 }) do
 		local poster = P(f, "Poster", Vector3.new(3.4, 4.4, 0.05), CFrame.new(x, 6.5, 50.32), Color3.new(1, 1, 1), M.SmoothPlastic, { Transparency = 1 })
-		local texts = { "НОЧНАЯ СКИДКА\n−20%\n00:00–06:00", "МОЛОКО «УТРО»\n89 ₽", "MART 24\nМы работаем\nдля вас\nкруглосуточно" }
+		local texts = { "НОЧНАЯ СКИДКА\n-20%\n00:00–06:00", "МОЛОКО «УТРО»\n89 руб.", "MART 24\nМы работаем\nдля вас\nкруглосуточно" }
 		sign(poster, N.Back, texts[i], { color = Color3.new(1, 1, 1), ppS = 40, bg = (i == 1) and C.Red or rgb(30, 90, 170), padding = 10 })
 	end
 	-- Рама дверного проёма и датчик
@@ -1005,7 +1005,7 @@ local function gondolaModel(parent, index, cx, z0, z1, category, map)
 		end
 		local za, zb = e[1] + e[2] * 0.25, e[1] + e[2] * 0.45
 		local header = B(m, "PromoSign", cx - eWidth / 2, eHeight + 0.1, math.min(za, zb), cx + eWidth / 2, eHeight + 1.4, math.max(za, zb), C.Red, M.SmoothPlastic)
-		sign(header, e[3], "АКЦИЯ −20%", { color = Color3.new(1, 1, 1), ppS = 30, font = Enum.Font.GothamBlack })
+		sign(header, e[3], "АКЦИЯ -20%", { color = Color3.new(1, 1, 1), ppS = 30, font = Enum.Font.GothamBlack })
 	end
 end
 
@@ -1069,7 +1069,7 @@ local function gondola(parent, index, cx, z0, z1, category, map)
 			productLayer(m, cx - 1.9, cx + 1.9, y, e[1] + 0.15, e[2] - 0.15, e[3], category, nil, nil)
 		end
 		local header = B(m, "PromoSign", cx - 2, 6, e[1] + 0.6, cx + 2, 7.4, e[1] + 0.8, C.Red, M.SmoothPlastic)
-		sign(header, e[3], "АКЦИЯ −20%", { color = Color3.new(1, 1, 1), ppS = 30, font = Enum.Font.GothamBlack })
+		sign(header, e[3], "АКЦИЯ -20%", { color = Color3.new(1, 1, 1), ppS = 30, font = Enum.Font.GothamBlack })
 	end
 end
 
@@ -1392,7 +1392,7 @@ local function laneSimple(m, i, X)
 	skin(B(m, "ScannerTower", X + 0.9, 3.0, 35.6, X + 1.35, 4.3, 36.8, C.Dark, M.SmoothPlastic), I.DarkPlastic, 2, { N.Left, N.Front, N.Back })
 	skin(B(m, "BagArea", X - 1.2, 3.02, 37.2, X + 1.2, 3.07, 39.6, rgb(180, 182, 186), M.Metal), I.StainlessSteel, 2, { N.Top })
 	B(m, "RailCustomer", X - 1.5, 3.0, 28, X - 1.4, 3.5, 40, C.Metal, M.Metal)
-	-- Монитор кассира (+X) и табло покупателя (−X)
+	-- Монитор кассира (+X) и табло покупателя (-X)
 	Cyl(m, "MonitorPole", 0.2, 2.2, Vector3.new(X + 1.7, 4.1, 37.2), C.Dark, M.Metal)
 	local screen = B(m, "Monitor", X + 1.15, 4.6, 36.4, X + 2.25, 5.7, 38.0, C.Black, M.SmoothPlastic)
 	local cashierLabel = sign(screen, N.Right, open and "КАССА " .. i .. "\nСвободна" or "КАССА НЕ РАБОТАЕТ", {
@@ -1778,7 +1778,7 @@ local function buildCorridors(root, map)
 	-- Щиток (на восточной стене служебного коридора)
 	local panelBox = B(f, "ElectricalPanel", -10.95, 3, -52, -10.3, 7, -48, rgb(120, 126, 120), M.Metal)
 	local warn = B(f, "PanelWarning", -11.0, 7.2, -51, -10.96, 8.2, -49, C.Price, M.SmoothPlastic)
-	sign(warn, N.Left, "⚡ ЩИТОК\nНе влезай — убьёт!", { color = C.Black, ppS = 50 })
+	sign(warn, N.Left, "ЩИТОК\nНе влезай — убьёт!", { color = C.Black, ppS = 50 })
 	local breakers = {}
 	for k = 1, 3 do
 		local z = -51.3 + (k - 1) * 1.3
@@ -1797,7 +1797,7 @@ local function buildCorridors(root, map)
 	local plates = {
 		{ 5.2, 5.8, -34.34, N.Front, "ОХРАНА" },
 		{ 30.2, 5.8, -34.34, N.Front, "КОМНАТА ПЕРСОНАЛА" },
-		{ 5.2, 5.8, -39.66, N.Back, "ХОЛОДИЛЬНАЯ КАМЕРА · −18 °C" },
+		{ 5.2, 5.8, -39.66, N.Back, "ХОЛОДИЛЬНАЯ КАМЕРА · -18 °C" },
 		{ 30.2, 5.8, -39.66, N.Back, "ДИРЕКТОР" },
 	}
 	for _, pl in ipairs(plates) do
@@ -1959,7 +1959,7 @@ local function buildRooms(root, map)
 		B(cold, "StripCurtain", -1.4 + k * 0.56, 0.3, -41.0, -0.9 + k * 0.56, 8.4, -40.9, rgb(200, 220, 230), M.Plastic, { Transparency = 0.55, CanCollide = false, CastShadow = false })
 	end
 	local thermo = B(cold, "ColdThermometer", -9.4, 4.4, -44.5, -9.25, 5.6, -42.5, C.Black, M.SmoothPlastic)
-	local thermoLabel = sign(thermo, N.Right, "−18 °C", { color = rgb(120, 200, 255), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
+	local thermoLabel = sign(thermo, N.Right, "-18 °C", { color = rgb(120, 200, 255), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
 	map.ColdThermo = { Part = thermo, Label = thermoLabel }
 	local badge = B(cold, "Badge", 9.0, 2.72, -60.6, 9.8, 2.76, -60.0, Color3.new(1, 1, 1), M.SmoothPlastic)
 	sign(badge, N.Top, "MART 24\nВЕТРОВ А.", { color = C.Red, ppS = 100 })

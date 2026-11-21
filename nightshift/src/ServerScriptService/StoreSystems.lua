@@ -534,7 +534,7 @@ function StoreSystems.Init(m, services)
 			return
 		end
 		local hour = math.floor((S.Net.Get("Minutes") or 0) / 60)
-		local temp = hour >= 3 and "−31 °C" or "−18 °C"
+		local temp = hour >= 3 and "-31 °C" or "-18 °C"
 		map.ColdThermo.Label.Text = temp
 		S.Net.Notify(player, "Записано в журнал: " .. temp .. (hour >= 3 and ". Так холодно здесь не бывает…" or ""), "info")
 		S.Tasks.Progress(list[1].Id, 1)
@@ -836,7 +836,7 @@ function StoreSystems.Reset()
 		f.FixPrompt.Enabled = false
 		updateFridge(f)
 	end
-	map.ColdThermo.Label.Text = "−18 °C"
+	map.ColdThermo.Label.Text = "-18 °C"
 	for _, key in ipairs({ "ColdThermo", "TrashBin", "Dumpster", "Delivery", "ShiftLog", "LockBack", "Phone" }) do
 		prompts[key].Enabled = false
 	end

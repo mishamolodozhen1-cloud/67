@@ -119,7 +119,7 @@ function Products.Random(category, rng)
 end
 
 function Products.FormatPrice(rub)
-	return tostring(rub) .. " ₽"
+	return tostring(rub) .. " руб."
 end
 
 return Products

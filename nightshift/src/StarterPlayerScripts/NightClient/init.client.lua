@@ -39,6 +39,10 @@ local ctx = {
 ctx.UI = require(script:WaitForChild("UI"))
 ctx.Audio = require(script:WaitForChild("Audio"))
 ctx.Weather = require(script:WaitForChild("Weather"))
+-- щелчок у всех кнопок интерфейса
+ctx.UI.ClickSound = function()
+	ctx.Audio.Play("UiClick", nil, 0.4)
+end
 
 -------------------------------------------------------------------------------
 -- Главное меню (публичный сервер): только меню на фоне ночного магазина
@@ -87,6 +91,7 @@ ctx.Controls = require(script:WaitForChild("Controls"))
 ctx.Cameras = require(script:WaitForChild("CameraSystem"))
 ctx.Effects = require(script:WaitForChild("Effects"))
 ctx.Cinematic = require(script:WaitForChild("Cinematic"))
+ctx.Pos = require(script:WaitForChild("Pos"))
 
 function ctx.ApplySettings()
 	ctx.Audio.SetVolumes(ctx.Settings.Music, ctx.Settings.Sfx)
@@ -99,6 +104,7 @@ ctx.HUD.Init(ctx)
 ctx.Controls.Init(ctx)
 ctx.Cameras.Init(ctx)
 ctx.Cinematic.Init(ctx)
+ctx.Pos.Init(ctx)
 ctx.ApplySettings()
 
 -------------------------------------------------------------------------------

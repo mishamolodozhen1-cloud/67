@@ -217,6 +217,12 @@ function GameServer.Start()
 	function ACTIONS.MonsterSeen(player, seen)
 		MonsterAI.ReportSeen(player, seen == true)
 	end
+	-- экран кассы: пробить товар, оплата картой, сдача
+	function ACTIONS.Pos(player, index, op, arg)
+		if type(index) == "number" and type(op) == "string" then
+			Checkout.PosAction(player, index, op, arg)
+		end
+	end
 	function ACTIONS.IntroDone(player)
 		ShiftManager.IntroDone(player)
 	end

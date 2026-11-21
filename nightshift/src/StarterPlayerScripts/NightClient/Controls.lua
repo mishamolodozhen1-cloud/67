@@ -345,7 +345,7 @@ function Controls.SetFlashlight(on)
 	end
 	flashlightOn = on
 	setLights(on)
-	ctx.Audio.Play("CameraSwitch", nil, 0.45, 1.3)
+	ctx.Audio.Play("FlashClick", nil, on and 0.9 or 0.75, on and 1 or 0.92)
 	ctx.Remotes.Action:FireServer("Flashlight", on)
 	ctx.HUD.SetBattery(battery, flashlightOn)
 	refreshButtons()
@@ -414,13 +414,6 @@ local function updateOtherLights()
 				cone.Enabled = false
 				cone.Parent = obj.Emitter
 				o = { Obj = obj, Light = light, Cone = cone, Character = ch, Hand = handPart, Raise = 0, RaiseV = 0 }
-				local hum = ch:FindFirstChildOfClass("Humanoid")
-				if hum and hum.RigType == Enum.HumanoidRigType.R15 then
-					local upper = ch:FindFirstChild("RightUpperArm")
-					local lower = ch:FindFirstChild("RightLowerArm")
-					o.Shoulder = upper and upper:FindFirstChild("RightShoulder")
-					o.Elbow = lower and lower:FindFirstChild("RightElbow")
-				end
 				otherLights[p] = o
 			end
 			if o then
@@ -435,20 +428,69 @@ local function updateOtherLights()
 	end
 end
 
--- Поднять руку с фонариком: поверх анимации ходьбы (до шага физики)
+-- Позы рук поверх анимации ходьбы (до шага физики), у всех других игроков:
+--   коробка или поставка — обе руки вперёд и согнуты, держат коробку снизу и с боков;
+--   мешок с мусором — правая рука оттянута вниз и чуть в сторону (тяжело);
+--   фонарик — правая рука поднята вперёд, луч туда, куда смотрит игрок.
+-- Переход между позами плавный (пружина), поэтому руки не «телепортируются».
 local SHOULDER_UP = CFrame.Angles(1.22, 0, 0)
 local ELBOW_UP = CFrame.Angles(0.32, 0, 0)
+local BOX_R = CFrame.Angles(1.05, 0, -0.32)
+local BOX_L = CFrame.Angles(1.05, 0, 0.32)
+local BOX_ELBOW = CFrame.Angles(0.75, 0, 0)
+local TRASH_R = CFrame.Angles(-0.08, 0, 0.16)
+local TRASH_ELBOW = CFrame.Angles(0.05, 0, 0)
+local carryPose = {}
+
+local function motors(ch)
+	local function m(part, name)
+		local p = ch:FindFirstChild(part)
+		return p and p:FindFirstChild(name)
+	end
+	return m("RightUpperArm", "RightShoulder"), m("RightLowerArm", "RightElbow"), m("LeftUpperArm", "LeftShoulder"), m("LeftLowerArm", "LeftElbow")
+end
+
+local function blend(motor, target, w)
+	if motor and motor.Parent and w > 0.01 then
+		motor.Transform = motor.Transform:Lerp(target, math.clamp(w, 0, 1))
+	end
+end
+
 local function poseOthers(dt)
-	for _, o in pairs(otherLights) do
-		o.Raise, o.RaiseV = spring(o.Raise, o.RaiseV, o.On and 1 or 0, math.min(dt, 0.05), 90, 15)
-		local w = math.clamp(o.Raise, 0, 1)
-		if w > 0.01 then
-			if o.Shoulder and o.Shoulder.Parent then
-				o.Shoulder.Transform = o.Shoulder.Transform:Lerp(SHOULDER_UP, w)
+	dt = math.min(dt, 0.05)
+	for _, p in ipairs(Players:GetPlayers()) do
+		local ch = p.Character
+		if p ~= ctx.Player and ch then
+			local carry = p:GetAttribute("Carry") or ""
+			local kind = string.match(carry, "^(%a+)") or ""
+			local st = carryPose[p]
+			if not st or st.Character ~= ch then
+				local rs, re, ls, le = motors(ch)
+				st = { Character = ch, RS = rs, RE = re, LS = ls, LE = le, Box = 0, BoxV = 0, Trash = 0, TrashV = 0 }
+				carryPose[p] = st
 			end
-			if o.Elbow and o.Elbow.Parent then
-				o.Elbow.Transform = o.Elbow.Transform:Lerp(ELBOW_UP, w)
+			local box = (kind == "Box" or kind == "Delivery") and 1 or 0
+			st.Box, st.BoxV = spring(st.Box, st.BoxV, box, dt, 80, 13)
+			st.Trash, st.TrashV = spring(st.Trash, st.TrashV, kind == "Trash" and 1 or 0, dt, 60, 11)
+			-- фонарик (правая рука), если руки не заняты коробкой
+			local o = otherLights[p]
+			if o then
+				o.Raise, o.RaiseV = spring(o.Raise, o.RaiseV, o.On and 1 or 0, dt, 90, 15)
 			end
+			local flash = o and math.clamp(o.Raise, 0, 1) * (1 - math.clamp(st.Box, 0, 1)) or 0
+			blend(st.RS, BOX_R, st.Box)
+			blend(st.RE, BOX_ELBOW, st.Box)
+			blend(st.LS, BOX_L, st.Box)
+			blend(st.LE, BOX_ELBOW, st.Box)
+			blend(st.RS, TRASH_R, st.Trash)
+			blend(st.RE, TRASH_ELBOW, st.Trash)
+			blend(st.RS, SHOULDER_UP, flash)
+			blend(st.RE, ELBOW_UP, flash)
+		end
+	end
+	for p in pairs(carryPose) do
+		if not p.Parent then
+			carryPose[p] = nil
 		end
 	end
 end

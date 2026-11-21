@@ -689,7 +689,12 @@ local function buildGui()
 	camTitle = UI.text("", { Position = UDim2.fromOffset(0, 36), Size = UDim2.new(1, 0, 0, 22), TextSize = 20, Font = Enum.Font.Code, TextColor3 = FEED_TEXT, TextStrokeTransparency = 0.6, ZIndex = 6 }, tl)
 	local tr = UI.new("Frame", { Name = "TopRight", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -30, 0, 24), Size = UDim2.fromOffset(380, 64), BackgroundTransparency = 1, ZIndex = 6 }, gui)
 	UI.scaled(tr)
-	recLabel = UI.text("● REC", { Size = UDim2.new(1, 0, 0, 34), TextSize = 30, Font = Enum.Font.Code, TextColor3 = Color3.fromRGB(255, 56, 56), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 6 }, tr)
+	recLabel = UI.text("REC", { Size = UDim2.new(1, 0, 0, 34), TextSize = 30, Font = Enum.Font.Code, TextColor3 = Color3.fromRGB(255, 56, 56), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 6 }, tr)
+	-- красная точка записи (кружок, а не символ — на телефоне символ может не отобразиться)
+	local recDot = UI.dot(recLabel, 16, Color3.fromRGB(255, 56, 56), true)
+	recDot.AnchorPoint = Vector2.new(1, 0.5)
+	recDot.Position = UDim2.new(1, -66, 0.5, 0)
+	recDot.ZIndex = 6
 	timeLabel = UI.text("", { Position = UDim2.fromOffset(0, 36), Size = UDim2.new(1, 0, 0, 22), TextSize = 20, Font = Enum.Font.Code, TextColor3 = FEED_TEXT, TextXAlignment = Enum.TextXAlignment.Right, TextStrokeTransparency = 0.6, ZIndex = 6 }, tr)
 	sysLabel = UI.text("MART 24 · DVR-9 · CH 9", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 30, 1, -20), Size = UDim2.fromOffset(300, 18), TextSize = 14, Font = Enum.Font.Code, TextColor3 = FEED_TEXT, TextTransparency = 0.35, ZIndex = 6 }, gui)
 	UI.scaled(sysLabel)
@@ -743,12 +748,20 @@ local function buildGui()
 	UI.scaled(controlsBar)
 	UI.list(controlsBar, 8, true)
 	-- Modal: пока открыт монитор, курсор мыши свободен
-	UI.button("◀", { Size = UDim2.fromOffset(64, 50), TextSize = 22, LayoutOrder = 1, Modal = true, ZIndex = 7 }, controlsBar, function()
+	local prev = UI.button("", { Size = UDim2.fromOffset(64, 50), TextSize = 22, LayoutOrder = 1, Modal = true, ZIndex = 7 }, controlsBar, function()
 		show(index - 1)
 	end)
-	UI.button("▶", { Size = UDim2.fromOffset(64, 50), TextSize = 22, LayoutOrder = 2, ZIndex = 7 }, controlsBar, function()
+	local _, prevBars = UI.chevron(prev, "Left", 18, UI.Colors.Text, 3)
+	local nextB = UI.button("", { Size = UDim2.fromOffset(64, 50), TextSize = 22, LayoutOrder = 2, ZIndex = 7 }, controlsBar, function()
 		show(index + 1)
 	end)
+	local _, nextBars = UI.chevron(nextB, "Right", 18, UI.Colors.Text, 3)
+	for _, bar in ipairs(prevBars) do
+		bar.ZIndex = 8
+	end
+	for _, bar in ipairs(nextBars) do
+		bar.ZIndex = 8
+	end
 	UI.button("Выйти" .. (UI.IsTouch and "" or " [X]"), { Size = UDim2.fromOffset(140, 50), TextSize = 17, LayoutOrder = 3, BackgroundColor3 = UI.Colors.Accent, ZIndex = 7 }, controlsBar, function()
 		CameraSystem.Close()
 	end)
@@ -795,6 +808,10 @@ function CameraSystem.Init(c)
 			lostNoise.Position = UDim2.fromOffset(-math.random(0, 127), -math.random(0, 127))
 		end
 		recLabel.TextTransparency = (os.clock() % 1.2 < 0.7) and 0 or 1
+		local recDot = recLabel:FindFirstChild("Dot")
+		if recDot then
+			recDot.BackgroundTransparency = recLabel.TextTransparency
+		end
 		timeLabel.Text = stamp()
 		-- помехи: полосы и сильное зерно
 		local glitching = os.clock() < glitchUntil
