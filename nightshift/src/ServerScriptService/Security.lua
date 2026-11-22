@@ -167,7 +167,17 @@ function Security.Conceal(npc)
 	NpcFactory.PlayAction(npc, "Look")
 	task.wait(1.6)
 	if npc.Alive then
-		NpcFactory.PlayAction(npc, "Conceal")
+		-- товар из руки — под куртку (в момент шороха он пропадает)
+		NpcFactory.PlayAction(npc, "Conceal", function(mark)
+			if mark == "Rustle" then
+				for _, item in pairs(npc.ItemParts or {}) do
+					if item and item.Parent then
+						item:Destroy()
+					end
+				end
+				npc.ItemParts = {}
+			end
+		end)
 		task.wait(2.4)
 	end
 end

@@ -650,8 +650,8 @@ function Controls.BindKeys()
 		ctx.Remotes.Action:FireServer("Drop")
 	end, Enum.KeyCode.G, Enum.KeyCode.ButtonB)
 	bind("NS_Phone", function()
-		if not ctx.CameraLocked then
-			ctx.HUD.OpenModal("Phone")
+		if not ctx.CameraLocked and ctx.Phone then
+			ctx.Phone.Toggle()
 		end
 	end, Enum.KeyCode.P)
 	bind("NS_Menu", function()

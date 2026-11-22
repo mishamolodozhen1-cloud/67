@@ -89,8 +89,8 @@ end
 -------------------------------------------------------------------------------
 -- Товары на полке кассы (3D-модели продуктов или простые коробочки)
 -------------------------------------------------------------------------------
-local function makeItem(k, product, index)
-	local spot = k.BasketSpot + Vector3.new(((index - 1) % 3 - 1) * 0.42, 0.12, (math.floor((index - 1) / 3) - 0.5) * 0.5)
+-- Деталь-товар по описанию product: 3D-модель продукта (или простая коробочка), стоит на точке spot
+local function makeProductPart(product, spot)
 	local def = product.Model and Models.Meshes[product.Model]
 	if def and ModelKit.Has(product.Model) then
 		local size = def.Size * Models.ProductScale
@@ -115,6 +115,38 @@ local function makeItem(k, product, index)
 	part.CFrame = CFrame.new(spot + Vector3.new(0, 0.35, 0))
 	part.Parent = map.Dynamic
 	return part
+end
+
+-- Товар для покупателя (из холодильника или если на полке ничего не нашлось): возле cf
+function Checkout.MakeItem(product, cf)
+	return makeProductPart(product, cf.Position)
+end
+
+local function makeItem(k, product, index)
+	local spot = k.BasketSpot + Vector3.new(((index - 1) % 3 - 1) * 0.42, 0.12, (math.floor((index - 1) / 3) - 0.5) * 0.5)
+	return makeProductPart(product, spot)
+end
+
+-- Пакет на стойке: видно, пока покупатель его не забрал
+local function setBagVisible(k, on)
+	for _, part in ipairs(k.BagParts or { k.Bag }) do
+		part.Transparency = on and (part:GetAttribute("BaseTransparency") or 0.1) or 1
+	end
+end
+
+-- Нажатие кнопки на экране кассы: кнопка темнеет и «вдавливается»
+local function pressButton(k, button)
+	if not button then
+		return
+	end
+	local base = button.BackgroundColor3
+	button.BackgroundColor3 = base:Lerp(Color3.new(0, 0, 0), 0.25)
+	button.Size = button.Size - UDim2.fromScale(0.01, 0.006)
+	S.Net.Sound("UiClick", k.ScanSpot + Vector3.new(0, 1.3, 0.8), 0.8)
+	task.delay(0.25, function()
+		button.BackgroundColor3 = base
+		button.Size = button.Size + UDim2.fromScale(0.01, 0.006)
+	end)
 end
 
 local function slide(part, target, seconds)
@@ -246,25 +278,34 @@ function Checkout.Use(k, npc)
 	if basket then
 		table.insert(k.ItemParts, basket)
 	end
+	-- товары — те, что покупатель сам положил в корзину (если какого-то нет — создаём в корзине)
+	local items = {}
 	for i, product in ipairs(npc.Items) do
-		table.insert(k.ItemParts, makeItem(k, product, i))
+		local part = npc.ItemParts and npc.ItemParts[i]
+		if not (part and part.Parent) then
+			part = makeItem(k, product, i)
+		end
+		items[i] = part
+		table.insert(k.ItemParts, part)
 	end
+	npc.ItemParts = {}
 	task.wait(0.6)
 	-- в каком месте покупки (если вообще) касса попросит помощи
 	local helpAt = rng:NextNumber() < Config.KioskHelpChance and rng:NextInteger(1, #npc.Items) or nil
-	local offset = basket and 1 or 0
 	for i, product in ipairs(npc.Items) do
 		if not npc.Alive then
 			break
 		end
-		local part = k.ItemParts[i + offset]
+		local part = items[i]
 		local scanned = false
 		NpcFactory.PlayAction(npc, "Scan", function(mark)
-			if mark == "Beep" then
-				-- товар над сканером: писк, вспышка лазера, строка на экране
+			if mark == "Pick" then
+				-- взял товар из корзины в руку
 				if part and part.Parent then
-					task.spawn(slide, part, CFrame.new(k.ScanSpot + Vector3.new(0, 0.3, 0)) * (part.CFrame - part.CFrame.Position), 0.2)
+					NpcFactory.HoldItem(npc, part)
 				end
+			elseif mark == "Beep" then
+				-- товар в руке над сканером: писк, вспышка лазера, строка на экране
 				k.Laser.Color = Color3.fromRGB(255, 255, 255)
 				task.delay(0.12, function()
 					k.Laser.Color = Color3.fromRGB(255, 40, 40)
@@ -274,9 +315,12 @@ function Checkout.Use(k, npc)
 				itemsScreen(k)
 				scanned = true
 			elseif mark == "Bag" then
+				-- положил в пакет
 				if part and part.Parent then
-					local bag = k.BagSpot + Vector3.new(rng:NextNumber(-0.35, 0.35), 0.35 + (i % 3) * 0.2, rng:NextNumber(-0.4, 0.4))
-					task.spawn(slide, part, CFrame.new(bag) * (part.CFrame - part.CFrame.Position), 0.25)
+					local bag = k.BagSpot + Vector3.new(rng:NextNumber(-0.3, 0.3), 0.3 + math.floor((i - 1) / 4) * 0.25, rng:NextNumber(-0.45, 0.45))
+					local rot = (part.CFrame - part.CFrame.Position) * CFrame.Angles(0, math.rad(rng:NextNumber(-25, 25)), 0)
+					NpcFactory.Release(npc, part, nil, map.Dynamic)
+					task.spawn(slide, part, CFrame.new(bag) * rot, 0.18)
 				end
 			end
 		end, k.ScanSpot)
@@ -319,6 +363,26 @@ function Checkout.Use(k, npc)
 			return false
 		end
 	end
+	-- нажимает «Оплатить» на экране
+	NpcFactory.Face(npc, Vector3.new(k.Screen.Position.X, 0, k.Screen.Position.Z))
+	NpcFactory.PlayAction(npc, "Pay", function(mark)
+		if mark == "Tap" then
+			pressButton(k, k.Gui.Pay)
+			screen(k, "ОПЛАТА", "Приложите карту\nк терминалу справа", "ИТОГО " .. k.Total .. " руб.", "Бесконтактная оплата")
+		end
+	end, k.Screen.Position)
+	task.wait(1.3)
+	-- достаёт карту и прикладывает к терминалу
+	local card = Instance.new("Part")
+	card.Name = "Card"
+	card.Size = Vector3.new(0.48, 0.03, 0.3)
+	card.Color = Util.pick({ Color3.fromRGB(30, 90, 170), Color3.fromRGB(40, 40, 46), Color3.fromRGB(190, 160, 60), Color3.fromRGB(40, 140, 90) }, rng)
+	card.Material = Enum.Material.SmoothPlastic
+	card.Parent = map.Dynamic
+	NpcFactory.HoldItem(npc, card, "RightHand", CFrame.new(0, -0.3, -0.1) * CFrame.Angles(math.rad(90), 0, 0))
+	if k.TerminalSpot then
+		NpcFactory.Face(npc, Vector3.new(k.TerminalSpot.X, 0, k.TerminalSpot.Z))
+	end
 	NpcFactory.PlayAction(npc, "Pay", nil, k.Reader.Position)
 	task.wait(0.65)
 	if rng:NextNumber() < Config.CardDeclineChance then
@@ -338,11 +402,31 @@ function Checkout.Use(k, npc)
 	screen(k, "ОПЛАЧЕНО", "Спасибо за покупку!\nНе забудьте пакет и чек", "ИТОГО " .. k.Total .. " руб.", "", Color3.fromRGB(30, 150, 80))
 	setLamp(k, GREEN)
 	task.wait(0.3)
-	S.Net.Sound("Receipt", k.ScanSpot, 0.7)
+	S.Net.Sound("Receipt", k.ReaderSpot or k.ScanSpot, 0.7)
 	revenue = revenue + k.Total
 	npc.Paid = true
-	task.wait(1.2)
-	-- забирает пакет
+	task.wait(0.5)
+	if card.Parent then
+		card:Destroy()
+	end
+	-- чек выползает из терминала
+	local receipt = Instance.new("Part")
+	receipt.Name = "Receipt"
+	receipt.Size = Vector3.new(0.22, 0.01, 0.05)
+	receipt.Color = Color3.fromRGB(246, 244, 236)
+	receipt.Material = Enum.Material.SmoothPlastic
+	receipt.Anchored = true
+	receipt.CanCollide = false
+	local rp = k.TerminalSpot or k.ScanSpot
+	receipt.CFrame = CFrame.new(rp + Vector3.new(0, 0.32, 0.2))
+	receipt.Parent = map.Dynamic
+	table.insert(k.ItemParts, receipt)
+	task.spawn(slide, receipt, receipt.CFrame * CFrame.new(0, 0, 0.3) * CFrame.Angles(math.rad(-25), 0, 0), 0.8)
+	task.wait(1.0)
+	-- забирает пакет с покупками и уходит с ним
+	NpcFactory.Face(npc, Vector3.new(k.BagSpot.X, 0, k.BagSpot.Z))
+	NpcFactory.PlayAction(npc, "Take", nil, k.BagSpot)
+	task.wait(0.6)
 	S.Net.Sound("BagPick", k.BagSpot, 0.7)
 	for _, part in ipairs(k.ItemParts) do
 		if part.Parent and part ~= basket then
@@ -355,9 +439,17 @@ function Checkout.Use(k, npc)
 			basket:Destroy()
 		end)
 	end
-	k.Bag.Transparency = 1
+	setBagVisible(k, false)
+	local carry = Instance.new("Part")
+	carry.Name = "ShoppingBag"
+	carry.Size = Vector3.new(0.9, 1.1, 0.45)
+	carry.Color = Color3.fromRGB(240, 240, 234)
+	carry.Material = Enum.Material.SmoothPlastic
+	carry.Transparency = 0.08
+	carry.Parent = map.Dynamic
+	NpcFactory.HoldItem(npc, carry, "RightHand", CFrame.new(0, -0.75, 0))
 	task.delay(4, function()
-		k.Bag.Transparency = 0.25
+		setBagVisible(k, true)
 	end)
 	Checkout.Finish(k)
 	return true
@@ -541,7 +633,7 @@ function Checkout.Reset()
 		k.HelpDone = true
 		k.HelpPrompt.Enabled = false
 		k.ClosePrompt.Enabled = false
-		k.Bag.Transparency = 0.25
+		setBagVisible(k, true)
 		idleScreen(k)
 	end
 	Checkout.Lane4(false)

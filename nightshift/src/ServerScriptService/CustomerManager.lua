@@ -99,6 +99,61 @@ local function leave(npc, via)
 	remove(npc)
 end
 
+-- Ближайший к покупателю товар на этой выкладке, до которого он дотянется
+local function shelfItem(npc, f)
+	local root = npc.Root.Position
+	local best, bestD = nil, math.huge
+	for _, p in ipairs(f.Parts or {}) do
+		if p.Parent and p.Transparency < 0.5 and p.Position.Y > 0.6 and p.Position.Y < 6.2 then
+			local d = (p.Position - root).Magnitude
+			if d < bestD then
+				best, bestD = p, d
+			end
+		end
+	end
+	return best
+end
+
+-- Взять товар: копия товара с полки — в правую руку (на полке он пропадает), потом в корзину в левой руке.
+-- part — товар на полке (или nil — тогда товар создаётся из описания product, как из холодильника)
+local function takeItem(npc, product, part)
+	npc.ItemParts = npc.ItemParts or {}
+	table.insert(npc.Items, product)
+	local index = #npc.Items
+	local length = NpcFactory.PlayAction(npc, "Reach", function(mark)
+		if not npc.Alive then
+			return
+		end
+		if mark == "Grab" then
+			local item
+			if part and part.Parent and part.Transparency < 0.5 then
+				item = part:Clone()
+				item.Name = "Item"
+				part.Transparency = 1
+				for _, d in ipairs(part:GetChildren()) do
+					if d:IsA("Decal") then
+						d.Transparency = 1
+					end
+				end
+			else
+				local hand = npc.Model:FindFirstChild("RightHand")
+				item = S.Checkout.MakeItem(product, hand and hand.CFrame or npc.Root.CFrame)
+			end
+			if item then
+				item.Parent = map.Dynamic
+				NpcFactory.HoldItem(npc, item)
+				npc.ItemParts[index] = item
+			end
+		elseif mark == "Drop" then
+			local item = npc.ItemParts[index]
+			if item and npc.Basket then
+				NpcFactory.PutInBasket(npc, item)
+			end
+		end
+	end)
+	task.wait(length)
+end
+
 -- Походить по рядам и набрать товар
 local function shop(npc, stops)
 	for _ = 1, stops do
@@ -117,9 +172,12 @@ local function shop(npc, stops)
 			say(npc, EMPTY)
 		else
 			for _ = 1, rng:NextInteger(1, 2) do
-				-- берёт товар с полки (анимация и звук)
-				task.wait(NpcFactory.PlayAction(npc, "Reach") * 0.9)
-				table.insert(npc.Items, Products.Random(f.Category, rng))
+				-- берёт настоящий товар с полки: рука — к полке, товар — в руку, потом в корзину
+				local part = shelfItem(npc, f)
+				if part then
+					NpcFactory.Face(npc, Vector3.new(part.Position.X, 0, part.Position.Z))
+				end
+				takeItem(npc, Products.Random(f.Category, rng), part)
 			end
 		end
 	end
@@ -128,14 +186,10 @@ local function shop(npc, stops)
 		goTo(npc, fr.Front)
 		NpcFactory.Face(npc, fr.Front + Vector3.new(0, 0, -5))
 		task.wait(rng:NextNumber(1, 2.5))
-		task.wait(NpcFactory.PlayAction(npc, "Reach") * 0.9)
-		table.insert(npc.Items, Products.Random("Chilled", rng))
+		takeItem(npc, Products.Random("Chilled", rng), nil)
 	end
 	if #npc.Items == 0 then
-		table.insert(npc.Items, Products.Random(nil, rng))
-	end
-	while #npc.Items > 6 do
-		table.remove(npc.Items)
+		takeItem(npc, Products.Random(nil, rng), nil)
 	end
 end
 
@@ -348,6 +402,13 @@ function BEHAVIOUR.WallFacer(npc)
 	end
 	npc.Humanoid.WalkSpeed = 13
 	leave(npc, nil)
+end
+
+-- Для автопроверок: покупатель берёт товар с выкладки f (возвращает деталь товара на полке)
+function CustomerManager.TestTake(npc, f)
+	local part = shelfItem(npc, f)
+	takeItem(npc, Products.Random(f.Category, rng), part)
+	return part
 end
 
 -------------------------------------------------------------------------------

@@ -570,14 +570,17 @@ end
 -- чтобы звук шёл точно, даже если сервер не получил событие метки).
 -------------------------------------------------------------------------------
 local ACTION_MARKS = {
-	Scan = { { 0.85, "Beep" }, { 1.26, "Bag" } },
-	Reach = { { 0.81, "Grab" } },
+	-- Scan: взял товар из корзины слева (Pick), провёл над сканером (Beep), положил в пакет справа (Bag)
+	Scan = { { 0.34, "Pick" }, { 0.85, "Beep" }, { 1.26, "Bag" } },
+	-- Reach: взял товар с полки (Grab), донёс до корзины в левой руке и положил (Drop)
+	Reach = { { 0.81, "Grab" }, { 1.45, "Drop" } },
 	Conceal = { { 1.32, "Rustle" } },
 	Pay = { { 0.58, "Tap" } },
 	Take = { { 0.63, "Take" } },
 }
 local ACTION_LENGTH = { Scan = 1.7, Reach = 1.8, Conceal = 2.4, Pay = 1.3, Take = 1.4, Look = 3.2, HandsUp = 1.2 }
 local MARK_SOUND = {
+	Pick = { "BagCrinkle", 0.2 },
 	Beep = { "Scan", 0.5 },
 	Bag = { "BagCrinkle", 0.45 },
 	Grab = { "BoxPick", 0.25 },
@@ -643,12 +646,97 @@ function NpcFactory.StopActions(npc)
 end
 
 -------------------------------------------------------------------------------
--- Корзина в руке покупателя (модель корзины приварена к правой кисти и качается вместе с рукой)
+-- Предметы в руках: товар с полки, карта, пакет. Деталь приваривается к кисти и двигается вместе с анимацией
+-------------------------------------------------------------------------------
+local function unweld(part)
+	for _, d in ipairs(part:GetChildren()) do
+		if d:IsA("WeldConstraint") or d:IsA("Weld") then
+			d:Destroy()
+		end
+	end
+end
+
+local function weldTo(anchor, part)
+	part.Anchored = false
+	part.Massless = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = anchor
+	w.Part1 = part
+	w.Parent = part
+end
+
+-- Взять деталь в руку (по умолчанию правую). offset — положение детали относительно кисти
+function NpcFactory.HoldItem(npc, part, handName, offset)
+	if not (npc and npc.Alive and part and part.Parent) then
+		return false
+	end
+	local hand = npc.Model:FindFirstChild(handName or "RightHand")
+	if not hand then
+		return false
+	end
+	unweld(part)
+	part.Anchored = true
+	part.CFrame = hand.CFrame * (offset or CFrame.new(0, -0.35, -0.15))
+	weldTo(hand, part)
+	part.Parent = npc.Model
+	npc.Held = part
+	return true
+end
+
+-- Отпустить деталь из руки и поставить её в точку cf (закреплённой)
+function NpcFactory.Release(npc, part, cf, parent)
+	if not (part and part.Parent) then
+		return
+	end
+	unweld(part)
+	part.Anchored = true
+	if cf then
+		part.CFrame = cf
+	end
+	if parent then
+		part.Parent = parent
+	end
+	if npc and npc.Held == part then
+		npc.Held = nil
+	end
+end
+
+-- Положить деталь в корзину, которую покупатель держит в левой руке (без корзины — остаётся в руке)
+function NpcFactory.PutInBasket(npc, part)
+	local b = npc and npc.Basket
+	if not (b and part and part.Parent) then
+		return false
+	end
+	local anchor = b.PrimaryPart or b:FindFirstChildWhichIsA("BasePart")
+	if not anchor then
+		return false
+	end
+	local cf, size = b:GetBoundingBox()
+	local n = npc.BasketCount or 0
+	npc.BasketCount = n + 1
+	local off = Vector3.new(((n % 3) - 1) * size.X * 0.24, -size.Y * 0.2 + math.floor(n / 3) * 0.22, ((math.floor(n / 3) % 2) - 0.5) * size.Z * 0.3)
+	unweld(part)
+	part.Anchored = true
+	part.CFrame = cf * CFrame.new(off) * CFrame.Angles(0, math.rad(math.random(-40, 40)), 0)
+	weldTo(anchor, part)
+	part.Parent = b
+	if npc.Held == part then
+		npc.Held = nil
+	end
+	return true
+end
+
+-------------------------------------------------------------------------------
+-- Корзина в руке покупателя (модель корзины приварена к левой кисти и качается вместе с рукой;
+-- правая рука свободна — ею берут товар с полки)
 -------------------------------------------------------------------------------
 local ModelKit
 function NpcFactory.HoldBasket(npc)
 	ModelKit = ModelKit or require(script.Parent:WaitForChild("ModelKit"))
-	local hand = npc.Model:FindFirstChild("RightHand")
+	local hand = npc.Model:FindFirstChild("LeftHand")
 	if not (hand and ModelKit.HasAsset("Basket")) then
 		return nil
 	end
@@ -657,6 +745,7 @@ function NpcFactory.HoldBasket(npc)
 		return nil
 	end
 	m.Name = "HeldBasket"
+	m.PrimaryPart = m:FindFirstChildWhichIsA("BasePart")
 	for _, d in ipairs(m:GetDescendants()) do
 		if d:IsA("BasePart") then
 			d.Anchored = false

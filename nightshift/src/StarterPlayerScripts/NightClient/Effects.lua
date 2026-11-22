@@ -69,12 +69,14 @@ local function lampShouldBeOn(l)
 	return true
 end
 
+-- Плафон горит неоном, но приглушённым цветом: на максимальной графике лампа не превращается
+-- в ослепительный «неон» с ореолом, а светит мягко (сам свет даёт SurfaceLight / SpotLight)
 local function setLamp(l, on)
 	if l.Light then
 		l.Light.Enabled = on
 	end
 	l.Part.Material = on and Enum.Material.Neon or Enum.Material.SmoothPlastic
-	l.Part.Color = on and l.Color or OFF_COLOR
+	l.Part.Color = on and l.Color:Lerp(Color3.new(0, 0, 0), 0.4) or OFF_COLOR
 end
 
 local function setSigns(k)

@@ -46,6 +46,10 @@ Models.Credits = {
 	"«Step Ladder» и «Wet Floor Sign» — louis-muir, CC BY 4.0",
 	"«File Cabinet» — Siberia, CC BY 4.0",
 	"«Payment terminal» — nofurion, CC BY 4.0",
+	"«Wooden Chair (Low Poly)» — Berk Gedik, CC BY 4.0",
+	"«Microwave Oven» — MustafaYerebasmaz, CC BY 4.0",
+	"«wheelie bin game asset» — BLENDERBROCPT, CC BY 4.0",
+	"«Low Poly | Plastic Garbage Bags» — Anna Denisova, CC BY 4.0",
 }
 
 -- Целые модели с текстурами (загружаются через InsertService:LoadAsset):
@@ -96,6 +100,11 @@ Models.Assets = {
 	FileCab = { Id = 83969532200460 }, -- картотечный шкаф (ящики к LookVector)
 	-- v8: платёжный терминал на кассе самообслуживания (клавиатура к LookVector, надпись производителя закрашена)
 	Terminal = { Id = 135635399525375 },
+	-- v9: комната персонала и склад
+	WoodChair = { Id = 99262791783790, Yaw = 180 }, -- деревянный стул (сиденье к LookVector)
+	Microwave = { Id = 137128632495880 }, -- микроволновка (дверца к LookVector, логотип закрашен)
+	Bin = { Id = 73474780575399 }, -- мусорный бак на колёсах (надпись на корпусе закрашена)
+	Bags = { Id = 94638446661345 }, -- чёрные мешки с мусором
 }
 Models.StaffCar = "CarMilano"
 Models.ParkedCars = { "CarFairheavenLT", "CarNegotiator", "CarFairheavenSW", "CarAce" }

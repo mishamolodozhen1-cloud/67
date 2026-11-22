@@ -1,5 +1,5 @@
 -- NIGHT SHIFT — клиент (LocalScript «NightClient» в StarterPlayer.StarterPlayerScripts).
--- Дочерние ModuleScript: UI, Audio, Weather, HUD, Controls, CameraSystem, Effects, Cinematic.
+-- Дочерние ModuleScript: UI, Audio, Weather, HUD, Phone, Controls, CameraSystem, Effects, Cinematic.
 -- Здесь создаётся общая таблица ctx, загружаются настройки игрока и подключаются события сервера.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -87,6 +87,7 @@ if ctx.Mode == "Hub" then
 end
 
 ctx.HUD = require(script:WaitForChild("HUD"))
+ctx.Phone = require(script:WaitForChild("Phone"))
 ctx.Controls = require(script:WaitForChild("Controls"))
 ctx.Cameras = require(script:WaitForChild("CameraSystem"))
 ctx.Effects = require(script:WaitForChild("Effects"))
@@ -100,6 +101,7 @@ end
 ctx.Audio.Init(ctx)
 ctx.Weather.Init(ctx)
 ctx.HUD.Init(ctx)
+ctx.Phone.Init(ctx)
 ctx.Controls.Init(ctx)
 ctx.Cameras.Init(ctx)
 ctx.Cinematic.Init(ctx)

@@ -298,11 +298,12 @@ local function ceilingLight(parent, pos, length, alongX, zone, o)
 	local hsize = alongX and Vector3.new(length + 0.3, 0.3, 1.5) or Vector3.new(1.5, 0.3, length + 0.3)
 	P(parent, "LightHousing", hsize, CFrame.new(pos + Vector3.new(0, 0.2, 0)), C.Metal, M.Metal)
 	local lamp = P(parent, "Lamp", size, CFrame.new(pos), color, M.Neon, { CastShadow = false })
+	-- широкий конус и чуть большая дальность — свет ложится мягко, без резких пятен
 	local sl = Instance.new("SurfaceLight")
 	sl.Face = N.Bottom
-	sl.Angle = o.angle or 120
-	sl.Range = o.range or 20
-	sl.Brightness = o.brightness or 1.05
+	sl.Angle = o.angle or 150
+	sl.Range = (o.range or 20) * 1.1
+	sl.Brightness = (o.brightness or 1.05) * 0.95
 	sl.Color = color
 	sl.Shadows = o.shadows == true
 	sl.Parent = lamp
@@ -1495,9 +1496,9 @@ local function kioskScreen(part, index)
 	sg.Name = "KioskGui"
 	sg.Face = N.Front
 	sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	sg.PixelsPerStud = 240
+	sg.PixelsPerStud = 300
 	sg.LightInfluence = 0
-	sg.Brightness = 1.5
+	sg.Brightness = 1.3
 	sg.MaxDistance = 40
 	sg.Parent = part
 	local function new(class, props, parent)
@@ -1636,14 +1637,15 @@ local function kioskStation(parent, i, kx)
 		B(m, "KioskBody", kx - 1, 0, KIOSK_Z - 0.8, kx + 1, 2.6, KIOSK_Z + 0.8, rgb(230, 232, 234), M.SmoothPlastic)
 		P(m, "KioskHead", Vector3.new(2.1, 2.4, 0.5), CFrame.new(kx, 3.6, KIOSK_Z - 1.2) * CFrame.Angles(math.rad(-28), 0, 0), rgb(220, 222, 226), M.SmoothPlastic)
 	end
-	-- экран поверх экрана модели (наклон назад на 28°)
-	local n = Vector3.new(0, 0.47, -0.88).Unit
-	local sp = base.Position + Vector3.new(-0.02, 3.42, -1.83) + n * 0.04
-	local screen = P(m, "KioskScreen", Vector3.new(1.0, 1.5, 0.02), CFrame.lookAt(sp, sp + n), C.Black, M.SmoothPlastic, { CastShadow = false })
+	-- экран точно поверх дисплея модели: дисплей в рамке под чёрной панелью со значком бесконтактной оплаты
+	-- (посчитано по геометрии и текстуре модели: середина на высоте 4.10, 1.33 к покупателю, наклон 27.6°)
+	local n = Vector3.new(0.001, 0.463, -0.886).Unit
+	local sp = base.Position + Vector3.new(-0.016, 4.104, -1.325) + n * 0.012
+	local screen = P(m, "KioskScreen", Vector3.new(0.78, 1.24, 0.02), CFrame.lookAt(sp, sp + n), C.Black, M.SmoothPlastic, { CastShadow = false })
 	local gui = kioskScreen(screen, i)
 	-- сканер: стекло под экраном с красной линией лазера
 	B(m, "ScanBed", kx - 0.8, 2.35, KIOSK_Z - 3.2, kx + 0.8, 2.5, KIOSK_Z - 2.3, rgb(40, 42, 46), M.SmoothPlastic)
-	B(m, "ScanGlass", kx - 0.6, 2.5, KIOSK_Z - 3.05, kx + 0.6, 2.52, KIOSK_Z - 2.45, rgb(60, 20, 20), M.Glass, { Transparency = 0.2, CastShadow = false })
+	B(m, "ScanGlass", kx - 0.6, 2.5, KIOSK_Z - 3.05, kx + 0.6, 2.52, KIOSK_Z - 2.45, rgb(28, 14, 14), M.Glass, { Transparency = 0.35, CastShadow = false })
 	local laser = B(m, "ScanLaser", kx - 0.5, 2.52, KIOSK_Z - 2.77, kx + 0.5, 2.53, KIOSK_Z - 2.73, rgb(255, 40, 40), M.Neon, { CastShadow = false })
 	B(m, "ScanStand", kx - 0.25, 0, KIOSK_Z - 2.95, kx + 0.25, 2.35, KIOSK_Z - 2.55, rgb(46, 48, 52), M.Metal)
 	-- слева от покупателя — полка под корзину, справа — зона упаковки с пакетом
@@ -1657,7 +1659,26 @@ local function kioskStation(parent, i, kx)
 	end
 	B(m, "BagRackTop", kx - 2.95, 4.25, KIOSK_Z - 2.44, kx - 1.3, 4.3, KIOSK_Z - 2.36, rgb(150, 152, 156), M.Metal)
 	B(m, "BagRackTop", kx - 2.95, 4.25, KIOSK_Z - 0.64, kx - 1.3, 4.3, KIOSK_Z - 0.56, rgb(150, 152, 156), M.Metal)
-	local bag = B(m, "Bag", kx - 2.75, 2.72, KIOSK_Z - 2.3, kx - 1.5, 4.2, KIOSK_Z - 0.7, rgb(240, 240, 236), M.Plastic, { Transparency = 0.25, CastShadow = false })
+	-- пакет-«майка», раскрытый на крючках: две стенки, бока, дно и ручки на перекладинах (сверху открыт)
+	local white = rgb(238, 238, 232)
+	local function bagSheet(name, x0, y0, z0, x1, y1, z1, tr)
+		local p = B(m, name, x0, y0, z0, x1, y1, z1, white, M.SmoothPlastic, { Transparency = tr, CastShadow = false, CanCollide = false, CanQuery = false })
+		p:SetAttribute("BaseTransparency", tr)
+		return p
+	end
+	local bag = bagSheet("Bag", kx - 2.72, 2.74, KIOSK_Z - 2.3, kx - 1.53, 4.08, KIOSK_Z - 2.27, 0.18)
+	local bagParts = {
+		bag,
+		bagSheet("BagBack", kx - 2.72, 2.74, KIOSK_Z - 0.73, kx - 1.53, 4.08, KIOSK_Z - 0.7, 0.18),
+		bagSheet("BagSide", kx - 2.72, 2.74, KIOSK_Z - 2.27, kx - 2.69, 3.9, KIOSK_Z - 0.73, 0.22),
+		bagSheet("BagSide", kx - 1.56, 2.74, KIOSK_Z - 2.27, kx - 1.53, 3.9, KIOSK_Z - 0.73, 0.22),
+		bagSheet("BagBottom", kx - 2.72, 2.72, KIOSK_Z - 2.3, kx - 1.53, 2.75, KIOSK_Z - 0.7, 0.1),
+	}
+	for _, dz in ipairs({ -2.4, -0.6 }) do
+		-- ручки пакета, надетые на перекладины стойки
+		table.insert(bagParts, bagSheet("BagHandle", kx - 2.6, 4.08, KIOSK_Z + dz - 0.05, kx - 2.45, 4.32, KIOSK_Z + dz + 0.05, 0.15))
+		table.insert(bagParts, bagSheet("BagHandle", kx - 1.8, 4.08, KIOSK_Z + dz - 0.05, kx - 1.65, 4.32, KIOSK_Z + dz + 0.05, 0.15))
+	end
 	-- терминал для карт: настоящий платёжный терминал (клавиатура к покупателю), над ним — маленький
 	-- экран покупателя с суммой; без модели — простой блок
 	local reader
@@ -1707,7 +1728,10 @@ local function kioskStation(parent, i, kx)
 		Reader = reader,
 		ReaderLabel = readerLabel,
 		Bag = bag,
+		BagParts = bagParts,
 		BagShelf = bagShelf,
+		TerminalSpot = Vector3.new(kx + 1.05, 2.52, KIOSK_Z - 2.95),
+		ReaderSpot = reader.Position,
 		CustomerSpot = Vector3.new(kx, 0, KIOSK_Z - 3.9),
 		ScanSpot = Vector3.new(kx, 2.75, KIOSK_Z - 2.75),
 		BasketSpot = Vector3.new(kx + 2.1, 2.7, KIOSK_Z - 1.5),
@@ -2059,7 +2083,7 @@ local function buildWarehouse(root, map)
 		table.insert(map.BoxPiles, { Category = cat, Part = top })
 	end
 	-- Зона приёмки
-	local zone = B(f, "ReceivingZone", -32, 0, -52, -22, 0.03, -44, rgb(70, 70, 66), M.Concrete)
+	local zone = B(f, "ReceivingZone", -32, 0, -52, -22, 0.03, -44, rgb(128, 130, 126), M.SmoothPlastic)
 	for _, e in ipairs({ { -32, -52, -22, -51.7 }, { -32, -44.3, -22, -44 }, { -32, -52, -31.7, -44 }, { -22.3, -52, -22, -44 } }) do
 		B(f, "ZoneLine", e[1], 0.03, e[2], e[3], 0.05, e[4], C.Price, M.SmoothPlastic)
 	end
@@ -2069,10 +2093,17 @@ local function buildWarehouse(root, map)
 	map.Stations.DeliveryDrop = zone
 	-- Мусорный контейнер с мешками
 	local bin = B(f, "TrashBin", -22, 0, -28, -19, 4, -24, rgb(70, 90, 70), M.SmoothPlastic)
-	B(f, "TrashBinLid", -22.1, 4, -28.1, -18.9, 4.3, -23.9, rgb(50, 66, 50), M.SmoothPlastic)
-	for k = 0, 2 do
-		local bag = P(f, "TrashBag", Vector3.new(1.6, 1.6, 1.6), CFrame.new(-23.5, 0.8, -27 + k * 1.3), rgb(24, 24, 26), M.Plastic)
-		bag.Shape = Enum.PartType.Ball
+	local binLid = B(f, "TrashBinLid", -22.1, 4, -28.1, -18.9, 4.3, -23.9, rgb(50, 66, 50), M.SmoothPlastic)
+	-- настоящий мусорный бак на колёсах и груда мешков рядом (деталь-бак остаётся невидимой: на ней подсказка)
+	if prop("Bin", f, CFrame.lookAt(Vector3.new(-20.5, 0, -26), Vector3.new(-30, 0, -26)), 4.2) then
+		hidePart(bin)
+		binLid:Destroy()
+		prop("Bags", f, CFrame.lookAt(Vector3.new(-24.6, 0, -25.6), Vector3.new(-30, 0, -25.6)), 1.6)
+	else
+		for k = 0, 2 do
+			local tb = P(f, "TrashBag", Vector3.new(1.6, 1.6, 1.6), CFrame.new(-23.5, 0.8, -27 + k * 1.3), rgb(24, 24, 26), M.Plastic)
+			tb.Shape = Enum.PartType.Ball
+		end
 	end
 	map.Stations.TrashBin = bin
 	-- Тележка-рохля и пустые поддоны
@@ -2170,9 +2201,13 @@ end
 -- Охрана, комната персонала, холодильная камера, кабинет менеджера
 -------------------------------------------------------------------------------
 local function chair(parent, x, z, facing)
+	-- деревянный стул: сиденье развёрнуто туда, куда смотрит сидящий (facing 0 — к +Z)
+	if prop("WoodChair", parent, CFrame.new(x, 0, z) * CFrame.Angles(0, math.rad(facing + 180), 0), 3.5) then
+		return
+	end
 	local cf = CFrame.new(x, 0, z) * CFrame.Angles(0, math.rad(facing), 0)
 	P(parent, "ChairSeat", Vector3.new(1.8, 0.25, 1.8), cf * CFrame.new(0, 1.9, 0), rgb(40, 40, 46), M.Fabric)
-	P(parent, "ChairBack", Vector3.new(1.8, 2, 0.25), cf * CFrame.new(0, 3, 0.85), rgb(40, 40, 46), M.Fabric)
+	P(parent, "ChairBack", Vector3.new(1.8, 2, 0.25), cf * CFrame.new(0, 3, -0.85), rgb(40, 40, 46), M.Fabric)
 	P(parent, "ChairLeg", Vector3.new(0.25, 1.8, 0.25), cf * CFrame.new(0, 0.9, 0), C.Dark, M.Metal)
 	P(parent, "ChairFoot", Vector3.new(1.6, 0.15, 1.6), cf * CFrame.new(0, 0.08, 0), C.Dark, M.Metal)
 end
@@ -2194,30 +2229,67 @@ local function buildRooms(root, map)
 		if fitScreen("Monitor", sec, CFrame.lookAt(Vector3.new(x, 2.6, -13.9), Vector3.new(x, 2.6, -20)), 2.3, mon, N.Front) then
 			stand:Destroy()
 		end
+		-- на экране — сетка камер с подписями, как у настоящего видеорегистратора (не огромный текст)
 		local sg = Instance.new("SurfaceGui")
 		sg.Face = N.Front
 		sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		sg.PixelsPerStud = 60
+		sg.PixelsPerStud = 120
 		sg.LightInfluence = 0
-		sg.Brightness = 1.3
+		sg.Brightness = 1.1
 		sg.MaxDistance = 60
 		sg.Parent = mon
-		local noise = Instance.new("ImageLabel")
-		noise.Size = UDim2.fromScale(1, 1)
-		noise.BackgroundColor3 = rgb(20, 30, 24)
-		noise.Image = Config.Images.CctvNoise
-		noise.ImageTransparency = 0.6
-		noise.ScaleType = Enum.ScaleType.Tile
-		noise.TileSize = UDim2.fromOffset(64, 64)
-		noise.Parent = sg
-		local txt = Instance.new("TextLabel")
-		txt.BackgroundTransparency = 1
-		txt.Size = UDim2.fromScale(1, 1)
-		txt.Font = Enum.Font.Code
-		txt.TextScaled = true
-		txt.TextColor3 = rgb(150, 255, 170)
-		txt.Text = k == 0 and "ВИДЕОНАБЛЮДЕНИЕ\nнажмите, чтобы открыть" or (k < 0 and "КАМ 1–3" or "КАМ 4–7")
-		txt.Parent = noise
+		local bgf = Instance.new("Frame")
+		bgf.Size = UDim2.fromScale(1, 1)
+		bgf.BackgroundColor3 = rgb(8, 10, 9)
+		bgf.BorderSizePixel = 0
+		bgf.Parent = sg
+		local camNames = {
+			[-1] = { "01 ВХОД", "02 КАССЫ", "03 РЯДЫ 1–3", "04 РЯДЫ 4–7" },
+			[0] = nil,
+			[1] = { "05 ХОЛОД. ОТДЕЛ", "06 СКЛАД", "07 КОРИДОР", "08 ХОЛОД. КАМЕРА" },
+		}
+		local function cell(parent, pos, size, title)
+			local c = Instance.new("ImageLabel")
+			c.Position = pos
+			c.Size = size
+			c.BackgroundColor3 = rgb(24, 34, 28)
+			c.BorderSizePixel = 0
+			c.Image = Config.Images.CctvNoise
+			c.ImageTransparency = 0.82
+			c.ScaleType = Enum.ScaleType.Tile
+			c.TileSize = UDim2.fromOffset(48, 48)
+			c.Parent = parent
+			local t = Instance.new("TextLabel")
+			t.BackgroundTransparency = 1
+			t.Position = UDim2.fromScale(0.04, 0.04)
+			t.Size = UDim2.fromScale(0.92, 0.16)
+			t.Font = Enum.Font.Code
+			t.TextScaled = true
+			t.TextXAlignment = Enum.TextXAlignment.Left
+			t.TextColor3 = rgb(190, 240, 200)
+			t.Text = title
+			t.Parent = c
+			return c
+		end
+		if camNames[k] then
+			for ci, title in ipairs(camNames[k]) do
+				local col, row = (ci - 1) % 2, math.floor((ci - 1) / 2)
+				cell(bgf, UDim2.fromScale(0.01 + col * 0.495, 0.01 + row * 0.495), UDim2.fromScale(0.485, 0.485), title)
+			end
+		else
+			-- средний: главный кадр камеры входа и строка состояния регистратора
+			cell(bgf, UDim2.fromScale(0.01, 0.01), UDim2.fromScale(0.98, 0.8), "01 ГЛАВНЫЙ ВХОД")
+			local status = Instance.new("TextLabel")
+			status.BackgroundTransparency = 1
+			status.Position = UDim2.fromScale(0.02, 0.83)
+			status.Size = UDim2.fromScale(0.96, 0.14)
+			status.Font = Enum.Font.Code
+			status.TextScaled = true
+			status.TextXAlignment = Enum.TextXAlignment.Left
+			status.TextColor3 = rgb(255, 90, 80)
+			status.Text = "● REC   КАМЕР: 9   нажмите, чтобы открыть"
+			status.Parent = bgf
+		end
 		table.insert(monitors, mon)
 	end
 	map.Stations.CamDesk = monitors[2]
@@ -2261,11 +2333,34 @@ local function buildRooms(root, map)
 	chair(staff, 28, -27.6, 0)
 	chair(staff, 24, -20.4, 180)
 	chair(staff, 28, -20.4, 180)
-	B(staff, "Kitchen", 37, 0, -32, 39.6, 3, -22, rgb(230, 230, 226), M.SmoothPlastic)
-	B(staff, "Microwave", 37.2, 3, -30, 39.4, 4.4, -27.4, rgb(220, 220, 220), M.SmoothPlastic)
-	B(staff, "MicrowaveDoor", 37.15, 3.2, -29.6, 37.2, 4.2, -27.8, rgb(20, 20, 22), M.Glass, { Transparency = 0.1 })
-	Cyl(staff, "Kettle", 0.9, 1.1, Vector3.new(38.2, 3.55, -24), rgb(240, 240, 240), M.SmoothPlastic)
-	B(staff, "MiniFridge", 37.2, 0, -21.5, 39.6, 4.5, -19, Color3.new(1, 1, 1), M.SmoothPlastic)
+	-- кухонный гарнитур: тумбы с дверцами и ручками, деревянная столешница, мойка со смесителем, фартук
+	B(staff, "Kitchen", 37.15, 0.3, -32, 39.6, 2.95, -22, rgb(228, 228, 222), M.SmoothPlastic)
+	B(staff, "KitchenPlinth", 37.3, 0, -32, 39.6, 0.3, -22, rgb(60, 60, 64), M.SmoothPlastic)
+	local top = B(staff, "Worktop", 36.9, 2.95, -32.1, 39.6, 3.15, -21.9, rgb(150, 110, 70), M.Wood)
+	skin(top, I.WoodCounter, 4, { N.Top, N.Left })
+	for z0 = -32, -24.5, 2.5 do
+		B(staff, "CabinetDoor", 37.08, 0.42, z0 + 0.06, 37.15, 2.85, z0 + 2.44, rgb(238, 238, 232), M.SmoothPlastic)
+		B(staff, "CabinetHandle", 37.0, 2.2, z0 + 1.0, 37.08, 2.32, z0 + 1.5, rgb(170, 172, 176), M.Metal)
+	end
+	B(staff, "Sink", 37.6, 3.1, -26.6, 39.0, 3.16, -24.6, rgb(190, 194, 198), M.Metal)
+	B(staff, "SinkHole", 37.8, 3.12, -26.4, 38.8, 3.17, -24.8, rgb(110, 114, 118), M.Metal)
+	Cyl(staff, "Faucet", 0.16, 1.1, Vector3.new(39.2, 3.7, -25.6), rgb(200, 202, 206), M.Metal)
+	B(staff, "FaucetSpout", 38.5, 4.15, -25.68, 39.25, 4.27, -25.52, rgb(200, 202, 206), M.Metal)
+	local splash = B(staff, "Backsplash", 39.45, 3.15, -32, 39.55, 5.4, -22, rgb(236, 236, 232), M.Plastic)
+	variant(splash, "NS_FloorTile", M.Plastic, rgb(240, 240, 236))
+	if not prop("Microwave", staff, CFrame.lookAt(Vector3.new(38.25, 3.15, -29.2), Vector3.new(30, 3.15, -29.2)), 1.35) then
+		B(staff, "Microwave", 37.2, 3, -30, 39.4, 4.4, -27.4, rgb(220, 220, 220), M.SmoothPlastic)
+		B(staff, "MicrowaveDoor", 37.15, 3.2, -29.6, 37.2, 4.2, -27.8, rgb(20, 20, 22), M.Glass, { Transparency = 0.1 })
+	end
+	-- электрический чайник: стальной корпус, чёрные ручка и крышка
+	Cyl(staff, "Kettle", 0.8, 0.95, Vector3.new(38.3, 3.63, -23.3), rgb(196, 198, 202), M.Metal)
+	Cyl(staff, "KettleLid", 0.6, 0.08, Vector3.new(38.3, 4.14, -23.3), rgb(30, 30, 32), M.SmoothPlastic)
+	B(staff, "KettleHandle", 38.66, 3.35, -23.42, 38.82, 4.0, -23.18, rgb(30, 30, 32), M.SmoothPlastic)
+	Cyl(staff, "KettleBase", 0.9, 0.08, Vector3.new(38.3, 3.19, -23.3), rgb(30, 30, 32), M.SmoothPlastic)
+	-- маленький холодильник: дверца с зазором и ручкой
+	B(staff, "MiniFridge", 37.3, 0, -21.5, 39.6, 4.5, -19, rgb(236, 238, 238), M.SmoothPlastic)
+	B(staff, "MiniFridgeDoor", 37.22, 0.15, -21.4, 37.3, 4.35, -19.1, rgb(244, 246, 246), M.SmoothPlastic)
+	B(staff, "MiniFridgeHandle", 37.14, 2.6, -19.5, 37.22, 3.8, -19.35, rgb(160, 162, 166), M.Metal)
 	-- кулер с водой и растение
 	prop("Cooler", staff, CFrame.lookAt(Vector3.new(35.2, 0, -32.6), Vector3.new(35.2, 0, -20)), 4.6)
 	prop("Plant", staff, CFrame.new(34.9, 0, -14.9) * CFrame.Angles(0, math.rad(-20), 0), 3)
@@ -2280,8 +2375,11 @@ local function buildRooms(root, map)
 	local board = B(staff, "RulesBoard", 14, 3.2, -33.7, 23, 7.8, -33.55, rgb(160, 120, 80), M.Wood)
 	sign(board, N.Back, Texts.Rules, { color = rgb(30, 26, 20), ppS = 36, font = Enum.Font.Gotham, alignX = Enum.TextXAlignment.Left, alignY = Enum.TextYAlignment.Top, padding = 10, bg = rgb(244, 238, 222) })
 	-- Швабра и ведро
-	local bucket = Cyl(staff, "Bucket", 1.6, 1.4, Vector3.new(37.5, 0.7, -32.5), rgb(240, 200, 30), M.SmoothPlastic)
-	local mop = P(staff, "Mop", Vector3.new(0.2, 6, 0.2), CFrame.new(38.6, 3, -32.8) * CFrame.Angles(math.rad(8), 0, math.rad(-6)), rgb(80, 120, 200), M.SmoothPlastic)
+	local bucket = Cyl(staff, "Bucket", 1.5, 1.3, Vector3.new(37.5, 0.65, -32.5), rgb(230, 186, 30), M.Plastic)
+	Cyl(staff, "BucketRim", 1.6, 0.1, Vector3.new(37.5, 1.32, -32.5), rgb(200, 160, 24), M.Plastic)
+	Cyl(staff, "BucketWater", 1.3, 0.04, Vector3.new(37.5, 1.1, -32.5), rgb(120, 130, 126), M.Glass, { Transparency = 0.25 })
+	local mop = P(staff, "Mop", Vector3.new(0.14, 5.6, 0.14), CFrame.new(38.6, 3.0, -32.8) * CFrame.Angles(math.rad(8), 0, math.rad(-6)), rgb(150, 154, 160), M.Metal)
+	P(staff, "MopHead", Vector3.new(0.9, 0.45, 0.6), CFrame.new(38.85, 0.25, -33.15) * CFrame.Angles(0, math.rad(20), 0), rgb(214, 208, 196), M.Fabric)
 	map.Stations.Mop = mop
 	map.Stations.MopBucket = bucket
 	-- Коробка с батарейками на столе

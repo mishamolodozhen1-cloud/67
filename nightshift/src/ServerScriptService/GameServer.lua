@@ -39,14 +39,14 @@ local function setupLighting()
 	Lighting.ClockTime = 0.4
 	Lighting.GeographicLatitude = 55
 	Lighting.Brightness = 0.35
-	Lighting.Ambient = Color3.fromRGB(12, 12, 16)
+	Lighting.Ambient = Color3.fromRGB(22, 22, 26) -- v9: мягкая подсветка теней
 	Lighting.OutdoorAmbient = Color3.fromRGB(34, 40, 54)
-	-- v8: отражения окружения сильнее (PBR-материалы блестят под лампами), тени чётче
-	Lighting.EnvironmentDiffuseScale = 0.45
-	Lighting.EnvironmentSpecularScale = 1
+	-- v9: мягкий свет — рассеянное освещение сильнее, блики слабее, тени с мягкими краями
+	Lighting.EnvironmentDiffuseScale = 0.6
+	Lighting.EnvironmentSpecularScale = 0.55
 	Lighting.GlobalShadows = true
-	Lighting.ShadowSoftness = 0.18
-	Lighting.ExposureCompensation = 0.1
+	Lighting.ShadowSoftness = 0.45
+	Lighting.ExposureCompensation = 0
 	for _, c in ipairs(Lighting:GetChildren()) do
 		if c:IsA("PostEffect") or c:IsA("Atmosphere") or c:IsA("Sky") then
 			c:Destroy()
@@ -60,17 +60,12 @@ local function setupLighting()
 	atmosphere.Glare = 0
 	atmosphere.Haze = 2.2
 	atmosphere.Parent = Lighting
-	-- мягкое свечение вокруг ламп, вывески и фар
+	-- лёгкое свечение только у самых ярких источников (лампы, вывеска, фары), без «неона» на максимальной графике
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.6
-	bloom.Size = 40
-	bloom.Threshold = 1.05
+	bloom.Intensity = 0.28
+	bloom.Size = 26
+	bloom.Threshold = 1.7
 	bloom.Parent = Lighting
-	-- лёгкие «лучи» от уличных фонарей и вывески в дождь
-	local rays = Instance.new("SunRaysEffect")
-	rays.Intensity = 0.02
-	rays.Spread = 0.6
-	rays.Parent = Lighting
 	local dof = Instance.new("DepthOfFieldEffect")
 	dof.Name = "DepthOfField"
 	dof.FarIntensity = 0.08
@@ -90,8 +85,8 @@ local function setupLighting()
 	clouds.Parent = workspace.Terrain
 	local cc = Instance.new("ColorCorrectionEffect")
 	cc.Name = "Grade"
-	cc.Saturation = -0.1
-	cc.Contrast = 0.14
+	cc.Saturation = -0.08
+	cc.Contrast = 0.06
 	cc.Brightness = 0.01
 	cc.TintColor = Color3.fromRGB(234, 241, 250)
 	cc.Parent = Lighting

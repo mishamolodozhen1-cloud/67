@@ -24,8 +24,6 @@ local clockLabel, nightLabel, barFill, powerLabel, batteryLabel
 local tasksPanel, tasksBody, planLabel, tasksCollapsed
 local taskRows = {}
 local notifyHolder
-local phoneCard, phoneSender, phoneText
-local messages = {}
 local subtitleLabel
 local carryFrame, carryLabel
 local staminaBack, staminaFill
@@ -36,7 +34,6 @@ local modals = {}
 local settingsRows = {}
 local settingsToggles = {}
 local docTitle, docBody
-local phoneList
 local endingTitle, endingSubtitle, endingBody, endingStats, endingFooter
 local fadeFrame
 local buttonsRow
@@ -117,7 +114,10 @@ local function makeModal(name, size, paper, scroll)
 	return holder, panel
 end
 
-function HUD.CloseModals()
+function HUD.CloseModals(keepPhone)
+	if not keepPhone and ctx.Phone then
+		ctx.Phone.Close()
+	end
 	for name, m in pairs(modals) do
 		if m.Visible then
 			m.Visible = false
@@ -155,7 +155,7 @@ function HUD.AnyModalOpen()
 			return true
 		end
 	end
-	return false
+	return ctx.Phone ~= nil and ctx.Phone.IsOpen()
 end
 
 -------------------------------------------------------------------------------
@@ -212,46 +212,62 @@ function HUD.Notify(text, style)
 	end)
 end
 
+-- Новое сообщение на телефон: оно попадает в мессенджер, а если телефон в кармане —
+-- сверху появляется короткое уведомление; нажатие на него достаёт телефон сразу на этом чате
 function HUD.Phone(sender, text)
-	table.insert(messages, { Sender = sender, Text = text, Time = Util.clock(ctx.State:GetAttribute("Minutes") or 0) })
-	phoneSender.Text = sender
-	phoneText.Text = text
-	phoneCard.Visible = true
-	local stamp = os.clock()
-	phoneCard:SetAttribute("Stamp", stamp)
-	task.delay(9, function()
-		if phoneCard:GetAttribute("Stamp") == stamp then
-			phoneCard.Visible = false
-		end
-	end)
-	HUD.RefreshPhoneList()
-end
-
-function HUD.RefreshPhoneList()
-	if not phoneList then
+	local time = Util.clock(ctx.State:GetAttribute("Minutes") or 0)
+	if not ctx.Phone or ctx.Phone.Add(sender, text, time) then
 		return
 	end
-	for _, c in ipairs(phoneList:GetChildren()) do
-		if c:IsA("Frame") then
-			c:Destroy()
+	local card = UI.new("TextButton", {
+		Name = "PhoneBanner",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Color3.fromRGB(22, 24, 30),
+		BackgroundTransparency = 0.08,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = math.floor(os.clock() * 100),
+	}, notifyHolder)
+	UI.corner(card, 12)
+	UI.padding(card, 10)
+	local icon = UI.new("TextLabel", {
+		Size = UDim2.fromOffset(34, 34),
+		BackgroundColor3 = Color3.fromRGB(40, 170, 90),
+		Text = "✉",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 18,
+		Font = Enum.Font.GothamBold,
+	}, card)
+	UI.corner(icon, 9)
+	local body = UI.new("Frame", {
+		Position = UDim2.fromOffset(44, 0),
+		Size = UDim2.new(1, -44, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+	}, card)
+	UI.list(body, 2)
+	UI.text(sender .. "  ·  " .. time, { Size = UDim2.new(1, 0, 0, 16), TextSize = 13, Font = Enum.Font.GothamBold, TextColor3 = UI.Colors.Amber, LayoutOrder = 1 }, body)
+	local preview = UI.text(text, {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextSize = 15,
+		LayoutOrder = 2,
+	}, body)
+	UI.new("UISizeConstraint", { MaxSize = Vector2.new(math.huge, 40) }, preview)
+	preview.TextTruncate = Enum.TextTruncate.AtEnd
+	UI.text(UI.IsTouch and "нажмите, чтобы открыть телефон" or "открыть телефон — [P] или нажмите", { Size = UDim2.new(1, 0, 0, 14), TextSize = 12, TextColor3 = UI.Colors.Muted, LayoutOrder = 3 }, body)
+	card.Activated:Connect(function()
+		card:Destroy()
+		ctx.Phone.Open(sender)
+	end)
+	task.delay(7, function()
+		if card.Parent then
+			tween(card, 0.5, { BackgroundTransparency = 1 })
+			task.wait(0.5)
+			card:Destroy()
 		end
-	end
-	for i = #messages, 1, -1 do
-		local m = messages[i]
-		local item = UI.new("Frame", {
-			Size = UDim2.new(1, -8, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundColor3 = UI.Colors.PanelLight,
-			BackgroundTransparency = 0.1,
-			LayoutOrder = #messages - i,
-			ZIndex = 22,
-		}, phoneList)
-		UI.corner(item, 8)
-		UI.padding(item, 10)
-		UI.list(item, 4)
-		UI.text(m.Time .. " · " .. m.Sender, { Size = UDim2.new(1, 0, 0, 16), TextSize = 13, TextColor3 = UI.Colors.Amber, ZIndex = 22, LayoutOrder = 1 }, item)
-		UI.text(m.Text, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 16, ZIndex = 22, LayoutOrder = 2 }, item)
-	end
+	end)
 end
 
 function HUD.Subtitle(speaker, text, seconds)
@@ -615,7 +631,9 @@ local function buildTopLeft()
 	UI.scaled(buttonsRow)
 	UI.list(buttonsRow, 8, true)
 	UI.button("Телефон" .. keyHint("P"), { Size = UDim2.fromOffset(UI.IsTouch and 118 or 140, 38), TextSize = 14, LayoutOrder = 1 }, buttonsRow, function()
-		HUD.OpenModal("Phone")
+		if ctx.Phone then
+			ctx.Phone.Toggle()
+		end
 	end)
 	UI.button("Меню" .. keyHint("M"), { Size = UDim2.fromOffset(UI.IsTouch and 100 or 102, 38), TextSize = 14, LayoutOrder = 2 }, buttonsRow, function()
 		HUD.OpenModal("Settings")
@@ -722,21 +740,40 @@ local function buildCenter()
 	}, gui)
 	UI.scaled(notifyHolder)
 	UI.list(notifyHolder, 6)
-
-	phoneCard = UI.panel({
-		Name = "PhoneCard",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.46, 0),
-		Size = UDim2.fromOffset(320, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 0.1,
-		Visible = false,
-	}, gui)
-	UI.scaled(phoneCard)
-	UI.padding(phoneCard, 12)
-	UI.list(phoneCard, 6)
-	phoneSender = UI.text("", { Size = UDim2.new(1, 0, 0, 18), TextSize = 14, Font = Enum.Font.GothamBold, TextColor3 = UI.Colors.Amber, LayoutOrder = 1 }, phoneCard)
-	phoneText = UI.text("", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 16, LayoutOrder = 2 }, phoneCard)
+	-- уведомления — в просвете между часами (слева) и заданиями (справа), чтобы ничего не перекрывать;
+	-- если просвета не хватает (узкий экран) — под кнопками слева
+	local function fitNotify()
+		local cam = workspace.CurrentCamera
+		local s = UI.Scale()
+		local vx = cam and cam.ViewportSize.X or 1280
+		local clock = main:FindFirstChild("Clock")
+		local left = clock and (clock.AbsolutePosition.X + clock.AbsoluteSize.X) or (14 + 250 * s)
+		local right = vx - 14
+		if tasksPanel and tasksPanel.Visible and tasksPanel.AbsoluteSize.X > 0 then
+			right = tasksPanel.AbsolutePosition.X
+		end
+		local gap = right - left - 24
+		if gap >= 250 * s then
+			local w = math.min(460 * s, gap)
+			notifyHolder.AnchorPoint = Vector2.new(0.5, 0)
+			notifyHolder.Position = UDim2.fromOffset(math.floor((left + right) / 2), 10)
+			notifyHolder.Size = UDim2.fromOffset(math.floor(w / s), 0)
+		else
+			local top = buttonsRow and (buttonsRow.AbsolutePosition.Y + buttonsRow.AbsoluteSize.Y - gui.AbsolutePosition.Y) or (178 * s)
+			notifyHolder.AnchorPoint = Vector2.new(0, 0)
+			notifyHolder.Position = UDim2.fromOffset(14, math.floor(top + 8))
+			notifyHolder.Size = UDim2.fromOffset(250, 0)
+		end
+	end
+	HUD.FitNotify = fitNotify
+	task.defer(fitNotify)
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+		task.defer(fitNotify)
+	end)
+	if tasksPanel then
+		tasksPanel:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitNotify)
+		tasksPanel:GetPropertyChangedSignal("Visible"):Connect(fitNotify)
+	end
 
 	subtitleLabel = UI.text("", {
 		Name = "Subtitle",
@@ -960,23 +997,6 @@ local function buildModals()
 		end)
 	end)
 
-	-- История сообщений
-	local _, pp = makeModal("Phone", UDim2.fromOffset(440, 500), false)
-	UI.text("СООБЩЕНИЯ", { Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Enum.Font.GothamBlack, ZIndex = 22 }, pp)
-	phoneList = UI.new("ScrollingFrame", {
-		Position = UDim2.fromOffset(0, 34),
-		Size = UDim2.new(1, 0, 1, -86),
-		BackgroundTransparency = 1,
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollBarThickness = 6,
-		ZIndex = 22,
-	}, pp)
-	UI.list(phoneList, 8)
-	UI.button("Закрыть", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = UI.Colors.Accent, ZIndex = 22 }, pp, function()
-		HUD.CloseModals()
-	end)
-
 	-- Документ (улика)
 	local _, dp = makeModal("Document", UDim2.fromOffset(500, 420), true)
 	docTitle = UI.text("", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 20, Font = Enum.Font.Antique, TextColor3 = Color3.fromRGB(60, 40, 20), ZIndex = 22 }, dp)
@@ -1046,8 +1066,9 @@ function HUD.Init(c)
 		local phase = s:GetAttribute("Phase")
 		if phase == "Lobby" then
 			-- новая смена: очистить старые сообщения и окна концовки
-			messages = {}
-			HUD.RefreshPhoneList()
+			if ctx.Phone then
+				ctx.Phone.Clear()
+			end
 			HUD.CloseModals()
 			task.spawn(function()
 				local ok, profile = pcall(function()
