@@ -1038,7 +1038,7 @@ local function timeline()
 	-- 2. МАШИНА ПРИЕЗЖАЕТ -----------------------------------------------------
 	at(16.2)
 	if car then
-		ctx.Audio.Play("CarArrive", car.Body, 1.05)
+		ctx.Audio.Play("CarArrive", car.Body, 0.75)
 	end
 	at(17)
 	local carStart = 17.5

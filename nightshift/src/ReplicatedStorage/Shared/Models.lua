@@ -31,6 +31,20 @@ Models.Credits = {
 	"«Parcel 01» — tblunden, CC BY 4.0",
 	"«Basket Shelving» — jimbogies, CC BY 4.0",
 	"«CCTV Camera» — Smoggybeard, CC BY 4.0",
+	"«Basic PC Monitors» — Sousinho, CC BY 4.0",
+	"«Hanging Monitor» — MaX3Dd, CC BY 4.0",
+	"«Retro CRT Computer» — MadeByYeshe, CC BY 4.0",
+	"«Office Phone» — maxdragonn, CC BY 4.0",
+	"«Security Cameras» — Renend Studio, CC BY 4.0",
+	"«Trash can» — bazz4r, CC BY 4.0",
+	"«Wooden Pallets» — YadroGames, CC BY 4.0",
+	"«Low Poly Pallet Jack» — Monke, CC BY 4.0",
+	"«Cardboard Box Set» — Nodeaxis Interactive, CC BY 4.0",
+	"«Water cooler» — tboiston, CC BY 4.0",
+	"«Smoke Detectors» — Lady Lion Studios, CC BY 4.0",
+	"«Pothos Potted Plant» — AllQuad, CC BY 4.0",
+	"«Step Ladder» и «Wet Floor Sign» — louis-muir, CC BY 4.0",
+	"«File Cabinet» — Siberia, CC BY 4.0",
 }
 
 -- Целые модели с текстурами (загружаются через InsertService:LoadAsset):
@@ -59,6 +73,26 @@ Models.Assets = {
 	Parcel = { Id = 89547355781897, Scale = 3.6 }, -- коробка заказа
 	WireShelf = { Id = 99423585283502, Scale = 0.0914 }, -- сетчатый стеллаж выдачи заказов
 	Cctv = { Id = 84074956484334, Scale = 0.65 }, -- уличная камера (объектив в -Z)
+	-- v7: мониторы видеонаблюдения и детали магазина. Размер задаётся высотой (ModelKit.MakeAssetFit).
+	-- Yaw — поворот модели (градусы), чтобы её перёд смотрел в LookVector; Pivot — точка опоры
+	-- ("Bottom" — центр низа, по умолчанию; "Top" — центр верха; "Center" — центр).
+	-- Screen — где у модели экран (в долях высоты модели, от центра низа, до поворота Yaw):
+	--   Center — середина экрана, Normal — куда он смотрит, Size — ширина и высота.
+	Monitor = { Id = 125105642155375, Screen = { Center = Vector3.new(0, 0.6074, -0.0064), Normal = Vector3.new(0, 0, -1), Size = Vector2.new(1.6036, 0.7852) } },
+	HangMonitor = { Id = 85875618391017, Screen = { Center = Vector3.new(0.0006, 0.5019, -0.2058), Normal = Vector3.new(0, 0, -1), Size = Vector2.new(1.949, 0.9564) } },
+	CrtPc = { Id = 71766440912992, Yaw = -90, Screen = { Center = Vector3.new(-0.2128, 0.6985, -0.043), Normal = Vector3.new(-1, 0, 0), Size = Vector2.new(0.5178, 0.429) } },
+	Phone = { Id = 94426021245434 }, -- настольный телефон (кнопки к LookVector)
+	Dome = { Id = 118805049958553, Pivot = "Top" }, -- купольная камера под потолком
+	Dumpster = { Id = 79062416739544 }, -- два мусорных контейнера на колёсах
+	Pallet = { Id = 71517003225220 }, -- деревянный поддон
+	PalletJack = { Id = 113793426228049 }, -- тележка-рохля (ручка в -Z)
+	Boxes = { Id = 104486093738413 }, -- груда картонных коробок
+	Cooler = { Id = 112307488862621 }, -- кулер с водой (краники к LookVector)
+	Smoke = { Id = 134169485672237, Pivot = "Center" }, -- датчик дыма (лицо к LookVector)
+	Plant = { Id = 139199681076649 }, -- комнатное растение в горшке
+	Ladder = { Id = 124769423327419 }, -- стремянка
+	WetFloor = { Id = 75496316109050 }, -- табличка «Осторожно, мокрый пол» (надписи на сторонах ±X)
+	FileCab = { Id = 83969532200460 }, -- картотечный шкаф (ящики к LookVector)
 }
 Models.StaffCar = "CarMilano"
 Models.ParkedCars = { "CarFairheavenLT", "CarNegotiator", "CarFairheavenSW", "CarAce" }

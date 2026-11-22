@@ -44,7 +44,14 @@ local function loadAsset(name, def)
 		return
 	end
 	local cf, size = tpl:GetBoundingBox()
-	tpl.WorldPivot = CFrame.new(cf.Position - Vector3.new(0, size.Y / 2, 0))
+	-- опора: центр низа (по умолчанию), центр верха или центр модели
+	local offset = -size.Y / 2
+	if def.Pivot == "Top" then
+		offset = size.Y / 2
+	elseif def.Pivot == "Center" then
+		offset = 0
+	end
+	tpl.WorldPivot = CFrame.new(cf.Position + Vector3.new(0, offset, 0))
 	tpl:SetAttribute("SourceSize", size)
 	assets[name] = tpl
 end
@@ -177,6 +184,37 @@ function ModelKit.MakeAsset(name, parent, cf, scale)
 	m:PivotTo(cf)
 	m.Parent = parent
 	return m
+end
+
+-- Копия целой модели заданной высоты (в studs). Учитывает Yaw из Models.Assets, чтобы перёд модели
+-- смотрел в LookVector cf. Возвращает модель и итоговую высоту (или nil, если модель не загрузилась)
+function ModelKit.MakeAssetFit(name, parent, cf, height)
+	local tpl = assets[name]
+	local def = Models.Assets[name]
+	if not (tpl and def) then
+		return nil
+	end
+	local size = tpl:GetAttribute("SourceSize")
+	local m = tpl:Clone()
+	m:ScaleTo(height / size.Y)
+	m:PivotTo(cf * CFrame.Angles(0, math.rad(def.Yaw or 0), 0))
+	m.Parent = parent
+	m:SetAttribute("FitHeight", height)
+	return m, height
+end
+
+-- Где у поставленной модели экран: CFrame середины экрана (LookVector — наружу от экрана) и размер в studs
+function ModelKit.ScreenOf(name, m)
+	local def = Models.Assets[name]
+	local sc = def and def.Screen
+	local h = m and m:GetAttribute("FitHeight")
+	if not (sc and h) then
+		return nil
+	end
+	local pivot = m:GetPivot()
+	local pos = pivot:PointToWorldSpace(sc.Center * h)
+	local normal = pivot:VectorToWorldSpace(sc.Normal)
+	return CFrame.lookAt(pos, pos + normal), sc.Size * h
 end
 
 -- Все ли модели из списка загружены

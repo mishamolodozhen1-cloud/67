@@ -553,6 +553,55 @@ end
 local PAINT = { I.PaintedWall, 12, rgb(236, 234, 226) }
 local CONCRETE = { I.ConcreteWall, 10, rgb(205, 205, 200) }
 
+-- v7: 3D-модель вместо простой детали. Возвращает модель или nil (тогда остаётся простая замена)
+local function prop(name, parent, cf, height)
+	return ModelKit.MakeAssetFit(name, parent, cf, height)
+end
+
+-- Монитор-модель: ставит модель name высотой height и подгоняет деталь screenPart (с SurfaceGui на грани
+-- face) точно на её экран — картинка камер выглядит как изображение на экране монитора
+local function fitScreen(name, parent, cf, height, screenPart, face, fill)
+	local m = ModelKit.MakeAssetFit(name, parent, cf, height)
+	if not m then
+		return nil
+	end
+	local scf, size = ModelKit.ScreenOf(name, m)
+	if not scf then
+		return m
+	end
+	fill = fill or Vector2.new(0.96, 0.94)
+	screenPart.Size = Vector3.new(size.X * fill.X, size.Y * fill.Y, 0.02)
+	local pos = scf.Position + scf.LookVector * 0.015
+	if face == N.Back then
+		screenPart.CFrame = CFrame.lookAt(pos, pos - scf.LookVector)
+	else
+		screenPart.CFrame = CFrame.lookAt(pos, pos + scf.LookVector)
+	end
+	screenPart.CastShadow = false
+	screenPart.CanCollide = false
+	return m
+end
+
+-- Спрятать простую деталь, которую заменила модель (если на ней подсказка или звук — она остаётся)
+local function hidePart(part)
+	part.Transparency = 1
+	part.CanCollide = false
+	part.CastShadow = false
+	for _, d in ipairs(part:GetChildren()) do
+		if d:IsA("Decal") or d:IsA("Texture") then
+			d.Transparency = 1
+		elseif d:IsA("SurfaceGui") then
+			d.Enabled = false
+		end
+	end
+end
+
+-- Датчики дыма на потолке: лицом вниз
+local function smokeDetector(parent, x, ceilY, z)
+	local pos = Vector3.new(x, ceilY - 0.07, z)
+	prop("Smoke", parent, CFrame.lookAt(pos, pos - Vector3.new(0, 1, 0), Vector3.new(0, 0, 1)), 0.9)
+end
+
 local function buildShell(root, map)
 	local f = folder("Building", root)
 	-- Полы
@@ -617,6 +666,13 @@ local function buildShell(root, map)
 		for _, z in ipairs({ 4, 32 }) do
 			Cyl(f, "Speaker", 1.4, 0.15, Vector3.new(x, 14.9, z), rgb(240, 240, 236), M.SmoothPlastic)
 		end
+	end
+	-- Датчики дыма: в зале — над стеллажами и у касс (между светильниками), в подсобке — по комнатам
+	for _, d in ipairs({ { -50, 12 }, { -20, 12 }, { 10, 12 }, { 25, 4 }, { -47.5, 30 }, { -17.5, 30 }, { 12.5, 30 } }) do
+		smokeDetector(f, d[1], 15, d[2])
+	end
+	for _, d in ipairs({ { -14, -28 }, { 10, -37 }, { 0, -24.5 }, { 26, -23 }, { 32, -48 }, { 1, -52.5 } }) do
+		smokeDetector(f, d[1], 10, d[2])
 	end
 
 	-- Комнаты (для проверок «где игрок»)
@@ -1266,6 +1322,21 @@ local function buildSalesFloor(root, map)
 		ceilingLight(f, Vector3.new(x, 14.7, 45), 6, true, "Floor", { shadows = (x == -55) })
 	end
 	exitSign(f, Vector3.new(-52, 10, 49.3), Vector3.new(0, 0, -1))
+	-- Подвесные рекламные таблички над зоной касс (на тросах от потолка, с двух сторон)
+	for _, ad in ipairs({
+		{ -40, "НОЧНАЯ СКИДКА\n−20%", C.Red },
+		{ -10, "КАССЫ\nСАМООБСЛУЖИВАНИЯ", rgb(30, 110, 60) },
+		{ 20, "СВЕЖАЯ ВЫПЕЧКА\nкаждое утро", rgb(30, 90, 170) },
+	}) do
+		local x, z = ad[1], 29.6
+		local board = B(f, "PromoSign", x - 3, 11.2, z - 0.06, x + 3, 13.2, z + 0.06, Color3.new(1, 1, 1), M.SmoothPlastic)
+		for _, face in ipairs({ N.Front, N.Back }) do
+			sign(board, face, ad[2], { color = Color3.new(1, 1, 1), bg = ad[3], ppS = 40, font = Enum.Font.GothamBlack, padding = 8 })
+		end
+		for _, dx in ipairs({ -2.6, 2.6 }) do
+			B(f, "PromoCable", x + dx - 0.02, 13.2, z - 0.02, x + dx + 0.02, 15, z + 0.02, rgb(60, 60, 64), M.Metal, { CastShadow = false })
+		end
+	end
 end
 
 -------------------------------------------------------------------------------
@@ -1588,6 +1659,8 @@ local function buildGates(root, map)
 		end
 		B(f, "RailBlock", r[1], 0, GATE_Z - 0.06, r[2], 2.8, GATE_Z + 0.06, Color3.new(), M.SmoothPlastic, { Transparency = 1 })
 	end
+	-- у входа мокро (дождь): табличка «Осторожно, мокрый пол»
+	prop("WetFloor", f, CFrame.new(-58.8, 0, 44.6) * CFrame.Angles(0, math.rad(105), 0), 2.4)
 	local exitText = B(f, "GateFloorText", -54.6, 0, 44.2, -49.4, 0.03, 46.4, rgb(214, 216, 212), M.SmoothPlastic, { CastShadow = false, Transparency = 1 })
 	sign(exitText, N.Top, "ВХОД / ВЫХОД", { color = rgb(60, 140, 90), light = 1, ppS = 30, font = Enum.Font.GothamBlack })
 	map.Gates = { Z = GATE_Z, X0 = -55.2, X1 = -48.8, Lamps = lamps, Center = Vector3.new(-52, 3, GATE_Z) }
@@ -1600,7 +1673,7 @@ local function buildGuardPost(root, map)
 		B(f, "Desk", -44.5, 0, 45, -38.5, 2.6, 47.4, rgb(110, 70, 46), M.Wood)
 	end
 	-- второй монитор: камеры наблюдения (сетка 3×3)
-	Cyl(f, "MonitorStand", 0.14, 0.6, Vector3.new(-43.1, 2.85, 45.9), C.Dark, M.Metal)
+	local stand = Cyl(f, "MonitorStand", 0.14, 0.6, Vector3.new(-43.1, 2.85, 45.9), C.Dark, M.Metal)
 	local mon = B(f, "GuardMonitor", -44.2, 3.1, 45.75, -42.0, 4.45, 45.9, C.Black, M.SmoothPlastic)
 	local sg = Instance.new("SurfaceGui")
 	sg.Name = "CamGrid"
@@ -1628,6 +1701,10 @@ local function buildGuardPost(root, map)
 		cell.TextScaled = true
 		cell.Text = string.format("КАМ %02d", c)
 		cell.Parent = grid
+	end
+	-- настоящий монитор на столе, картинка камер — точно на его экране
+	if fitScreen("Monitor", f, CFrame.lookAt(Vector3.new(-43.1, 2.55, 45.85), Vector3.new(-43.1, 2.55, 60)), 1.45, mon, N.Back) then
+		stand:Destroy()
 	end
 	map.Stations.GuardDesk = mon
 	map.Points.GuardPost = Vector3.new(-41.5, 0, 44.2)
@@ -1827,8 +1904,12 @@ local function buildWarehouse(root, map)
 	map.BoxPiles = {}
 	for i, cat in ipairs(Products.RestockCategories) do
 		local x0 = -36.5 + (i - 1) * 3.4
-		B(f, "Pallet", x0, 0, -17, x0 + 2.8, 0.45, -14, rgb(160, 120, 70), M.WoodPlanks)
 		local h = 0.45
+		if prop("Pallet", f, CFrame.new(x0 + 1.4, 0, -15.5) * CFrame.Angles(0, math.rad(90), 0), 0.36) then
+			h = 0.36
+		else
+			B(f, "Pallet", x0, 0, -17, x0 + 2.8, 0.45, -14, rgb(160, 120, 70), M.WoodPlanks)
+		end
 		for k = 1, 3 do
 			if useModels({ "BoxClosed" }) then
 				local size = Vector3.new(2.6, 1.15, 2.8)
@@ -1865,11 +1946,18 @@ local function buildWarehouse(root, map)
 	end
 	map.Stations.TrashBin = bin
 	-- Тележка-рохля и пустые поддоны
-	B(f, "PalletJack", -30, 0.2, -38, -28.6, 0.6, -33, rgb(200, 40, 40), M.Metal)
-	Cyl(f, "JackHandle", 0.15, 4, Vector3.new(-29.3, 2, -38.3), C.Black, M.Metal)
-	for k = 0, 5 do
-		B(f, "EmptyPallet", -46, k * 0.45, -63.5, -42, k * 0.45 + 0.4, -60.5, rgb(150, 112, 66), M.WoodPlanks)
+	if not prop("PalletJack", f, CFrame.new(-29.3, 0, -35.6), 4) then
+		B(f, "PalletJack", -30, 0.2, -38, -28.6, 0.6, -33, rgb(200, 40, 40), M.Metal)
+		Cyl(f, "JackHandle", 0.15, 4, Vector3.new(-29.3, 2, -38.3), C.Black, M.Metal)
 	end
+	for k = 0, 5 do
+		if not prop("Pallet", f, CFrame.new(-44, k * 0.47, -61.6) * CFrame.Angles(0, math.rad(rng:NextNumber(-4, 4)), 0), 0.47) then
+			B(f, "EmptyPallet", -46, k * 0.45, -63.5, -42, k * 0.45 + 0.4, -60.5, rgb(150, 112, 66), M.WoodPlanks)
+		end
+	end
+	-- груда коробок у стены и стремянка
+	prop("Boxes", f, CFrame.new(-36, 0, -61.6) * CFrame.Angles(0, math.rad(180), 0), 2.4)
+	prop("Ladder", f, CFrame.new(-24.5, 0, -61.5) * CFrame.Angles(0, math.rad(90), 0), 6)
 	-- Касса №0: старый прилавок под брезентом в дальнем углу
 	local r0 = model("Register0", f)
 	local counter = B(r0, "OldCounter", -61, 0, -63.5, -55, 3, -61.5, rgb(120, 110, 96), M.WoodPlanks)
@@ -1971,10 +2059,14 @@ local function buildRooms(root, map)
 	local sec = model("Security", f)
 	B(sec, "Desk", -8, 0, -15.5, 8, 2.6, -12.6, rgb(90, 80, 70), M.WoodPlanks)
 	local monitors = {}
+	local MON_X = { [-1] = -5.2, [0] = -1.3, [1] = 2.6 } -- правее стоит видеомагнитофон
 	for k = -1, 1 do
-		local x = k * 4.6
+		local x = ModelKit.HasAsset("Monitor") and MON_X[k] or k * 4.6
 		local mon = B(sec, "Monitor", x - 2, 2.9, -14.6, x + 2, 5.6, -14.2, C.Black, M.SmoothPlastic)
-		B(sec, "MonitorStand", x - 0.3, 2.6, -14.4, x + 0.3, 2.9, -13.8, C.Dark, M.Metal)
+		local stand = B(sec, "MonitorStand", x - 0.3, 2.6, -14.4, x + 0.3, 2.9, -13.8, C.Dark, M.Metal)
+		if fitScreen("Monitor", sec, CFrame.lookAt(Vector3.new(x, 2.6, -13.9), Vector3.new(x, 2.6, -20)), 2.3, mon, N.Front) then
+			stand:Destroy()
+		end
 		local sg = Instance.new("SurfaceGui")
 		sg.Face = N.Front
 		sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -2047,6 +2139,9 @@ local function buildRooms(root, map)
 	B(staff, "MicrowaveDoor", 37.15, 3.2, -29.6, 37.2, 4.2, -27.8, rgb(20, 20, 22), M.Glass, { Transparency = 0.1 })
 	Cyl(staff, "Kettle", 0.9, 1.1, Vector3.new(38.2, 3.55, -24), rgb(240, 240, 240), M.SmoothPlastic)
 	B(staff, "MiniFridge", 37.2, 0, -21.5, 39.6, 4.5, -19, Color3.new(1, 1, 1), M.SmoothPlastic)
+	-- кулер с водой и растение
+	prop("Cooler", staff, CFrame.lookAt(Vector3.new(35.2, 0, -32.6), Vector3.new(35.2, 0, -20)), 4.6)
+	prop("Plant", staff, CFrame.new(34.9, 0, -14.9) * CFrame.Angles(0, math.rad(-20), 0), 3)
 	-- Табельные часы (начать смену)
 	local clock = B(staff, "TimeClock", 12.3, 4, -31.5, 12.9, 5.8, -29.5, rgb(60, 60, 64), M.SmoothPlastic)
 	local clockLabel = sign(clock, N.Right, "00:00", { color = rgb(255, 80, 60), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
@@ -2131,15 +2226,27 @@ local function buildRooms(root, map)
 	local crtScreen = P(office, "OldMonitorScreen", Vector3.new(2.0, 1.6, 0.06), CFrame.lookAt(Vector3.new(21.8, 3.95, -56.84), Vector3.new(21.8, 3.95, -60)), rgb(20, 30, 26), M.Glass, { Transparency = 0 })
 	sign(crtScreen, N.Front, "MART 24 · УЧЁТ\n\nСМЕНА: НОЧЬ\nКАССА 0: ???", { color = rgb(120, 220, 160), light = 0, brightness = 1.2, ppS = 80, font = Enum.Font.Code, alignX = Enum.TextXAlignment.Left, alignY = Enum.TextYAlignment.Top, padding = 8 })
 	tag(crt, "AmbComputer")
-	B(office, "PCTower", 17.2, 0, -58, 18.6, 3.2, -54.5, rgb(200, 192, 172), M.SmoothPlastic)
-	B(office, "Keyboard", 21.0, 2.8, -57.8, 23.4, 2.92, -57.0, rgb(190, 184, 166), M.SmoothPlastic)
+	local tower = B(office, "PCTower", 17.2, 0, -58, 18.6, 3.2, -54.5, rgb(200, 192, 172), M.SmoothPlastic)
+	local keyboard = B(office, "Keyboard", 21.0, 2.8, -57.8, 23.4, 2.92, -57.0, rgb(190, 184, 166), M.SmoothPlastic)
+	-- старый компьютер 90-х: монитор-ЭЛТ на системном блоке, клавиатура, мышь
+	if fitScreen("CrtPc", office, CFrame.lookAt(Vector3.new(22, 2.8, -55.6), Vector3.new(22, 2.8, -60)), 2.0, crtScreen, N.Front, Vector2.new(0.88, 0.86)) then
+		hidePart(crt)
+		tower:Destroy()
+		keyboard:Destroy()
+	end
 	-- журнал смены
 	local logbook = B(office, "ShiftLog", 29.6, 2.8, -57.4, 31.2, 2.95, -56.2, rgb(30, 60, 120), M.SmoothPlastic)
 	sign(logbook, N.Top, "ЖУРНАЛ СМЕНЫ", { color = Color3.new(1, 1, 1), ppS = 80 })
 	map.Stations.ShiftLog = logbook
 	-- телефон
 	local phone = B(office, "Phone", 29.4, 2.8, -55.6, 30.6, 3.2, -54.6, rgb(150, 30, 30), M.SmoothPlastic)
+	if prop("Phone", office, CFrame.lookAt(Vector3.new(30, 2.8, -55.1), Vector3.new(30, 2.8, -60)), 0.62) then
+		hidePart(phone)
+	end
 	map.Stations.Phone = phone
+	-- картотечный шкаф у двери и растение в углу
+	prop("FileCab", office, CFrame.lookAt(Vector3.new(29.6, 0, -41.25), Vector3.new(29.6, 0, -50)), 4.6)
+	prop("Plant", office, CFrame.new(38.2, 0, -42.3) * CFrame.Angles(0, math.rad(30), 0), 3)
 	-- кружка кофе
 	local mugPos = Vector3.new(28.2, 3.11, -55.1)
 	Cyl(office, "Mug", 0.42, 0.62, mugPos, rgb(236, 236, 230), M.SmoothPlastic)
@@ -2238,6 +2345,11 @@ local function buildRooms(root, map)
 		local pos = Vector3.new(38.5, 6.95 - row * 2.45, -55.0 + col * 3.6)
 		local mon = P(office, "CctvMonitor", Vector3.new(3.3, 2.25, 0.5), CFrame.lookAt(pos, pos + Vector3.new(-1, 0, 0)), rgb(30, 30, 32), M.SmoothPlastic)
 		local scr = P(office, "CctvScreen", Vector3.new(3.0, 1.95, 0.05), CFrame.lookAt(pos + Vector3.new(-0.27, 0, 0), pos + Vector3.new(-2, 0, 0)), rgb(12, 16, 14), M.Glass, { Transparency = 0 })
+		-- настоящий плоский монитор на кронштейне, картинка камеры — на его экране
+		local base = Vector3.new(38.25, pos.Y - 0.85, pos.Z)
+		if fitScreen("HangMonitor", office, CFrame.lookAt(base, base + Vector3.new(-1, 0, 0)), 1.7, scr, N.Front) then
+			hidePart(mon)
+		end
 		local sg = Instance.new("SurfaceGui")
 		sg.Name = "ScreenGui"
 		sg.Face = N.Front
@@ -2295,10 +2407,17 @@ local function buildAlley(root, map)
 	B(f, "WallW", -41, 0, -92, -40, 12, -64.5, brick, M.Brick)
 	B(f, "WallE", 10, 0, -92, 11, 12, -64.5, brick, M.Brick)
 	local dumpster = B(f, "Dumpster", -5, 0, -80, 3, 4.6, -76, rgb(40, 90, 50), M.Metal)
-	B(f, "DumpsterLid", -5.1, 4.6, -80.1, 3.1, 4.9, -75.9, rgb(30, 70, 40), M.Metal)
+	local lid = B(f, "DumpsterLid", -5.1, 4.6, -80.1, 3.1, 4.9, -75.9, rgb(30, 70, 40), M.Metal)
+	-- два настоящих мусорных контейнера на колёсах (деталь-контейнер остаётся невидимой: на ней подсказка)
+	if prop("Dumpster", f, CFrame.lookAt(Vector3.new(-1, 0, -78.2), Vector3.new(-1, 0, -60)), 3.4) then
+		hidePart(dumpster)
+		lid:Destroy()
+	end
 	map.Stations.Dumpster = dumpster
 	for k = 0, 3 do
-		B(f, "Pallet", -36, k * 0.45, -90, -32, k * 0.45 + 0.4, -87, rgb(140, 104, 60), M.WoodPlanks)
+		if not prop("Pallet", f, CFrame.new(-34, k * 0.47, -88.5) * CFrame.Angles(0, math.rad(rng:NextNumber(-5, 5)), 0), 0.47) then
+			B(f, "Pallet", -36, k * 0.45, -90, -32, k * 0.45 + 0.4, -87, rgb(140, 104, 60), M.WoodPlanks)
+		end
 	end
 	for _, pd in ipairs({ { -24, -78, 5 }, { -10, -86, 4 }, { 0, -70, 3 } }) do
 		local puddle = P(f, "Puddle", Vector3.new(0.05, pd[3], pd[3] * 1.4), CFrame.new(pd[1], 0.02, pd[2]) * CFrame.Angles(0, 0, math.rad(90)), rgb(20, 24, 30), M.Glass, { Reflectance = 0.35, Transparency = 0.2 })
@@ -2339,7 +2458,7 @@ local CAMERAS = {
 	{ "КАССЫ", Vector3.new(38, 13, 46), Vector3.new(-12, 2.5, 32) },
 	{ "РЯДЫ 1–3", Vector3.new(-63, 13.5, -10), Vector3.new(-40, 2, 24) },
 	{ "РЯДЫ 4–7", Vector3.new(37, 13.5, -10), Vector3.new(8, 2, 24) },
-	{ "ХОЛОДИЛЬНЫЙ ОТДЕЛ", Vector3.new(-8, 13.5, 24), Vector3.new(22, 2, -8) },
+	{ "ХОЛОДИЛЬНЫЙ ОТДЕЛ", Vector3.new(-8, 13.5, 22.2), Vector3.new(22, 2, -8) },
 	{ "СКЛАД", Vector3.new(-20, 12.5, -14), Vector3.new(-56, 1, -56) },
 	{ "СЛУЖЕБНЫЙ КОРИДОР", Vector3.new(-12, 9, -13.5), Vector3.new(-14, 1, -64) },
 	{ "ХОЛОДИЛЬНАЯ КАМЕРА", Vector3.new(10.5, 9, -41.5), Vector3.new(-6, 1, -62) },
@@ -2352,11 +2471,33 @@ local function buildCameras(root, map)
 	for i, c in ipairs(CAMERAS) do
 		local cf = CFrame.lookAt(c[2], c[3])
 		local m = model("Camera" .. i, f)
-		P(m, "Body", Vector3.new(0.7, 0.7, 1.6), cf, rgb(230, 230, 228), M.SmoothPlastic)
+		local body = P(m, "Body", Vector3.new(0.7, 0.7, 1.6), cf, rgb(230, 230, 228), M.SmoothPlastic)
 		local lens = P(m, "Lens", Vector3.new(0.2, 0.5, 0.5), cf * CFrame.new(0, 0, -0.85) * CFrame.Angles(0, math.rad(90), 0), C.Black, M.Glass)
 		lens.Shape = Enum.PartType.Cylinder
-		P(m, "Led", Vector3.new(0.12, 0.12, 0.12), cf * CFrame.new(0.22, 0.38, -0.6), rgb(255, 30, 30), M.Neon, { CastShadow = false })
-		P(m, "Mount", Vector3.new(0.25, 0.9, 0.25), cf * CFrame.new(0, 0.75, 0.4), C.Dark, M.Metal)
+		local led = P(m, "Led", Vector3.new(0.12, 0.12, 0.12), cf * CFrame.new(0.22, 0.38, -0.6), rgb(255, 30, 30), M.Neon, { CastShadow = false })
+		local mount = P(m, "Mount", Vector3.new(0.25, 0.9, 0.25), cf * CFrame.new(0, 0.75, 0.4), C.Dark, M.Metal)
+		-- v7: в здании — купольная камера под потолком, во дворе — уличная камера на кронштейне
+		local pos = c[2]
+		local ceilY
+		if pos.Z > -12 and pos.Z < 50 and pos.X > -66 and pos.X < 40 then
+			ceilY = 15 -- торговый зал
+		elseif pos.Z <= -12 and pos.Z > -64 and pos.X < -18 and pos.X > -66 then
+			ceilY = 17 -- склад: под крышей
+		elseif pos.Z <= -12 and pos.Z > -64 and pos.X >= -18 and pos.X < 40 then
+			ceilY = 10 -- подсобка
+		end
+		local placed
+		if ceilY then
+			placed = prop("Dome", m, CFrame.new(pos.X, ceilY, pos.Z), 0.7)
+		else
+			placed = ModelKit.MakeAsset("Cctv", m, cf, Models.Assets.Cctv.Scale)
+		end
+		if placed then
+			body:Destroy()
+			lens:Destroy()
+			led:Destroy()
+			mount:Destroy()
+		end
 		local view = P(m, "View", Vector3.new(0.2, 0.2, 0.2), cf * CFrame.new(0, 0, -1.2), Color3.new(0, 0, 0), M.SmoothPlastic, {
 			Transparency = 1,
 			CanCollide = false,

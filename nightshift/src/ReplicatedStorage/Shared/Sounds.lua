@@ -19,9 +19,9 @@ Sounds.Files = {
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
 Sounds.List = {
-	Fridge = { File = "Ambience", Start = 0.02, Stop = 15.98, Loop = true, Volume = 0.5 },
-	Vent = { File = "Ambience", Start = 16.62, Stop = 29.68, Loop = true, Volume = 0.4 },
-	Fluorescent = { File = "Ambience", Start = 30.32, Stop = 41.08, Loop = true, Volume = 0.2 },
+	Fridge = { File = "Ambience", Start = 0.02, Stop = 15.98, Loop = true, Volume = 0.28 },
+	Vent = { File = "Ambience", Start = 16.62, Stop = 29.68, Loop = true, Volume = 0.24 },
+	Fluorescent = { File = "Ambience", Start = 30.32, Stop = 41.08, Loop = true, Volume = 0.12 },
 	NightOutside = { File = "Ambience", Start = 41.72, Stop = 61.18, Loop = true, Volume = 0.5 },
 	Drone = { File = "Ambience", Start = 61.82, Stop = 90.98, Loop = true, Volume = 0.6 },
 	Heartbeat = { File = "Ambience", Start = 91.62, Stop = 92.286, Loop = true, Volume = 0.9 },
@@ -58,8 +58,8 @@ Sounds.List = {
 	RegisterZero = { File = "Voice", Start = 33.81, Stop = 36.45, Loop = false, Volume = 0.8 },
 	DontTurn = { File = "Voice", Start = 37.29, Stop = 40.12, Loop = false, Volume = 0.8 },
 	ShiftOver = { File = "Voice", Start = 40.96, Stop = 43.89, Loop = false, Volume = 0.8 },
-	StoreMusic = { File = "Music", Start = 0.02, Stop = 74.026, Loop = true, Volume = 0.22 },
-	CarArrive = { File = "Sfx2", Start = 0.02, Stop = 14.555, Loop = false, Volume = 0.9 },
+	StoreMusic = { File = "Music", Start = 0.02, Stop = 74.026, Loop = true, Volume = 0.16 },
+	CarArrive = { File = "Sfx2", Start = 0.02, Stop = 14.555, Loop = false, Volume = 0.5 },
 	CarDoorOpen = { File = "Sfx2", Start = 15.155, Stop = 16.653, Loop = false, Volume = 0.8 },
 	CarDoorClose = { File = "Sfx2", Start = 17.253, Stop = 17.748, Loop = false, Volume = 0.9 },
 	FluorFlicker = { File = "Sfx2", Start = 18.348, Stop = 23.99, Loop = false, Volume = 0.7 },
@@ -115,18 +115,18 @@ Sounds.List = {
 
 -- Фоновые петли: отдельный файл, громкость
 Sounds.Loops = {
-	RainOutside = { Id = "rbxassetid://72757943747907", Volume = 0.7 },
-	Wind = { Id = "rbxassetid://110706365888451", Volume = 0.35 },
-	Traffic = { Id = "rbxassetid://74825841820970", Volume = 0.3 },
-	StoreRoom = { Id = "rbxassetid://96033090026477", Volume = 0.35 },
-	FluorHum = { Id = "rbxassetid://117053962793792", Volume = 0.35 },
-	SignHum = { Id = "rbxassetid://121606027666716", Volume = 0.35 },
-	Computer = { Id = "rbxassetid://128092595250800", Volume = 0.3 },
-	CctvStatic = { Id = "rbxassetid://107209527430817", Volume = 0.35 },
-	TensionDrone = { Id = "rbxassetid://125613290392026", Volume = 0.6 },
-	LowRoom = { Id = "rbxassetid://105916043267847", Volume = 0.5 },
+	RainOutside = { Id = "rbxassetid://72757943747907", Volume = 0.5 },
+	Wind = { Id = "rbxassetid://110706365888451", Volume = 0.2 },
+	Traffic = { Id = "rbxassetid://74825841820970", Volume = 0.1 },
+	StoreRoom = { Id = "rbxassetid://96033090026477", Volume = 0.22 },
+	FluorHum = { Id = "rbxassetid://117053962793792", Volume = 0.18 },
+	SignHum = { Id = "rbxassetid://121606027666716", Volume = 0.18 },
+	Computer = { Id = "rbxassetid://128092595250800", Volume = 0.16 },
+	CctvStatic = { Id = "rbxassetid://107209527430817", Volume = 0.22 },
+	TensionDrone = { Id = "rbxassetid://125613290392026", Volume = 0.45 },
+	LowRoom = { Id = "rbxassetid://105916043267847", Volume = 0.35 },
 	-- музыка главного меню (петля)
-	MenuMusic = { Id = "rbxassetid://111386435897248", Volume = 0.45 },
+	MenuMusic = { Id = "rbxassetid://111386435897248", Volume = 0.35 },
 }
 
 -- Шаги по типу пола

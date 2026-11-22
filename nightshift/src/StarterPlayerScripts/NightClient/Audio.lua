@@ -176,10 +176,12 @@ local function approach(sound, target, rate)
 	end
 end
 
+-- Общая громкость (настройки игрока). Звуки и фон немного приглушены: 100% в настройках —
+-- это 85% для звуков и 75% для фона
 function Audio.SetVolumes(musicVolume, sfxVolume)
 	groups.Music.Volume = musicVolume
-	groups.Sfx.Volume = sfxVolume
-	groups.Ambience.Volume = sfxVolume
+	groups.Sfx.Volume = sfxVolume * 0.85
+	groups.Ambience.Volume = sfxVolume * 0.75
 	groups.Voice.Volume = math.max(0.3, sfxVolume)
 end
 
@@ -427,17 +429,18 @@ function Audio.Init(c)
 			end
 
 			-- Улица: дождь, ветер, город. Внутри — глухо
-			approach(beds.RainOutside, inside and 0.32 or 0.75, 0.25)
+			-- уровни фона (v7: всё тише, особенно гул машин и техники)
+			approach(beds.RainOutside, inside and 0.2 or 0.5, 0.25)
 			if rainEq then
 				rainEq.HighGain = inside and -26 or 0
 				rainEq.MidGain = inside and -10 or 0
 			end
-			approach(beds.Wind, inside and 0.03 or 0.32, 0.25)
-			approach(beds.Traffic, inside and 0.04 or 0.28, 0.25)
+			approach(beds.Wind, inside and 0.015 or 0.2, 0.25)
+			approach(beds.Traffic, inside and 0.01 or 0.1, 0.25)
 			-- Помещение: гул ламп зала, низкий фон подсобки
-			approach(beds.StoreRoom, (zone == "Sales" and power) and 0.36 or 0, 0.25)
+			approach(beds.StoreRoom, (zone == "Sales" and power) and 0.22 or 0, 0.25)
 			local late = math.clamp((hour - 1) / 4, 0, 1)
-			approach(beds.LowRoom, (zone == "Corridor" or zone == "Room") and (0.25 + late * 0.3) or (inside and late * 0.2 or 0), 0.2)
+			approach(beds.LowRoom, (zone == "Corridor" or zone == "Room") and (0.15 + late * 0.2) or (inside and late * 0.12 or 0), 0.2)
 			-- Музыка из динамиков: тише в подсобке. По ночам она замедляется, потом «плывёт»
 			-- (Warped: медленно, с хрипом и качанием скорости, как зажёванная кассета), потом пропадает
 			if not cinematic then
@@ -450,7 +453,7 @@ function Audio.Init(c)
 						m = m * 0.85
 					end
 				end
-				approach(beds.Music, m * 0.22, 0.2)
+				approach(beds.Music, m * 0.16, 0.2)
 				if beds.Music then
 					local speed = 1
 					if musicMode == "Slow" then
@@ -471,13 +474,13 @@ function Audio.Init(c)
 					local hourDread = hour >= from and math.min(0.5, 0.08 + (hour - from) * 0.07) or 0
 					dread = math.max(hourDread, (not power) and (0.25 + n * 0.04) or 0, threat * 0.8)
 				end
-				approach(beds.TensionDrone, dread, 0.2)
+				approach(beds.TensionDrone, dread * 0.8, 0.2)
 			end
-			approach(beds.Heartbeat, threat > 0.15 and (0.25 + threat * 0.75) or 0, 0.3)
+			approach(beds.Heartbeat, threat > 0.15 and (0.2 + threat * 0.6) or 0, 0.3)
 			if beds.Heartbeat then
 				beds.Heartbeat.PlaybackSpeed = 0.85 + threat * 0.6
 			end
-			approach(beds.CctvStatic, staticOn and 0.3 or 0, 0.5)
+			approach(beds.CctvStatic, staticOn and 0.2 or 0, 0.5)
 		end
 	end)
 end
