@@ -118,7 +118,13 @@ local function check(npc, player)
 		npc.Humanoid:MoveTo(npc.Root.Position)
 		NpcFactory.PlayAction(npc, "HandsUp")
 		S.Net.Sound("ClothRustle", npc.Root.Position, 0.8)
-		S.Customers.Say(npc, Util.pick({ "Ладно, ладно! Вот, забирайте…", "Я… я просто забыл заплатить.", "Только полицию не вызывайте!" }, rng))
+		-- охранник: «Стоять! Охрана магазина.», потом вор оправдывается (v10)
+		if player then
+			S.Net.PlayerVoice(player, "Thief")
+		end
+		task.delay(player and 1.6 or 0, function()
+			S.Customers.Say(npc, { "Caught1", "Caught2", "Caught3" })
+		end)
 		stats.Caught = stats.Caught + 1
 		S.Shift.AddStat("Caught")
 		S.Tasks.ProgressKind("catch", 1)
@@ -134,7 +140,7 @@ local function check(npc, player)
 			end
 		end)
 	elseif npc.Alarmed then
-		S.Customers.Say(npc, "Вот мой чек. Наверное, метку забыли снять.")
+		S.Customers.Say(npc, "Check1")
 		S.Net.Sound("Receipt", npc.Root.Position, 0.5)
 		if player then
 			S.Net.Notify(player, "Чек в порядке — ложная тревога", "info")
@@ -142,7 +148,7 @@ local function check(npc, player)
 	else
 		stats.FalseChecks = stats.FalseChecks + 1
 		S.Shift.AddStat("FalseChecks")
-		S.Customers.Say(npc, Util.pick({ "Вы что, меня подозреваете? Вот чек.", "Я всё оплатил. Ну и магазин.", "Мне за вами ещё и в магазине следить?" }, rng))
+		S.Customers.Say(npc, { "Check2", "Check3" })
 		if player then
 			S.Net.Notify(player, "Покупатель всё оплатил и обиделся", "warn")
 		end
@@ -408,7 +414,7 @@ function Security.GiveOrder(npc, player)
 		return false
 	end
 	if carried ~= number then
-		S.Customers.Say(npc, "Это не мой заказ. У меня №" .. number .. ".")
+		S.Customers.Say(npc, "Order5", " У меня №" .. number .. ".")
 		S.Net.Sound("ScanError", npc.Root.Position, 0.5)
 		S.Store.ClearCarry(player, false)
 		return false
@@ -445,7 +451,7 @@ function Security.WaitOrder(npc, number)
 		task.wait(0.3)
 		if not nagged and os.clock() - t0 > 40 then
 			nagged = true
-			S.Customers.Say(npc, Util.pick({ "Мне бы заказ забрать…", "Есть кто на выдаче?", "Номер " .. number .. ", я жду." }, rng))
+			S.Customers.Say(npc, { "Order3", "Order4" })
 		end
 		if result == nil and os.clock() - t0 > Config.PickupPatience then
 			result = false

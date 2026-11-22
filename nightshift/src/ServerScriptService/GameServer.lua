@@ -31,6 +31,7 @@ local EventDirector = mod("EventDirector")
 local ShiftManager = mod("ShiftManager")
 local Rooms = mod("Rooms")
 local Security = mod("Security")
+local Beast = mod("Beast")
 
 local GameServer = {}
 
@@ -147,6 +148,7 @@ function GameServer.Start()
 		Secrets = Secrets,
 		Events = EventDirector,
 		Shift = ShiftManager,
+		Beast = Beast,
 	}
 
 	DataService.Init()
@@ -164,6 +166,7 @@ function GameServer.Start()
 	MonsterAI.Init(map, S, NpcFactory)
 	Secrets.Init(map, S)
 	EventDirector.Init(map, S)
+	Beast.Init(map, S)
 	ShiftManager.Init(map, S)
 
 	-------------------------------------------------------------------------------
@@ -229,6 +232,9 @@ function GameServer.Start()
 	end
 	function ACTIONS.MonsterSeen(player, seen)
 		MonsterAI.ReportSeen(player, seen == true)
+	end
+	function ACTIONS.BeastSeen(player, model)
+		Beast.ReportSeen(player, model)
 	end
 	function ACTIONS.IntroDone(player)
 		ShiftManager.IntroDone(player)

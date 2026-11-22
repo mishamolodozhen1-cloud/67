@@ -445,13 +445,20 @@ end
 
 -- Обычный покупатель (случайная внешность). Возвращает nil, если модель не создалась.
 function NpcFactory.Customer(parent, position, look)
-	local ok, model, hum = pcall(buildRig, look or randomLook())
+	look = look or randomLook()
+	local ok, model, hum = pcall(buildRig, look)
 	if not ok then
 		warn("[NPC] не удалось создать покупателя: " .. tostring(model))
 		return nil
 	end
 	model.Name = "Customer"
 	local npc = wrap(model, hum, "Customer")
+	-- мужчина или женщина (для голоса)
+	if look.Realistic and look.Body then
+		npc.Male = look.Body.Male ~= false
+	else
+		npc.Male = rng:NextNumber() < 0.6
+	end
 	hum.WalkSpeed = 8
 	model:PivotTo(CFrame.new(position + Vector3.new(0, npc.RootHeight + 0.1, 0)))
 	model.Parent = parent
@@ -702,6 +709,51 @@ function NpcFactory.Release(npc, part, cf, parent)
 	if npc and npc.Held == part then
 		npc.Held = nil
 	end
+end
+
+-- Фонарик телефона в правой руке (свет погас, v10)
+function NpcFactory.PhoneLight(npc, on)
+	if not (npc and npc.Model) then
+		return
+	end
+	local old = npc.Model:FindFirstChild("PhoneLight")
+	if not on then
+		if old then
+			old:Destroy()
+		end
+		return
+	end
+	if old or not npc.Alive then
+		return
+	end
+	local hand = npc.Model:FindFirstChild("RightHand")
+	if not hand then
+		return
+	end
+	local phone = Instance.new("Part")
+	phone.Name = "PhoneLight"
+	phone.Size = Vector3.new(0.32, 0.62, 0.05)
+	phone.Color = Color3.fromRGB(20, 20, 24)
+	phone.Material = Enum.Material.SmoothPlastic
+	phone.Anchored = true
+	phone.CFrame = hand.CFrame * CFrame.new(0, -0.3, -0.25) * CFrame.Angles(math.rad(-70), 0, 0)
+	local light = Instance.new("SpotLight")
+	light.Face = Enum.NormalId.Back
+	light.Angle = 75
+	light.Range = 20
+	light.Brightness = 2.2
+	light.Color = Color3.fromRGB(235, 240, 255)
+	light.Shadows = true
+	light.Parent = phone
+	-- экран телефона светится
+	local glow = Instance.new("SurfaceLight")
+	glow.Face = Enum.NormalId.Front
+	glow.Range = 3
+	glow.Brightness = 0.6
+	glow.Color = Color3.fromRGB(160, 190, 255)
+	glow.Parent = phone
+	weldTo(hand, phone)
+	phone.Parent = npc.Model
 end
 
 -- Положить деталь в корзину, которую покупатель держит в левой руке (без корзины — остаётся в руке)

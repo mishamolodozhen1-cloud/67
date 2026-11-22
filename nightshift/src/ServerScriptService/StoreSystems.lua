@@ -422,6 +422,10 @@ local function spawnDelivery(t)
 			tape.Transparency = 1
 			prompt.Enabled = false
 			S.Net.Notify(player, "Отнесите поставку в зону приёмки на складе", "info")
+			-- v10: пока несёт коробку через подсобку — там кто-то есть
+			if S.Beast then
+				S.Beast.OnDeliveryPicked(player, S.Events.Night())
+			end
 		end
 	end)
 	-- когда коробку возвращают (бросили), снова показываем её с лентой
@@ -578,6 +582,9 @@ function StoreSystems.Init(m, services)
 			deliveryProp, deliveryPrompt = nil, nil
 		end
 		S.Tasks.ProgressKind("delivery", 1)
+		if S.Beast then
+			task.spawn(S.Beast.OnDeliveryDropped, player, S.Events.Night())
+		end
 	end)
 	prompts.Delivery.Enabled = false
 	-- Журнал смены

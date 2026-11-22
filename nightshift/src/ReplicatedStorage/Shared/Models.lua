@@ -50,7 +50,12 @@ Models.Credits = {
 	"«Microwave Oven» — MustafaYerebasmaz, CC BY 4.0",
 	"«wheelie bin game asset» — BLENDERBROCPT, CC BY 4.0",
 	"«Low Poly | Plastic Garbage Bags» — Anna Denisova, CC BY 4.0",
+	"существо: «New Breaking News Rig» — NO DONT EAT ME CASEOH (Ferris wheel), CC BY 4.0",
 }
+
+-- Существо из подсобки (v10): скелетная модель (53 кости, сетка 17 000 треугольников, рост 8.6),
+-- анимации — Shared/BeastAnims (кадры Bone.Transform, играет клиент)
+Models.Beast = { Id = 83140460125902, Height = 8.6 }
 
 -- Целые модели с текстурами (загружаются через InsertService:LoadAsset):
 --   Checkout — кассовый стол с лентой, кассовым аппаратом и денежным ящиком

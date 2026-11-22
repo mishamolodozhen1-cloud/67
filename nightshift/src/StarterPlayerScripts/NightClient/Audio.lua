@@ -30,7 +30,7 @@ local staticOn = false
 local cinematic = false
 local stepState = setmetatable({}, { __mode = "k" })
 
-local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Voice = "Voice", Music = "Music" }
+local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Sfx7 = "Sfx", Voice = "Voice", Voice2 = "Voice", Voice3 = "Voice", Music = "Music" }
 
 local function makeGroup(name)
 	local g = Instance.new("SoundGroup")

@@ -128,6 +128,12 @@ function Net.PAText(text, distort)
 	end)
 end
 
+-- Охранник (игрок) говорит сам с собой (v10): реплика из группы VoiceLines.Player или конкретная
+-- («Saw» — любая из группы, «Start3» — именно эта). player = nil — у всех
+function Net.PlayerVoice(player, line)
+	send("Effect", player, "Voice", { Line = line })
+end
+
 -- Визуальный эффект на клиенте (мигание ламп, поимка, концовка…)
 function Net.Effect(player, name, data)
 	send("Effect", player, name, data)

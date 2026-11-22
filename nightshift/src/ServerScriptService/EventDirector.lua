@@ -250,6 +250,11 @@ function E.FootstepsNear()
 	local a = rng:NextNumber(0, math.pi * 2)
 	local pos = root.Position + Vector3.new(math.cos(a), 0, math.sin(a)) * rng:NextNumber(14, 24)
 	S.Net.Sound(rng:NextNumber() < 0.6 and "StepsFar" or "Steps", Vector3.new(pos.X, 2, pos.Z), 0.55)
+	if rng:NextNumber() < 0.4 then
+		task.delay(2.2, function()
+			S.Net.PlayerVoice(player, "Noise")
+		end)
+	end
 end
 
 -- Лампы над игроком гаснут на минуту-две
@@ -427,6 +432,114 @@ function E.Vanish()
 	end)
 end
 
+-------------------------------------------------------------------------------
+-- v10: свет гаснет даже при покупателях — и в темноте что-то происходит
+-------------------------------------------------------------------------------
+-- Игроки внутри здания (не на парковке)
+local function playersInside()
+	local list = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		local root = Util.rootOf(p)
+		local room = root and S.Store.RoomAt(root.Position)
+		if room and room ~= "Парковка" then
+			table.insert(list, p)
+		end
+	end
+	return list
+end
+
+-- Люди реагируют на темноту: покупатели пугаются, охранник что-то говорит
+local function onDark(seconds)
+	local n = S.Customers.Panic(seconds)
+	for _, p in ipairs(playersInside()) do
+		task.delay(rng:NextNumber(1.4, 2.6), function()
+			S.Net.PlayerVoice(p, (n > 0 and rng:NextNumber() < 0.45) and "Calm" or "Dark")
+		end)
+	end
+end
+
+-- Что происходит в темноте
+local DARK_SCARES = {}
+
+-- Тяжёлые шаги проходят мимо через весь зал, покупатели ахают
+function DARK_SCARES.Steps()
+	local player = Util.pick(playersInside(), rng)
+	local root = player and Util.rootOf(player)
+	if not root then
+		return
+	end
+	local a = rng:NextNumber(0, math.pi * 2)
+	local side = Vector3.new(math.cos(a), 0, math.sin(a))
+	local from = root.Position + side * 16
+	local to = root.Position - side * 16
+	task.spawn(function()
+		for i = 0, 5 do
+			local p = from:Lerp(to, i / 5)
+			S.Net.Sound("BeastStep", Vector3.new(p.X, 1, p.Z), 0.75)
+			task.wait(0.85)
+		end
+	end)
+	task.delay(2, function()
+		S.Net.Sound("CrowdGasp", root.Position + side * 10 + Vector3.new(0, 4, 0), 0.7)
+		if rng:NextNumber() < 0.6 then
+			S.Net.PlayerVoice(player, "Noise")
+		end
+	end)
+end
+
+-- Оно стоит в ряду среди покупателей, пока свет не вернётся
+function DARK_SCARES.Stand()
+	local player = Util.pick(playersInside(), rng)
+	if player and not S.Beast.InDark(player) then
+		DARK_SCARES.Steps()
+	end
+end
+
+-- В темноте пропадает покупатель: крик — и только корзина на полу
+function DARK_SCARES.Taken()
+	if not S.Customers.Take() then
+		DARK_SCARES.Steps()
+	end
+end
+
+-- Рычание за спиной: обернёшься — скример
+function DARK_SCARES.Behind()
+	local player = Util.pick(playersInside(), rng)
+	if player then
+		S.Beast.Behind(player)
+	end
+end
+
+-- Вспышка: на миг видно, что оно прямо перед тобой
+function DARK_SCARES.Flash()
+	local player = Util.pick(playersInside(), rng)
+	if player and not S.Beast.Flash(player) then
+		DARK_SCARES.Steps()
+	end
+end
+
+-- Свет гаснет на seconds секунд; scare — что случится в темноте (или список — выбирается случайно)
+function E.Blackout(seconds, scare)
+	seconds = seconds or rng:NextNumber(10, 16)
+	if not S.Power.Blackout(seconds) then
+		return false
+	end
+	onDark(seconds)
+	if type(scare) == "table" then
+		scare = Util.pick(scare, rng)
+	end
+	local fn = scare and DARK_SCARES[scare]
+	if fn then
+		task.delay(rng:NextNumber(2.5, 4), function()
+			if not S.Power.IsOn() then
+				fn()
+			end
+		end)
+	end
+	return true
+end
+EventDirector.DarkScares = DARK_SCARES
+
 -- Объявления: обычные, замедленные и искажённые
 local function pa(line, distort)
 	if distort then
@@ -477,9 +590,29 @@ local function work(night)
 			E.Thief(false)
 		end)
 	end
+	-- поставка — каждую ночь (v10: пока несёшь её через подсобку, там кто-то есть)
 	if night <= 3 then
 		add(r(63, 72), "Delivery", E.Delivery)
+	else
+		add(r(100, 140), "Delivery", E.Delivery)
 	end
+	-- свет гаснет даже при покупателях, в темноте что-то происходит (v10)
+	-- (короткие, свет возвращается сам; в ночи 3–5 есть ещё долгие аварии со щитком — они в планах ночей)
+	local BLACKOUTS = {
+		[1] = { { r(150, 215), 10, "Steps" } },
+		[2] = { { r(95, 140), 12, { "Steps", "Stand" } }, { r(215, 265), 14, { "Stand", "Flash" } } },
+		[3] = { { r(70, 110), 14, { "Stand", "Taken" } }, { r(178, 205), 15, { "Behind", "Flash", "Taken" } } },
+		[4] = { { r(60, 90), 14, "Stand" }, { r(140, 175), 15, { "Taken", "Flash" } }, { r(230, 260), 16, { "Behind", "Stand" } } },
+		[5] = { { r(60, 100), 14, { "Stand", "Flash" } }, { r(130, 170), 15, "Taken" } },
+	}
+	for i, b in ipairs(BLACKOUTS[night] or {}) do
+		add(b[1], "Dark " .. i, function()
+			E.Blackout(b[2], b[3])
+		end)
+	end
+	add(300, "Late line", function()
+		S.Net.PlayerVoice(nil, "Late")
+	end)
 	if night <= 4 then
 		add(r(28, 48), "PA Discount", function()
 			pa("Discount", night == 4)
@@ -844,8 +977,20 @@ function EventDirector.Night()
 	return curNight
 end
 
+-- Шанс встречи с существом в подсобке (проверка раз в 3 игровые минуты), по ночам
+local LURK_CHANCE = { 0.03, 0.08, 0.12, 0.16, 0.2 }
+
 -- Вызывается каждую игровую минуту
 function EventDirector.OnMinute(minute)
+	if minute > 20 and minute % 3 == 0 and S.Beast and S.Net.Get("Phase") == "Shift" then
+		local chance = LURK_CHANCE[curNight] or 0.1
+		if curNight == 1 and minute < 200 then
+			chance = 0
+		end
+		if rng:NextNumber() < chance then
+			pcall(S.Beast.Lurk, curNight)
+		end
+	end
 	while queue[1] and queue[1].At <= minute do
 		local ev = table.remove(queue, 1)
 		local ok, err = pcall(ev.Fn)
@@ -901,6 +1046,20 @@ end
 
 function EventDirector.Init(m, services)
 	map, S = m, services
+	-- свет погас по аварии (щиток) — покупатели тоже пугаются; свет вернулся — успокаиваются (v10)
+	S.Power.OnCut = function()
+		onDark(30)
+	end
+	S.Power.OnRestored = function()
+		S.Customers.Calm()
+		for _, p in ipairs(playersInside()) do
+			if rng:NextNumber() < 0.5 then
+				task.delay(rng:NextNumber(0.6, 1.4), function()
+					S.Net.PlayerVoice(p, "Light")
+				end)
+			end
+		end
+	end
 	S.Net.Set("Music", "Normal")
 	S.Net.Set("CamAnomalies", false)
 end

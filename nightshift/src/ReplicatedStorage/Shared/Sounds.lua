@@ -3,6 +3,8 @@
 --   List  — короткие звуки. Несколько звуков склеены в один файл («спрайт»), а здесь записано,
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
+-- v10: существо, скример, отключение света, испуг покупателей — Soundza (Sfx7); голоса покупателей
+-- и охранника — синтез речи Piper (VoiceLines: Voice2, Voice3).
 -- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt, Whisper, GlassKnock, ShelfCrash.
 local Sounds = {}
 
@@ -16,6 +18,7 @@ Sounds.Files = {
 	Sfx4 = "rbxassetid://116252145157890", -- охрана: ворота, кассы самообслуживания, рация, обход, пакеты, одежда
 	Sfx5 = "rbxassetid://79699487349928", -- хоррор (v6): дыхание, шёпот, стук в стекло, ручка двери, скример, крик, обвал полки
 	Sfx6 = "rbxassetid://117732591615305", -- гроза (v8): дальний гром, близкий удар, треск неоновой вывески
+	Sfx7 = "rbxassetid://107569587775126", -- v10: существо, скример, отключение света, испуг покупателей
 }
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
@@ -116,7 +119,31 @@ Sounds.List = {
 	Thunder = { File = "Sfx6", Start = 0.02, Stop = 4.445, Loop = false, Volume = 0.8 }, -- дальний раскат
 	ThunderClose = { File = "Sfx6", Start = 5.045, Stop = 8.572, Loop = false, Volume = 0.8 }, -- близкий удар молнии
 	NeonBuzz = { File = "Sfx6", Start = 9.172, Stop = 10.065, Loop = false, Volume = 0.35 }, -- треск неоновой вывески
+	-- существо (v10, Soundza)
+	BeastRoar = { File = "Sfx7", Start = 0.02, Stop = 2.92, Loop = false, Volume = 1.0 }, -- рёв (анимация «roar»)
+	BeastGrowl = { File = "Sfx7", Start = 3.52, Stop = 5.72, Loop = false, Volume = 0.85 }, -- рычание
+	BeastGrowlLow = { File = "Sfx7", Start = 6.32, Stop = 9.52, Loop = false, Volume = 0.7 }, -- низкое рычание где-то рядом
+	BeastShriek = { File = "Sfx7", Start = 10.12, Stop = 11.22, Loop = false, Volume = 0.9 }, -- визг (скример)
+	BeastStep = { File = "Sfx7", Start = 11.82, Stop = 13.72, Loop = false, Volume = 0.8 }, -- тяжёлый шаг с эхом
+	BeastStomp = { File = "Sfx7", Start = 14.32, Stop = 14.709, Loop = false, Volume = 0.7 }, -- шаг при ходьбе
+	ScareSting = { File = "Sfx7", Start = 15.309, Stop = 17.909, Loop = false, Volume = 0.9 }, -- удар скримера
+	BoneCrack = { File = "Sfx7", Start = 18.509, Stop = 18.909, Loop = false, Volume = 0.8 }, -- хруст суставов
+	CrowdGasp = { File = "Sfx7", Start = 19.509, Stop = 20.659, Loop = false, Volume = 0.7 }, -- покупатели ахнули
+	WomanScream = { File = "Sfx7", Start = 21.259, Stop = 23.859, Loop = false, Volume = 0.75 }, -- крик в темноте
+	Blackout = { File = "Sfx7", Start = 24.459, Stop = 28.309, Loop = false, Volume = 0.8 }, -- свет гаснет
+	Breaker = { File = "Sfx7", Start = 28.909, Stop = 29.609, Loop = false, Volume = 0.8 }, -- щелчок автомата
 }
+
+-- Озвученные реплики покупателей и охранника (v10): спрайты Voice2/Voice3, ключ «<голос>_<реплика>»
+do
+	local VoiceLines = require(script.Parent:WaitForChild("VoiceLines"))
+	for file, id in pairs(VoiceLines.Files) do
+		Sounds.Files[file] = id
+	end
+	for key, c in pairs(VoiceLines.Clips) do
+		Sounds.List[key] = { File = c.File, Start = c.Start, Stop = c.Stop + 0.05, Loop = false, Volume = 0.95 }
+	end
+end
 
 -- Фоновые петли: отдельный файл, громкость
 Sounds.Loops = {

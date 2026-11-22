@@ -157,6 +157,12 @@ local function startShift()
 	S.Events.OnHour(0)
 	S.Tasks.OnHour(0)
 	S.Customers.OnShiftStart()
+	-- охранник говорит сам с собой в начале смены (v10)
+	task.delay(6, function()
+		if phase == "Shift" then
+			S.Net.PlayerVoice(nil, night >= 2 and "Start3" or (math.random() < 0.5 and "Start1" or "Start2"))
+		end
+	end)
 	local info = Texts.Nights[night]
 	S.Net.Notify(nil, string.format("Ночь %d — «%s». Смена до 06:00", night, info and info.Title or ""), "info")
 	S.Events.OnMinute(0)
@@ -191,6 +197,9 @@ local function endShift(kind)
 		S.Data.RecordShift(p, kind, stats)
 	end
 	S.Customers.Reset()
+	if S.Beast then
+		S.Beast.Reset()
+	end
 	S.Net.Effect(nil, "Ending", stats)
 	if kind == "Good" then
 		S.Net.PA("ShiftOver")
@@ -222,6 +231,9 @@ local function resetAll()
 	S.Monster.Reset()
 	S.Secrets.Reset()
 	S.Events.Reset()
+	if S.Beast then
+		S.Beast.Reset()
+	end
 	minutes = 0
 	publishClock()
 	S.Net.Set("Ending", "")

@@ -10,6 +10,8 @@ local Power = {}
 local map, S
 local down = {}
 local outageCount = 0
+local blackoutToken = 0 -- короткое отключение (v10): свет вернётся сам
+Power.OnRestored = nil -- вызывается, когда свет снова горит (покупатели успокаиваются)
 
 local GREEN = Color3.fromRGB(40, 220, 80)
 local RED = Color3.fromRGB(255, 40, 30)
@@ -75,6 +77,9 @@ function Power.Cut()
 	S.Net.Set("Power", false)
 	S.Net.Sound("PowerDown", nil, 1)
 	updatePanel()
+	if Power.OnCut then
+		task.spawn(Power.OnCut)
+	end
 	S.Tasks.Add({
 		Id = "power_" .. outageCount,
 		Kind = "power",
@@ -82,6 +87,29 @@ function Power.Cut()
 		Room = "Служебный коридор",
 		Count = 1,
 	})
+	return true
+end
+
+-- Короткое отключение (v10): весь свет гаснет на seconds секунд даже при покупателях, потом
+-- включается сам (автоматы не выбивает). Возвращает false, если света и так нет
+function Power.Blackout(seconds)
+	if not Power.IsOn() then
+		return false
+	end
+	blackoutToken = blackoutToken + 1
+	local token = blackoutToken
+	S.Net.Set("Power", false)
+	S.Net.Sound("Blackout", nil, 0.9)
+	task.delay(seconds or 12, function()
+		if token == blackoutToken and next(down) == nil and not Power.IsOn() then
+			S.Net.Set("Power", true)
+			S.Net.Sound("Breaker", nil, 0.6)
+			S.Net.Sound("FluorOn", nil, 0.8)
+			if Power.OnRestored then
+				task.spawn(Power.OnRestored)
+			end
+		end
+	end)
 	return true
 end
 
@@ -93,6 +121,9 @@ function Power.Restore(player)
 	end
 	S.Net.Set("Power", true)
 	S.Net.Sound("FluorOn", nil, 0.8)
+	if Power.OnRestored then
+		task.spawn(Power.OnRestored)
+	end
 	S.Tasks.ProgressKind("power", 1)
 	if player then
 		S.Net.Notify(nil, player.DisplayName .. " восстановил(а) электричество", "done")
@@ -100,6 +131,7 @@ function Power.Restore(player)
 end
 
 function Power.Reset()
+	blackoutToken = blackoutToken + 1
 	down = {}
 	outageCount = 0
 	S.Net.Set("Power", true)

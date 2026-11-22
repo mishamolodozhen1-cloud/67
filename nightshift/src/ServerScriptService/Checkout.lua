@@ -221,7 +221,7 @@ function Checkout.Help(k, player)
 		S.Net.Notify(player, "Вы помогли покупателю на кассе №" .. k.Index, "done")
 	end
 	if k.Customer and k.Customer.Alive then
-		S.Customers.Say(k.Customer, Util.pick({ "Спасибо!", "Спасибо, а то я уже испугался.", "Благодарю." }, rng))
+		S.Customers.Say(k.Customer, { "Thanks1", "Thanks5", "Thanks3" })
 	end
 	return true
 end
@@ -234,7 +234,7 @@ local function waitHelp(k, npc)
 		local waited = os.clock() - k.HelpSince
 		if not nagged and waited > 18 then
 			nagged = true
-			S.Customers.Say(npc, Util.pick({ "Тут есть кто-нибудь?", "Касса не работает…", "Позовите кого-нибудь!" }, rng))
+			S.Customers.Say(npc, { "Help1", "Help2", "Help3" })
 			NpcFactory.PlayAction(npc, "Look")
 		end
 		if waited > Config.HelpPatience then
@@ -334,7 +334,7 @@ function Checkout.Use(k, npc)
 		if helpAt == i and npc.Alive then
 			startHelp(k, Util.pick(HELP_REASONS, rng))
 			if not waitHelp(k, npc) then
-				S.Customers.Say(npc, Util.pick({ "Ладно, не буду ничего брать.", "Сами со своей кассой разбирайтесь.", "Ну и магазин…" }, rng))
+				S.Customers.Say(npc, { "Angry5", "Angry6", "Angry4" })
 				S.Shift.AddStat("LeftAngry")
 				Checkout.Finish(k)
 				return false
@@ -357,7 +357,7 @@ function Checkout.Use(k, npc)
 			task.wait(0.5)
 		end
 		if not S.Power.IsOn() then
-			S.Customers.Say(npc, "Без света тут ничего не работает…")
+			S.Customers.Say(npc, "NoPower")
 			S.Shift.AddStat("LeftAngry")
 			Checkout.Finish(k)
 			return false
@@ -389,7 +389,7 @@ function Checkout.Use(k, npc)
 		S.Net.Sound("ScanError", k.Reader.Position, 0.6)
 		startHelp(k, CARD_REASON)
 		if not waitHelp(k, npc) then
-			S.Customers.Say(npc, "Ну и ладно. Уйду без покупок.")
+			S.Customers.Say(npc, "Angry7")
 			S.Shift.AddStat("LeftAngry")
 			Checkout.Finish(k)
 			return false

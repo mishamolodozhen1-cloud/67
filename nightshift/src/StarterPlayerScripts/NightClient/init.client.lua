@@ -1,5 +1,5 @@
 -- NIGHT SHIFT — клиент (LocalScript «NightClient» в StarterPlayer.StarterPlayerScripts).
--- Дочерние ModuleScript: UI, Audio, Weather, HUD, Phone, Controls, CameraSystem, Effects, Cinematic.
+-- Дочерние ModuleScript: UI, Audio, Weather, HUD, Phone, Controls, CameraSystem, Effects, Cinematic, BeastClient.
 -- Здесь создаётся общая таблица ctx, загружаются настройки игрока и подключаются события сервера.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -92,6 +92,7 @@ ctx.Controls = require(script:WaitForChild("Controls"))
 ctx.Cameras = require(script:WaitForChild("CameraSystem"))
 ctx.Effects = require(script:WaitForChild("Effects"))
 ctx.Cinematic = require(script:WaitForChild("Cinematic"))
+ctx.Beast = require(script:WaitForChild("BeastClient"))
 
 function ctx.ApplySettings()
 	ctx.Audio.SetVolumes(ctx.Settings.Music, ctx.Settings.Sfx)
@@ -105,6 +106,7 @@ ctx.Phone.Init(ctx)
 ctx.Controls.Init(ctx)
 ctx.Cameras.Init(ctx)
 ctx.Cinematic.Init(ctx)
+ctx.Beast.Init(ctx)
 ctx.ApplySettings()
 
 -------------------------------------------------------------------------------
@@ -168,6 +170,19 @@ local EFFECTS = {
 	end,
 	Ending = function(stats)
 		ctx.Effects.Ending(stats)
+	end,
+	-- существо из подсобки и голос охранника (v10)
+	BeastScare = function()
+		ctx.Beast.Scare()
+	end,
+	BeastBehind = function()
+		ctx.Beast.Behind()
+	end,
+	BeastFlash = function(data)
+		ctx.Beast.Flash(data)
+	end,
+	Voice = function(data)
+		ctx.Beast.Voice(data and data.Line)
 	end,
 }
 

@@ -7,6 +7,9 @@
 -- «У стены» смотрит в стену, «Задом наперёд» ходит спиной вперёд, «Постоянный» каждую ночь берёт одно и то же,
 -- «Без лица» (ночи 4–5) идёт за игроком по пятам и исчезает, если подойти.
 -- По событиям все покупатели разом поворачиваются к игроку (TurnHeads) или исчезают (VanishAll).
+-- v10: у каждого покупателя свой голос (мужской M1/M2 или женский F1, своя высота тона) — реплики озвучены.
+-- Когда гаснет свет, покупатели пугаются (Panic): замирают, оглядываются, включают фонарик телефона,
+-- кто-то бросает корзину и уходит. Свет вернулся — успокаиваются (Calm).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
@@ -14,6 +17,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Products = require(Shared:WaitForChild("Products"))
 local Util = require(Shared:WaitForChild("Util"))
+local VoiceLines = require(Shared:WaitForChild("VoiceLines"))
 
 local CustomerManager = {}
 
@@ -24,22 +28,58 @@ local lastSpawn = 0
 local nextId = 0
 local closed = false -- после VanishAll покупатели не приходят до конца смены
 
-local GREET = { "Добрый вечер.", "Здравствуйте.", "Ночь сегодня тихая…", "О, открыто. Отлично." }
-local IMPATIENT = { "Есть кто на кассе?", "Долго ещё?", "Кассир, ау?", "Мне бы оплатить…" }
-local THANKS = { "Спасибо!", "Спасибо, хорошей смены.", "Благодарю.", "До свидания." }
-local ANGRY = { "Ну и обслуживание…", "Ладно, пойду в другой магазин.", "Безобразие." }
-local EMPTY = { "Хм, пусто…", "А где товар?" }
+-- реплики — ключи VoiceLines (текст и голос берутся оттуда)
+local GREET = { "Greet1", "Greet2", "Greet3", "Greet4" }
+local THANKS = { "Thanks1", "Thanks2", "Thanks3", "Thanks4" }
+local ANGRY = { "Angry1", "Angry2", "Angry3" }
+local EMPTY = { "Empty1", "Empty2" }
+local SHOP = { "Shop1", "Shop2", "Shop3", "Shop4" }
+local DARK = { "Dark1", "Dark2", "Dark3", "Dark4", "Dark5", "Dark6", "Dark7", "Dark8", "Dark9", "Dark10" }
+local LIGHT = { "Light1", "Light2", "Light3" }
+local BEAST_SEEN = { "Beast1", "Beast2", "Beast3" }
 
 function CustomerManager.All()
 	return customers
 end
 
-function CustomerManager.Say(npc, text)
-	NpcFactory.Say(npc, text, 3.5)
+-- Голос покупателя: мужчины — M1 или M2, женщины — F1; у каждого своя высота тона
+local function voiceOf(npc)
+	if not npc.Voice then
+		if npc.Male == false then
+			npc.Voice = "F1"
+			npc.VoicePitch = rng:NextNumber(0.96, 1.1)
+		else
+			npc.Voice = rng:NextNumber() < 0.5 and "M1" or "M2"
+			npc.VoicePitch = rng:NextNumber(0.9, 1.08)
+		end
+	end
+	local pitch = npc.VoicePitch
+	if npc.Weird then
+		pitch = pitch * 0.86 -- странные говорят ниже и медленнее
+	end
+	return npc.Voice, pitch
+end
+
+-- Сказать реплику. what — ключ VoiceLines («Greet1»), список ключей (берётся случайный)
+-- или просто текст (тогда без голоса, только надпись). suffix дописывается к надписи (номер заказа)
+function CustomerManager.Say(npc, what, suffix)
+	if not (npc and npc.Alive) then
+		return
+	end
+	local key = type(what) == "table" and Util.pick(what, rng) or what
+	local voice, pitch = voiceOf(npc)
+	local clip = VoiceLines.Clips[voice .. "_" .. tostring(key)]
+	if clip then
+		NpcFactory.Say(npc, clip.Text .. (suffix or ""), 3.5)
+		local head = npc.Model and npc.Model:FindFirstChild("Head")
+		S.Net.Sound(voice .. "_" .. key, head or npc.Root.Position, 1, nil, pitch)
+	else
+		NpcFactory.Say(npc, tostring(key) .. (suffix or ""), 3.5)
+	end
 end
 
 local function say(npc, list)
-	NpcFactory.Say(npc, Util.pick(list, rng), 3.5)
+	CustomerManager.Say(npc, list)
 end
 
 local function remove(npc)
@@ -157,16 +197,19 @@ end
 -- Походить по рядам и набрать товар
 local function shop(npc, stops)
 	for _ = 1, stops do
-		if not npc.Alive then
+		if not npc.Alive or npc.Flee then
 			return
 		end
 		local f = map.Facings[rng:NextInteger(1, #map.Facings)]
 		local z = math.clamp(f.ZCenter + rng:NextNumber(-3, 3), 1.5, 18.5)
 		goTo(npc, Vector3.new(f.Aisle, 0, z))
-		if not npc.Alive then
+		if not npc.Alive or npc.Flee then
 			return
 		end
 		NpcFactory.Face(npc, Vector3.new(f.Front.Position.X, 0, z))
+		if rng:NextNumber() < 0.2 then
+			say(npc, SHOP)
+		end
 		task.wait(rng:NextNumber(0.8, 2.2))
 		if f.Empty then
 			say(npc, EMPTY)
@@ -181,14 +224,14 @@ local function shop(npc, stops)
 			end
 		end
 	end
-	if npc.Alive and rng:NextNumber() < 0.45 then
+	if npc.Alive and not npc.Flee and rng:NextNumber() < 0.45 then
 		local fr = map.Fridges[rng:NextInteger(1, #map.Fridges)]
 		goTo(npc, fr.Front)
 		NpcFactory.Face(npc, fr.Front + Vector3.new(0, 0, -5))
 		task.wait(rng:NextNumber(1, 2.5))
 		takeItem(npc, Products.Random("Chilled", rng), nil)
 	end
-	if #npc.Items == 0 then
+	if #npc.Items == 0 and not npc.Flee then
 		takeItem(npc, Products.Random(nil, rng), nil)
 	end
 end
@@ -197,7 +240,7 @@ end
 local function selfCheckout(npc)
 	local k = S.Checkout.Free()
 	local t0 = os.clock()
-	while npc.Alive and not k do
+	while npc.Alive and not k and not npc.Flee do
 		-- все кассы заняты: стоит перед ними и ждёт
 		if not npc.WaitingSpot then
 			npc.WaitingSpot = Vector3.new(rng:NextNumber(-22, 20), 0, 27.5)
@@ -211,7 +254,7 @@ local function selfCheckout(npc)
 			return nil, false
 		end
 	end
-	if not npc.Alive then
+	if not npc.Alive or npc.Flee or not k then
 		return nil, false
 	end
 	k.State = "Reserved"
@@ -222,7 +265,7 @@ end
 
 local function finish(npc, k, paid)
 	if paid then
-		CustomerManager.Say(npc, npc.Weird and "До завтра. Вернее… до сегодня." or Util.pick(THANKS, rng))
+		CustomerManager.Say(npc, npc.Weird and "Weird1" or THANKS)
 		S.Shift.AddServed()
 	else
 		say(npc, ANGRY)
@@ -249,7 +292,13 @@ function BEHAVIOUR.Normal(npc)
 		say(npc, GREET)
 	end
 	shop(npc, rng:NextInteger(1, 3))
+	if npc.Flee then
+		return CustomerManager.FleeOut(npc)
+	end
 	local k, paid = selfCheckout(npc)
+	if npc.Flee and not paid then
+		return CustomerManager.FleeOut(npc)
+	end
 	finish(npc, k, paid)
 end
 
@@ -290,12 +339,12 @@ function BEHAVIOUR.Pickup(npc)
 		return
 	end
 	NpcFactory.Face(npc, map.Pickup.CustomerSpot + Vector3.new(0, 0, 5))
-	CustomerManager.Say(npc, Util.pick({ "Здравствуйте, я за заказом. Номер ", "Добрый вечер. Заказ ", "Мне заказ забрать, номер " }, rng) .. number .. ".")
+	CustomerManager.Say(npc, { "Order1", "Order2" }, " Номер " .. number .. ".")
 	local got = S.Security.WaitOrder(npc, number)
 	if got then
-		CustomerManager.Say(npc, Util.pick({ "Спасибо!", "Отлично, спасибо.", "Спасибо, хорошей смены." }, rng))
+		CustomerManager.Say(npc, { "Thanks1", "Thanks6", "Thanks2" })
 	else
-		CustomerManager.Say(npc, Util.pick({ "Ладно, заберу завтра.", "Долго у вас тут…" }, rng))
+		CustomerManager.Say(npc, { "Order6", "Order7" })
 	end
 	task.wait(1.2)
 	leave(npc, { Vector3.new(-46, 0, 42.5) })
@@ -394,7 +443,7 @@ function BEHAVIOUR.WallFacer(npc)
 		local root, d = nearestPlayer(npc.Root.Position, 9)
 		if root then
 			NpcFactory.Face(npc, root.Position)
-			CustomerManager.Say(npc, "Вы тоже здесь работаете?.. Давно?")
+			CustomerManager.Say(npc, "Weird2")
 			task.wait(3)
 			break
 		end
@@ -517,6 +566,123 @@ function CustomerManager.TurnHeads(seconds)
 		end
 	end)
 	return #list
+end
+
+-------------------------------------------------------------------------------
+-- Свет погас (v10)
+-------------------------------------------------------------------------------
+-- Бросить корзину и уйти из магазина (быстро)
+function CustomerManager.FleeOut(npc)
+	if not npc.Alive or npc.Fleeing then
+		return
+	end
+	npc.Fleeing = true
+	npc.Frozen = false
+	if npc.Basket then
+		local p = npc.Root.Position
+		NpcFactory.PlaceBasket(npc, Vector3.new(p.X + rng:NextNumber(-1, 1), 0.55, p.Z + rng:NextNumber(-1, 1)), math.rad(rng:NextNumber(0, 360)), map.Dynamic)
+	end
+	npc.Humanoid.WalkSpeed = Config.CustomerWalkSpeed + 6
+	leave(npc, nil)
+end
+
+-- Свет погас: все замирают, кто-то вскрикивает, оглядываются, включают фонарики телефонов;
+-- примерно каждый третий через несколько секунд бросает корзину и уходит. Возвращает число покупателей
+function CustomerManager.Panic(seconds)
+	local n = 0
+	for _, npc in ipairs(customers) do
+		if npc.Alive and not npc.Caught and not npc.Weird and not npc.Scared then
+			n = n + 1
+			npc.Scared = true
+			npc.Frozen = true
+			NpcFactory.StopActions(npc)
+			task.delay(rng:NextNumber(0.25, 1.6), function()
+				if npc.Alive and npc.Scared then
+					CustomerManager.Say(npc, DARK)
+					NpcFactory.PlayAction(npc, "Look")
+					NpcFactory.PhoneLight(npc, true)
+				end
+			end)
+			if rng:NextNumber() < 0.35 then
+				npc.Flee = true
+			end
+		end
+	end
+	if n >= 2 then
+		S.Net.Sound("CrowdGasp", Vector3.new(-12, 4, 20), 0.8)
+	end
+	-- оцепенение проходит: кто решил уйти — уходит, остальные стоят и ждут свет
+	task.delay(math.min(seconds or 8, rng:NextNumber(3, 5)), function()
+		for _, npc in ipairs(customers) do
+			if npc.Alive and npc.Scared and npc.Flee and not npc.Caught then
+				npc.Frozen = false
+				npc.Humanoid.WalkSpeed = Config.CustomerWalkSpeed + 6
+			end
+		end
+	end)
+	return n
+end
+
+-- Свет вернулся
+function CustomerManager.Calm()
+	local talkers = 0
+	for _, npc in ipairs(customers) do
+		if npc.Alive and npc.Scared then
+			npc.Scared = false
+			NpcFactory.PhoneLight(npc, false)
+			if not npc.Caught then
+				npc.Frozen = false
+			end
+			if not npc.Flee and talkers < 2 and rng:NextNumber() < 0.6 then
+				talkers = talkers + 1
+				task.delay(rng:NextNumber(0.4, 1.8), function()
+					CustomerManager.Say(npc, LIGHT)
+				end)
+			end
+		end
+	end
+end
+
+-- Существо рядом (в темноте): покупатели в радиусе кричат и убегают
+function CustomerManager.ReactBeast(pos, radius)
+	local n = 0
+	for _, npc in ipairs(customers) do
+		if npc.Alive and not npc.Caught and not npc.Weird and (npc.Root.Position - pos).Magnitude < (radius or 22) then
+			n = n + 1
+			npc.Flee = true
+			npc.Frozen = false
+			npc.Humanoid.WalkSpeed = Config.CustomerWalkSpeed + 7
+			task.delay(rng:NextNumber(0, 0.8), function()
+				CustomerManager.Say(npc, BEAST_SEEN)
+			end)
+		end
+	end
+	if n > 0 then
+		S.Net.Sound(rng:NextNumber() < 0.5 and "WomanScream" or "CrowdGasp", pos + Vector3.new(0, 4, 0), 0.9)
+	end
+	return n
+end
+
+-- В темноте пропадает один покупатель: крик, хруст — и только корзина на полу
+function CustomerManager.Take()
+	local list = {}
+	for _, npc in ipairs(customers) do
+		if npc.Alive and not npc.Caught and not npc.Weird then
+			table.insert(list, npc)
+		end
+	end
+	local npc = Util.pick(list, rng)
+	if not npc then
+		return false
+	end
+	local p = npc.Root.Position
+	S.Net.Sound(npc.Male == false and "WomanScream" or "BeastGrowl", p + Vector3.new(0, 4, 0), 1)
+	S.Net.Sound("BoneCrack", p + Vector3.new(0, 3, 0), 0.9)
+	if npc.Basket then
+		NpcFactory.PlaceBasket(npc, Vector3.new(p.X, 0.55, p.Z), math.rad(rng:NextNumber(0, 360)), map.Dynamic)
+	end
+	remove(npc)
+	return true
 end
 
 -- Все покупатели исчезают (пятая ночь после 03:00), новые больше не приходят
