@@ -753,13 +753,20 @@ local function buildCenter()
 			right = tasksPanel.AbsolutePosition.X
 		end
 		local gap = right - left - 24
-		if gap >= 250 * s then
+		if gap >= 180 * s then
 			local w = math.min(460 * s, gap)
 			notifyHolder.AnchorPoint = Vector2.new(0.5, 0)
 			notifyHolder.Position = UDim2.fromOffset(math.floor((left + right) / 2), 10)
 			notifyHolder.Size = UDim2.fromOffset(math.floor(w / s), 0)
 		else
-			local top = buttonsRow and (buttonsRow.AbsolutePosition.Y + buttonsRow.AbsoluteSize.Y - gui.AbsolutePosition.Y) or (178 * s)
+			-- под самой нижней панелью слева (часы, кнопки, кассы)
+			local top = 210 * s
+			for _, name in ipairs({ "Clock", "Buttons", "Kiosks" }) do
+				local o = main:FindFirstChild(name)
+				if o and o.Visible and o.AbsoluteSize.Y > 0 then
+					top = math.max(top, o.AbsolutePosition.Y + o.AbsoluteSize.Y - gui.AbsolutePosition.Y)
+				end
+			end
 			notifyHolder.AnchorPoint = Vector2.new(0, 0)
 			notifyHolder.Position = UDim2.fromOffset(14, math.floor(top + 8))
 			notifyHolder.Size = UDim2.fromOffset(250, 0)

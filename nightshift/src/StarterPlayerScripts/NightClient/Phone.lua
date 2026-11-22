@@ -57,15 +57,42 @@ local function corner(o, scale, px)
 	new("UICorner", { CornerRadius = UDim.new(scale or 0, px or 0) }, o)
 end
 
--- размер текста в пикселях от высоты экрана телефона
+-- Высота телефона в пикселях: 84% высоты окна на ПК, 94% на телефоне (там экран ниже).
+-- На узком (вертикальном) экране телефон не шире 90% ширины окна.
+local ASPECT = 0.485
+local function deviceHeight()
+	-- размер слоя телефона (он во весь экран, без отступа под верхнюю панель Roblox)
+	local v = gui and gui.AbsoluteSize or Vector2.zero
+	if v.X < 10 or v.Y < 10 then
+		local cam = workspace.CurrentCamera
+		v = cam and cam.ViewportSize or Vector2.zero
+	end
+	if v.X < 10 or v.Y < 10 then
+		v = Vector2.new(1280, 720)
+	end
+	local h = v.Y * (UI.IsTouch and 0.94 or 0.84)
+	h = math.min(h, v.X * 0.9 / ASPECT)
+	return math.max(200, math.floor(h))
+end
+
+local function layoutDevice()
+	if device then
+		local h = deviceHeight()
+		device.Size = UDim2.fromOffset(math.floor(h * ASPECT + 0.5), h)
+	end
+end
+
+-- размер текста в пикселях от высоты экрана телефона (на сенсорных экранах крупнее)
 local function px(k)
 	local h = screenFrame and screenFrame.AbsoluteSize.Y or 0
 	if h < 100 then
-		-- экран ещё не разложен: оценка по высоте окна
-		local cam = workspace.CurrentCamera
-		h = (cam and cam.ViewportSize.Y or 720) * 0.81
+		-- экран ещё не разложен: оценка по размеру телефона
+		h = deviceHeight() * 0.965
 	end
-	return math.max(9, math.floor(h * k + 0.5))
+	if UI.IsTouch then
+		return math.max(11, math.floor(h * k * 1.3 + 0.5))
+	end
+	return math.max(10, math.floor(h * k * 0.85 + 0.5))
 end
 
 -------------------------------------------------------------------------------
@@ -101,12 +128,12 @@ refreshList = function()
 	if not listScroll then
 		return
 	end
+	local rowH = px(0.1)
 	for _, c in ipairs(listScroll:GetChildren()) do
 		if c:IsA("GuiObject") then
 			c:Destroy()
 		end
 	end
-	local rowH = px(0.1)
 	local list = sortedChats()
 	if #list == 0 then
 		new("TextLabel", {
@@ -297,7 +324,7 @@ local function shownPosition()
 end
 
 local function hiddenPosition()
-	return UI.IsTouch and UDim2.new(0.56, 0, 1.8, 0) or UDim2.new(0.7, 0, 1.8, 0)
+	return UI.IsTouch and UDim2.new(0.58, 0, 2, 0) or UDim2.new(0.72, 0, 2, 0)
 end
 
 local function updateStatus()
@@ -322,11 +349,13 @@ function Phone.Open(chatName)
 	if not open then
 		ctx.HUD.CloseModals(true)
 		open = true
+		layoutDevice()
 		gui.Enabled = true
 		device.Position = hiddenPosition()
-		device.Rotation = 16
 		ctx.Audio.Play("ClothRustle", nil, 0.5)
-		TweenService:Create(device, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = shownPosition(), Rotation = -2 }):Play()
+		-- выезжает из кармана (снизу справа) и чуть «пружинит» в руке.
+		-- Без поворота: у повёрнутых рамок Roblox не обрезает содержимое, и переписка вылезала бы за экран
+		TweenService:Create(device, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = shownPosition() }):Play()
 		modalButton.Visible = true
 	end
 	updateStatus()
@@ -337,9 +366,15 @@ function Phone.Open(chatName)
 	else
 		showList()
 	end
-	task.delay(0.55, function()
+	-- лёгкое покачивание в руке после того, как телефон достали
+	task.delay(0.5, function()
 		if token == animToken and open then
-			TweenService:Create(device, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { Rotation = 0 }):Play()
+			local p = shownPosition()
+			TweenService:Create(device, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { Position = p + UDim2.fromOffset(0, 4) }):Play()
+			task.wait(0.35)
+			if token == animToken and open then
+				TweenService:Create(device, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Position = p }):Play()
+			end
 		end
 	end)
 end
@@ -353,7 +388,7 @@ function Phone.Close()
 	local token = animToken
 	modalButton.Visible = false
 	ctx.Audio.Play("ClothSwish", nil, 0.5)
-	TweenService:Create(device, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = hiddenPosition(), Rotation = 14 }):Play()
+	TweenService:Create(device, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = hiddenPosition() }):Play()
 	task.delay(0.4, function()
 		if token == animToken and not open then
 			gui.Enabled = false
@@ -421,11 +456,12 @@ function Phone.Init(c)
 	device = new("Frame", {
 		Name = "Device",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Size = UDim2.fromScale(0, 0.84),
-		Position = UDim2.new(0.7, 0, 1.8, 0),
+		Size = UDim2.fromOffset(300, 620),
+		Position = UDim2.new(0.72, 0, 2, 0),
 		BackgroundColor3 = Color3.fromRGB(16, 16, 18),
+		Active = true, -- касания по телефону не крутят камеру
 	}, gui)
-	new("UIAspectRatioConstraint", { AspectRatio = 0.485, DominantAxis = Enum.DominantAxis.Height }, device)
+	layoutDevice()
 	corner(device, 0.13)
 	new("UIStroke", { Color = Color3.fromRGB(70, 72, 78), Thickness = 2 }, device)
 	-- кнопки громкости и питания на боках
@@ -553,15 +589,28 @@ function Phone.Init(c)
 	home.Activated:Connect(Phone.Close)
 	-- время и заряд в строке состояния
 	ctx.State:GetAttributeChangedSignal("Minutes"):Connect(updateStatus)
-	-- при смене размера окна размеры текста в списке и чате пересчитываются
+	-- размер телефона следует за размером окна
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutDevice)
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(layoutDevice)
+	-- при смене размера окна размеры текста в списке и чате пересчитываются.
+	-- Не сразу, а после текущего кадра: чтение AbsoluteSize внутри перестройки само может вызвать
+	-- этот сигнал, и список строился бы дважды
+	local pending = false
 	screenFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		if open then
-			if current then
-				refreshChat()
-			else
-				refreshList()
-			end
+		if pending then
+			return
 		end
+		pending = true
+		task.defer(function()
+			pending = false
+			if open then
+				if current then
+					refreshChat()
+				else
+					refreshList()
+				end
+			end
+		end)
 	end)
 end
 
