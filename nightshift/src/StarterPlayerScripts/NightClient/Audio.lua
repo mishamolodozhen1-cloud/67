@@ -28,9 +28,10 @@ local musicWarp
 local threat = 0
 local staticOn = false
 local cinematic = false
+local inCar = false -- v12: камера кат-сцены в салоне машины — улица слышна глухо, эхо маленького салона
 local stepState = setmetatable({}, { __mode = "k" })
 
-local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Sfx7 = "Sfx", Voice = "Voice", Voice2 = "Voice", Voice3 = "Voice", Music = "Music" }
+local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Sfx7 = "Sfx", Sfx8 = "Sfx", Voice = "Voice", Voice2 = "Voice", Voice3 = "Voice", Voice4 = "Voice", Music = "Music" }
 
 local function makeGroup(name)
 	local g = Instance.new("SoundGroup")
@@ -197,6 +198,11 @@ end
 -- Кат-сцена сама управляет музыкой
 function Audio.SetCinematic(on)
 	cinematic = on
+end
+
+-- Камера в салоне машины (кат-сцена): дождь снаружи глухой, ветра и города почти не слышно
+function Audio.SetInCar(on)
+	inCar = on == true
 end
 
 function Audio.Bed(name)
@@ -411,9 +417,9 @@ function Audio.Init(c)
 			local musicMode = state:GetAttribute("Music") or "Normal"
 			local cam = workspace.CurrentCamera
 			local zone = zoneOf(cam and cam.CFrame.Position or Vector3.new(0, 0, 0))
-			local inside = zone ~= "Outside"
+			local inside = zone ~= "Outside" or inCar
 			pcall(function()
-				SoundService.AmbientReverb = REVERB[zone]
+				SoundService.AmbientReverb = inCar and Enum.ReverbType.PaddedCell or REVERB[zone]
 			end)
 
 			-- Гул оборудования: молчит без электричества, у сломанного холодильника тоже
@@ -430,7 +436,7 @@ function Audio.Init(c)
 
 			-- Улица: дождь, ветер, город. Внутри — глухо
 			-- уровни фона (v7: всё тише, особенно гул машин и техники)
-			approach(beds.RainOutside, inside and 0.2 or 0.5, 0.25)
+			approach(beds.RainOutside, inCar and 0.1 or (inside and 0.2 or 0.5), 0.25)
 			if rainEq then
 				rainEq.HighGain = inside and -26 or 0
 				rainEq.MidGain = inside and -10 or 0

@@ -8,6 +8,7 @@ VOICES_DIR — папка с моделями ru_RU-*.onnx(.json). В OUT_DIR п
   clips/<голос>_<ключ>.wav   — отдельные реплики (для проверки распознаванием речи)
   Voice2.ogg                 — мужские голоса покупателей (M1, M2)
   Voice3.ogg                 — женский голос покупателей (F1) и голос охранника (P)
+  Voice4.ogg                 — (v12) герой кат-сцены (H), если есть готовые clips/H_<ключ>.wav из ElevenLabs
   voice_index.json           — где в спрайте лежит каждая реплика (файл, начало, конец, текст)
 
 Обработка каждой реплики: тишина по краям срезается, срез НЧ ниже 90 Гц, громкость выравнивается
@@ -96,13 +97,19 @@ def main():
     for key, text in VL.PLAYER.items():
         plan.append(("P", key, text, False))
     reuse = "--reuse" in sys.argv
+    # v12: реплики героя кат-сцены — только готовые записи ElevenLabs (clips/H_<ключ>.wav), Piper их не делает
+    hero = [k for k in VL.HERO if os.path.exists(os.path.join(out, "clips", f"H_{k}.wav"))]
+    for key in hero:
+        plan.append(("H", key, VL.HERO[key][0], False))
     for v, key, text, nervous in plan:
-        cfg = VL.VOICES[v]
+        cfg = VL.VOICES.get(v)
         path = os.path.join(out, "clips", f"{v}_{key}.wav")
         if reuse and os.path.exists(path):
             with wave.open(path, "rb") as r:
                 y = np.frombuffer(r.readframes(r.getnframes()), dtype=np.int16).astype(np.float32) / 32768
             clips[(v, key)] = (y, text)
+            continue
+        if cfg is None:
             continue
         if cfg["model"] not in models:
             models[cfg["model"]] = PiperVoice.load(os.path.join(vdir, cfg["model"] + ".onnx"))
@@ -111,6 +118,8 @@ def main():
         clips[(v, key)] = (y, text)
         save_wav(os.path.join(out, "clips", f"{v}_{key}.wav"), y)
     files = {"Voice2": ["M1", "M2"], "Voice3": ["F1", "P"]}
+    if hero:
+        files["Voice4"] = ["H"]  # v12: герой кат-сцены
     index = {}
     for fname, voices in files.items():
         parts = []

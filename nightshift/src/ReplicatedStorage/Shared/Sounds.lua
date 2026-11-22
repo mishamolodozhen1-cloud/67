@@ -4,7 +4,7 @@
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
 -- v10: существо, скример, отключение света, испуг покупателей — Soundza (Sfx7); голоса покупателей
--- и охранника — ElevenLabs (v11; VoiceLines: Voice2, Voice3).
+-- и охранника — ElevenLabs (v11; VoiceLines: Voice2, Voice3). v12: звуки кат-сцены — Soundza (Sfx8).
 -- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt, Whisper, GlassKnock, ShelfCrash.
 local Sounds = {}
 
@@ -19,6 +19,7 @@ Sounds.Files = {
 	Sfx5 = "rbxassetid://79699487349928", -- хоррор (v6): дыхание, шёпот, стук в стекло, ручка двери, скример, крик, обвал полки
 	Sfx6 = "rbxassetid://117732591615305", -- гроза (v8): дальний гром, близкий удар, треск неоновой вывески
 	Sfx7 = "rbxassetid://107569587775126", -- v10: существо, скример, отключение света, испуг покупателей
+	Sfx8 = "rbxassetid://138294877512619", -- v12 (кат-сцена): салон машины, радио, датчик дверей, телефон
 }
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
@@ -132,6 +133,14 @@ Sounds.List = {
 	WomanScream = { File = "Sfx7", Start = 21.259, Stop = 23.859, Loop = false, Volume = 0.75 }, -- крик в темноте
 	Blackout = { File = "Sfx7", Start = 24.459, Stop = 28.309, Loop = false, Volume = 0.8 }, -- свет гаснет
 	Breaker = { File = "Sfx7", Start = 28.909, Stop = 29.609, Loop = false, Volume = 0.8 }, -- щелчок автомата
+	-- v12: кат-сцена (Sfx8, tools/sfx8.py)
+	CarRain = { File = "Sfx8", Start = 0.02, Stop = 14.02, Loop = true, Volume = 0.5 }, -- дождь по крыше и стёклам (в салоне)
+	CarEngine = { File = "Sfx8", Start = 14.62, Stop = 26.62, Loop = true, Volume = 0.42 }, -- мотор и шины изнутри салона
+	RadioStatic = { File = "Sfx8", Start = 27.22, Stop = 31.92, Loop = false, Volume = 0.45 }, -- радио теряет волну
+	RadioOff = { File = "Sfx8", Start = 32.52, Stop = 32.88, Loop = false, Volume = 0.7 }, -- щелчок кнопки радио
+	DoorSensor = { File = "Sfx8", Start = 33.48, Stop = 34.03, Loop = false, Volume = 0.5 }, -- датчик дверей заметил человека
+	PhoneBuzz = { File = "Sfx8", Start = 34.63, Stop = 35.573, Loop = false, Volume = 0.7 }, -- вибрация телефона
+	TurnSignal = { File = "Sfx8", Start = 36.173, Stop = 40.923, Loop = true, Volume = 0.4 }, -- поворотник
 }
 
 -- Озвученные реплики покупателей и охранника (v10): спрайты Voice2/Voice3, ключ «<голос>_<реплика>»

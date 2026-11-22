@@ -28,7 +28,12 @@ def main():
         plans[v] = {"order": [k for k, _, _ in lines], "texts": {k: t for k, t, _ in lines}, "script": script(lines)}
     lines = [(k, t, VL.PLAYER_TAGS.get(k)) for k, t in VL.PLAYER.items()]
     plans["P"] = {"order": [k for k, _, _ in lines], "texts": {k: t for k, t, _ in lines}, "script": script(lines)}
-    json.dump({"plans": plans, "voices": VL.ELEVEN_VOICES}, sys.stdout, ensure_ascii=False, indent=1)
+    # v12: герой кат-сцены (тот же голос, что у охранника, — Dzmitry)
+    lines = [(k, t, tag) for k, (t, tag) in VL.HERO.items()]
+    plans["H"] = {"order": [k for k, _, _ in lines], "texts": {k: t for k, t, _ in lines}, "script": script(lines)}
+    voices = dict(VL.ELEVEN_VOICES)
+    voices["H"] = VL.ELEVEN_VOICES["P"]
+    json.dump({"plans": plans, "voices": voices}, sys.stdout, ensure_ascii=False, indent=1)
 
 
 if __name__ == "__main__":
