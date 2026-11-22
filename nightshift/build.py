@@ -70,6 +70,20 @@ def build():
     services.append(ws)
     # Освещение Future (реалистичные тени и отражения) можно включить только в файле плейса
     services.append(Inst("Lighting", "Lighting", [("token", "Technology", 4)]))
+    # Материалы: новые материалы Roblox 2022 и свои PBR-материалы (цвет + нормали + шероховатость).
+    # Скрипты не могут создавать MaterialVariant, поэтому они лежат прямо в файле плейса.
+    ms = Inst("MaterialService", "MaterialService", [("bool", "Use2022MaterialsXml", True)])
+    for name, base, maps, studs in MATERIAL_VARIANTS:
+        ms.add(Inst("MaterialVariant", name, [
+            ("token", "BaseMaterial", base),
+            ("string", "ColorMap", "rbxassetid://" + maps[0]),
+            ("string", "NormalMap", "rbxassetid://" + maps[1]),
+            ("string", "RoughnessMap", "rbxassetid://" + maps[2]),
+            ("string", "MetalnessMap", ""),
+            ("float", "StudsPerTile", studs),
+            ("token", "MaterialPattern", 0),
+        ]))
+    services.append(ms)
 
     rs = Inst("ReplicatedStorage", "ReplicatedStorage")
     shared = rs.add(Inst("Folder", "Shared"))
@@ -117,11 +131,24 @@ def build():
     print(f"Собрано: {OUT_BIN} ({len(data)} байт)")
 
 
+# PBR-материалы (текстуры Poly Haven, CC0; потолочные плиты нарисованы скриптом).
+# (имя, базовый материал Enum.Material.Value, (цвет, нормали, шероховатость), studs на повтор)
+MATERIAL_VARIANTS = [
+    ("NS_FloorTile", 256, ("78226505031361", "71404533689007", "89723032576121"), 9),  # Plastic: плитка зала
+    ("NS_Ceiling", 256, ("76354967202936", "84332208122328", "101382463884129"), 4.4),  # Plastic: подвесной потолок
+    ("NS_Plaster", 2310, ("136713440577726", "77655744825549", "136989119425444"), 12),  # Plaster: крашеная штукатурка
+    ("NS_Block", 816, ("114404470510849", "89432655660544", "133584827294486"), 9),  # Concrete: стены из блоков
+    ("NS_ConcreteFloor", 816, ("137878088872811", "108197895494798", "125621303653678"), 14),  # Concrete: бетонный пол
+    ("NS_Asphalt", 1376, ("130458864943861", "125936696621003", "136586065268293"), 16),  # Asphalt: парковка, дорога
+    ("NS_Brick", 848, ("79240295842691", "79974312309024", "93237243571983"), 8),  # Brick: стены двора
+    ("NS_Pavers", 836, ("125022796316809", "94404862933997", "106777564124524"), 6),  # Pavement: тротуарная плитка
+]
+
 ###############################################################################
 # Бинарный формат .rbxl (именно его принимает Open Cloud при публикации).
 ###############################################################################
 
-SERVICES = {"Workspace", "Lighting", "ReplicatedStorage", "ServerScriptService", "StarterPlayer"}
+SERVICES = {"Workspace", "Lighting", "ReplicatedStorage", "ServerScriptService", "StarterPlayer", "MaterialService"}
 
 TYPE_IDS = {
     "string": 0x01,

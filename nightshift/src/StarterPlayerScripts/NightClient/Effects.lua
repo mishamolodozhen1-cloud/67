@@ -410,6 +410,20 @@ function Effects.UpdateClocks()
 	end
 end
 
+-- Вывеска мигает несколько раз подряд (для кат-сцены: синхронно с треском неона)
+function Effects.SignFlicker(count)
+	task.spawn(function()
+		for _ = 1, count or 4 do
+			signDim = 0.05 + math.random() * 0.25
+			setSigns(powerOn() and signDim or 0)
+			task.wait(math.random(4, 10) / 100)
+			signDim = 1
+			setSigns(powerOn() and 1 or 0)
+			task.wait(math.random(6, 20) / 100)
+		end
+	end)
+end
+
 -- Вывеска иногда слегка мерцает (неисправный пускатель)
 local function signFlickerLoop()
 	while true do

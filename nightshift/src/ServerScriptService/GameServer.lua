@@ -41,11 +41,12 @@ local function setupLighting()
 	Lighting.Brightness = 0.35
 	Lighting.Ambient = Color3.fromRGB(12, 12, 16)
 	Lighting.OutdoorAmbient = Color3.fromRGB(34, 40, 54)
-	Lighting.EnvironmentDiffuseScale = 0.35
+	-- v8: отражения окружения сильнее (PBR-материалы блестят под лампами), тени чётче
+	Lighting.EnvironmentDiffuseScale = 0.45
 	Lighting.EnvironmentSpecularScale = 1
 	Lighting.GlobalShadows = true
-	Lighting.ShadowSoftness = 0.3
-	Lighting.ExposureCompensation = 0.15
+	Lighting.ShadowSoftness = 0.18
+	Lighting.ExposureCompensation = 0.1
 	for _, c in ipairs(Lighting:GetChildren()) do
 		if c:IsA("PostEffect") or c:IsA("Atmosphere") or c:IsA("Sky") then
 			c:Destroy()
@@ -59,11 +60,17 @@ local function setupLighting()
 	atmosphere.Glare = 0
 	atmosphere.Haze = 2.2
 	atmosphere.Parent = Lighting
+	-- мягкое свечение вокруг ламп, вывески и фар
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.7
-	bloom.Size = 30
-	bloom.Threshold = 1.25
+	bloom.Intensity = 0.6
+	bloom.Size = 40
+	bloom.Threshold = 1.05
 	bloom.Parent = Lighting
+	-- лёгкие «лучи» от уличных фонарей и вывески в дождь
+	local rays = Instance.new("SunRaysEffect")
+	rays.Intensity = 0.02
+	rays.Spread = 0.6
+	rays.Parent = Lighting
 	local dof = Instance.new("DepthOfFieldEffect")
 	dof.Name = "DepthOfField"
 	dof.FarIntensity = 0.08
@@ -83,9 +90,10 @@ local function setupLighting()
 	clouds.Parent = workspace.Terrain
 	local cc = Instance.new("ColorCorrectionEffect")
 	cc.Name = "Grade"
-	cc.Saturation = -0.12
-	cc.Contrast = 0.1
-	cc.TintColor = Color3.fromRGB(236, 242, 248)
+	cc.Saturation = -0.1
+	cc.Contrast = 0.14
+	cc.Brightness = 0.01
+	cc.TintColor = Color3.fromRGB(234, 241, 250)
 	cc.Parent = Lighting
 end
 

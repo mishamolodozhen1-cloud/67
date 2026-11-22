@@ -135,7 +135,45 @@ local function tex(part, face, image, u, v, offU, color)
 end
 
 -- Обтянуть грани детали текстурой материала (studs — размер одной плитки в стадах)
+-- v8: PBR-материалы (MaterialVariant лежат в MaterialService — их кладёт в плейс build.py).
+-- Если материал есть, деталь получает его вместо плоской картинки на гранях.
+local MaterialService = game:GetService("MaterialService")
+local function variant(part, name, material, color)
+	if not MaterialService:FindFirstChild(name) then
+		return false
+	end
+	part.Material = material
+	part.MaterialVariant = name
+	if color then
+		part.Color = color
+	end
+	for _, d in ipairs(part:GetChildren()) do
+		if d:IsA("Texture") then
+			d:Destroy()
+		end
+	end
+	return true
+end
+
+-- картинка -> { материал, базовый материал, цвет по умолчанию } (на полу бетонная картинка — бетонный пол)
+local SURFACE_VARIANTS = {
+	[I.FloorTile] = { "NS_FloorTile", M.Plastic, rgb(236, 236, 232) },
+	[I.CeilingPanels] = { "NS_Ceiling", M.Plastic, rgb(244, 244, 240) },
+	[I.PaintedWall] = { "NS_Plaster", Enum.Material.Plaster },
+	[I.ConcreteWall] = { "NS_Block", M.Concrete },
+}
+
 local function skin(part, image, studs, faces, color)
+	local v = SURFACE_VARIANTS[image]
+	if v then
+		local name = v[1]
+		if image == I.ConcreteWall and #faces == 1 and faces[1] == N.Top then
+			name = "NS_ConcreteFloor"
+		end
+		if variant(part, name, v[2], color or v[3]) then
+			return part
+		end
+	end
 	for _, face in ipairs(faces) do
 		tex(part, face, image, studs, studs, 0, color)
 	end
@@ -611,12 +649,11 @@ local function buildShell(root, map)
 	skin(wh, I.ConcreteWall, 14, { N.Top }, rgb(170, 170, 166))
 	local c1 = B(f, "FloorCorridor", -18, -1, -64, -10, 0, -12, rgb(150, 156, 148), M.SmoothPlastic, { Reflectance = 0.02 })
 	skin(c1, I.FloorTile, 5, { N.Top }, rgb(170, 178, 168))
-	local c2 = B(f, "FloorCorridor2", -10, -1, -40, 40, 0, -34, rgb(150, 156, 148), M.SmoothPlastic, { Reflectance = 0.02 })
-	skin(c2, I.FloorTile, 5, { N.Top }, rgb(170, 178, 168))
-	B(f, "FloorSecurity", -10, -1, -34, 12, 0, -12, rgb(84, 86, 92), M.Carpet)
-	B(f, "FloorStaff", 12, -1, -34, 40, 0, -12, rgb(170, 150, 120), M.WoodPlanks)
-	B(f, "FloorCold", -10, -1, -64, 12, 0, -40, rgb(176, 180, 186), M.DiamondPlate)
-	B(f, "FloorOffice", 12, -1, -64, 40, 0, -40, rgb(64, 70, 88), M.Carpet)
+	-- v8: подсобка проще — без второго коридора и отдельной комнаты охраны. Из служебного коридора —
+	-- в комнату персонала (там же пульт видеонаблюдения), из неё — в холодильную камеру и к директору
+	B(f, "FloorStaff", -10, -1, -34, 40, 0, -12, rgb(170, 150, 120), M.WoodPlanks)
+	B(f, "FloorCold", -10, -1, -64, 12, 0, -34, rgb(176, 180, 186), M.DiamondPlate)
+	B(f, "FloorOffice", 12, -1, -64, 40, 0, -34, rgb(64, 70, 88), M.Carpet)
 
 	-- Наружные стены
 	local ext = rgb(150, 150, 146)
@@ -637,16 +674,14 @@ local function buildShell(root, map)
 	wallX(f, "WallBackSales", -12, -66, 40, 0, 16, { { -46, -38, 9 }, { -16, -12, 8.5 } }, C.Wall, M.Plaster, 1, PAINT)
 	-- Подсобка: бетонные стены
 	wallZ(f, "WallWarehouseE", -18, -64, -12, 0, 16, { { -42, -38, 8.5 } }, C.WallBack, M.Concrete, 0.6, CONCRETE)
-	wallZ(f, "WallCorridorE", -10, -64, -12, 0, 16, { { -40, -34, 10 } }, C.WallBack, M.Plaster, 0.6, CONCRETE)
-	wallX(f, "WallC2North", -34, -10, 40, 0, 16, { { -1, 3, 8.5 }, { 24, 28, 8.5 } }, C.WallBack, M.Plaster, 0.6, CONCRETE)
-	wallX(f, "WallC2South", -40, -10, 40, 0, 16, { { -1.5, 3, 8.5 }, { 24, 28, 8.5 } }, C.WallBack, M.Plaster, 0.6, CONCRETE)
-	wallZ(f, "WallSecStaff", 12, -34, -12, 0, 16, {}, C.WallBack, M.Plaster, 0.6, PAINT)
-	wallZ(f, "WallColdOffice", 12, -64, -40, 0, 16, {}, C.WallBack, M.Plaster, 0.6, PAINT)
+	wallZ(f, "WallCorridorE", -10, -64, -12, 0, 16, { { -21.5, -17, 8.5 } }, C.WallBack, M.Plaster, 0.6, CONCRETE)
+	wallX(f, "WallStaffSouth", -34, -10, 40, 0, 16, { { -1, 3, 8.5 }, { 24, 28, 8.5 } }, C.WallBack, M.Plaster, 0.6, PAINT)
+	wallZ(f, "WallColdOffice", 12, -64, -34, 0, 16, {}, C.WallBack, M.Plaster, 0.6, PAINT)
 
 	-- Потолки: подвесные плиты в зале, простые плиты в подсобке
 	local ceil = B(f, "CeilingSales", -66, 15, -12, 40, 15.4, 50, C.Ceiling, M.SmoothPlastic)
 	skin(ceil, I.CeilingPanels, 16, { N.Bottom })
-	for _, r in ipairs({ { -18, -10, -64, -12 }, { -10, 40, -40, -34 }, { -10, 12, -34, -12 }, { 12, 40, -34, -12 }, { -10, 12, -64, -40 }, { 12, 40, -64, -40 } }) do
+	for _, r in ipairs({ { -18, -10, -64, -12 }, { -10, 40, -34, -12 }, { -10, 12, -64, -34 }, { 12, 40, -64, -34 } }) do
 		local c = B(f, "CeilingBack", r[1], 10, r[3], r[2], 10.4, r[4], rgb(214, 214, 208), M.SmoothPlastic)
 		skin(c, I.CeilingPanels, 16, { N.Bottom }, rgb(200, 200, 194))
 	end
@@ -680,11 +715,9 @@ local function buildShell(root, map)
 		{ Name = "Торговый зал", Min = Vector3.new(-66, -2, -12), Max = Vector3.new(40, 20, 50) },
 		{ Name = "Склад", Min = Vector3.new(-66, -2, -64), Max = Vector3.new(-18, 20, -12) },
 		{ Name = "Служебный коридор", Min = Vector3.new(-18, -2, -64), Max = Vector3.new(-10, 20, -12) },
-		{ Name = "Коридор", Min = Vector3.new(-10, -2, -40), Max = Vector3.new(40, 20, -34) },
-		{ Name = "Охрана", Min = Vector3.new(-10, -2, -34), Max = Vector3.new(12, 20, -12) },
-		{ Name = "Комната персонала", Min = Vector3.new(12, -2, -34), Max = Vector3.new(40, 20, -12) },
-		{ Name = "Холодильная камера", Min = Vector3.new(-10, -2, -64), Max = Vector3.new(12, 20, -40) },
-		{ Name = "Кабинет менеджера", Min = Vector3.new(12, -2, -64), Max = Vector3.new(40, 20, -40) },
+		{ Name = "Комната персонала", Min = Vector3.new(-10, -2, -34), Max = Vector3.new(40, 20, -12) },
+		{ Name = "Холодильная камера", Min = Vector3.new(-10, -2, -64), Max = Vector3.new(12, 20, -34) },
+		{ Name = "Кабинет менеджера", Min = Vector3.new(12, -2, -64), Max = Vector3.new(40, 20, -34) },
 		{ Name = "Задний двор", Min = Vector3.new(-40, -2, -92), Max = Vector3.new(10, 30, -64) },
 		{ Name = "Парковка", Min = Vector3.new(-90, -2, 50), Max = Vector3.new(70, 30, 132) },
 	}
@@ -906,10 +939,10 @@ local function buildFront(root, map)
 	sign(hours, N.Back, Texts.StoreName .. "\nПн–Вс 00:00–24:00\nМы никогда не закрываемся", { color = Color3.new(1, 1, 1), ppS = 50 })
 
 	-- Тротуар, бордюр, парковка, дорога, тротуар напротив
-	B(f, "Sidewalk", -160, -1, 50.6, 160, 0.3, 58, rgb(120, 120, 118), M.Concrete)
+	variant(B(f, "Sidewalk", -160, -1, 50.6, 160, 0.3, 58, rgb(120, 120, 118), M.Concrete), "NS_Pavers", M.Pavement, rgb(170, 168, 164))
 	B(f, "Curb", -160, -1, 58, 160, 0.35, 58.6, rgb(160, 160, 156), M.Concrete)
-	B(f, "Parking", -160, -1.2, 58.6, 160, 0, 120, rgb(38, 38, 40), M.Asphalt)
-	B(f, "Road", -260, -1.3, 120, 260, -0.05, 134, rgb(30, 30, 32), M.Asphalt)
+	variant(B(f, "Parking", -160, -1.2, 58.6, 160, 0, 120, rgb(38, 38, 40), M.Asphalt), "NS_Asphalt", M.Asphalt, rgb(120, 120, 124))
+	variant(B(f, "Road", -260, -1.3, 120, 260, -0.05, 134, rgb(30, 30, 32), M.Asphalt), "NS_Asphalt", M.Asphalt, rgb(100, 100, 104))
 	B(f, "FarCurb", -260, -1, 134, 260, 0.35, 134.6, rgb(160, 160, 156), M.Concrete)
 	B(f, "FarSidewalk", -260, -1, 134.6, 260, 0.3, 146, rgb(116, 116, 114), M.Concrete)
 	-- Мокрый асфальт: тонкий глянцевый слой ловит блики фонарей и вывески
@@ -1454,68 +1487,144 @@ local KIOSK_Z = 35.3
 local Stainless = rgb(188, 192, 196)
 
 -- Экран кассы самообслуживания: шапка, строки товаров, итог и подсказка (обновляет SelfCheckout)
+-- Экран кассы самообслуживания (портретный, как у настоящих касс): сверху полоса с логотипом и номером кассы,
+-- белая карточка со списком покупок, строка «Итого», кнопки «Помощь» и «Оплатить», внизу подсказка.
+-- Checkout меняет тексты Head (полоса), Body (карточка), Total, Foot и цвет полосы.
 local function kioskScreen(part, index)
 	local sg = Instance.new("SurfaceGui")
 	sg.Name = "KioskGui"
 	sg.Face = N.Front
 	sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	sg.PixelsPerStud = 160
+	sg.PixelsPerStud = 240
 	sg.LightInfluence = 0
-	sg.Brightness = 1.6
+	sg.Brightness = 1.5
 	sg.MaxDistance = 40
 	sg.Parent = part
-	local bg = Instance.new("Frame")
-	bg.Name = "Bg"
-	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = rgb(236, 240, 242)
-	bg.BorderSizePixel = 0
-	bg.Parent = sg
-	local head = Instance.new("TextLabel")
-	head.Name = "Head"
-	head.Size = UDim2.new(1, 0, 0.14, 0)
-	head.BackgroundColor3 = rgb(30, 150, 80)
-	head.BorderSizePixel = 0
-	head.TextColor3 = Color3.new(1, 1, 1)
-	head.Font = Enum.Font.GothamBold
-	head.TextScaled = true
-	head.Text = "КАССА " .. index
-	head.Parent = bg
-	local body = Instance.new("TextLabel")
-	body.Name = "Body"
-	body.Position = UDim2.new(0.06, 0, 0.17, 0)
-	body.Size = UDim2.new(0.88, 0, 0.56, 0)
-	body.BackgroundTransparency = 1
-	body.TextColor3 = rgb(30, 34, 40)
-	body.Font = Enum.Font.GothamMedium
-	body.TextScaled = true
-	body.TextWrapped = true
-	body.TextYAlignment = Enum.TextYAlignment.Top
-	body.TextXAlignment = Enum.TextXAlignment.Left
-	body.Text = "Добро пожаловать!\nОтсканируйте первый товар"
-	body.Parent = bg
-	local total = Instance.new("TextLabel")
-	total.Name = "Total"
-	total.Position = UDim2.new(0.06, 0, 0.75, 0)
-	total.Size = UDim2.new(0.88, 0, 0.1, 0)
-	total.BackgroundTransparency = 1
-	total.TextColor3 = rgb(20, 20, 24)
-	total.Font = Enum.Font.GothamBlack
-	total.TextScaled = true
-	total.TextXAlignment = Enum.TextXAlignment.Right
-	total.Text = ""
-	total.Parent = bg
-	local foot = Instance.new("TextLabel")
-	foot.Name = "Foot"
-	foot.Position = UDim2.new(0, 0, 0.88, 0)
-	foot.Size = UDim2.new(1, 0, 0.12, 0)
-	foot.BackgroundColor3 = rgb(210, 214, 218)
-	foot.BorderSizePixel = 0
-	foot.TextColor3 = rgb(40, 44, 50)
-	foot.Font = Enum.Font.GothamBold
-	foot.TextScaled = true
-	foot.Text = "Оплата картой"
-	foot.Parent = bg
-	return { Gui = sg, Bg = bg, Head = head, Body = body, Total = total, Foot = foot }
+	local function new(class, props, parent)
+		local o = Instance.new(class)
+		for k, v in pairs(props) do
+			o[k] = v
+		end
+		o.Parent = parent
+		return o
+	end
+	local function round(o, r)
+		new("UICorner", { CornerRadius = UDim.new(0, r) }, o)
+	end
+	local function maxText(o, size)
+		new("UITextSizeConstraint", { MaxTextSize = size, MinTextSize = 6 }, o)
+	end
+	local bg = new("Frame", { Name = "Bg", Size = UDim2.fromScale(1, 1), BackgroundColor3 = rgb(232, 236, 240), BorderSizePixel = 0 }, sg)
+	-- полоса сверху: логотип MART 24 и номер кассы (цвет полосы — состояние кассы)
+	local head = new("TextLabel", {
+		Name = "Head",
+		Size = UDim2.new(1, 0, 0.11, 0),
+		BackgroundColor3 = rgb(30, 150, 80),
+		BorderSizePixel = 0,
+		TextColor3 = Color3.new(1, 1, 1),
+		Font = Enum.Font.GothamBlack,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "КАССА " .. index,
+	}, bg)
+	new("UIPadding", { PaddingLeft = UDim.new(0.3, 0), PaddingRight = UDim.new(0.05, 0), PaddingTop = UDim.new(0.18, 0), PaddingBottom = UDim.new(0.18, 0) }, head)
+	maxText(head, 30)
+	local logo = new("TextLabel", {
+		Name = "Logo",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0.04, 0, 0.5, 0),
+		Size = UDim2.new(0.24, 0, 0.7, 0),
+		BackgroundColor3 = rgb(214, 40, 40),
+		TextColor3 = Color3.new(1, 1, 1),
+		Font = Enum.Font.GothamBlack,
+		TextScaled = true,
+		Text = "MART 24",
+	}, bg)
+	round(logo, 6)
+	-- карточка со списком покупок / сообщением
+	local card = new("Frame", { Name = "Card", Position = UDim2.new(0.04, 0, 0.13, 0), Size = UDim2.new(0.92, 0, 0.54, 0), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, bg)
+	round(card, 10)
+	new("UIStroke", { Color = rgb(210, 216, 222), Thickness = 1 }, card)
+	new("TextLabel", {
+		Name = "CardTitle",
+		Position = UDim2.new(0.06, 0, 0.03, 0),
+		Size = UDim2.new(0.88, 0, 0.09, 0),
+		BackgroundTransparency = 1,
+		TextColor3 = rgb(130, 138, 148),
+		Font = Enum.Font.GothamBold,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "ВАШИ ПОКУПКИ",
+	}, card)
+	new("Frame", { Name = "Rule", Position = UDim2.new(0.06, 0, 0.135, 0), Size = UDim2.new(0.88, 0, 0, 1), BackgroundColor3 = rgb(226, 230, 234), BorderSizePixel = 0 }, card)
+	local body = new("TextLabel", {
+		Name = "Body",
+		Position = UDim2.new(0.06, 0, 0.17, 0),
+		Size = UDim2.new(0.88, 0, 0.78, 0),
+		BackgroundTransparency = 1,
+		TextColor3 = rgb(30, 34, 40),
+		Font = Enum.Font.GothamMedium,
+		TextScaled = true,
+		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LineHeight = 1.1,
+		Text = "Добро пожаловать!\nОтсканируйте первый товар",
+	}, card)
+	maxText(body, 22)
+	-- итог
+	local total = new("TextLabel", {
+		Name = "Total",
+		Position = UDim2.new(0.05, 0, 0.69, 0),
+		Size = UDim2.new(0.9, 0, 0.08, 0),
+		BackgroundTransparency = 1,
+		TextColor3 = rgb(20, 20, 24),
+		Font = Enum.Font.GothamBlack,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "",
+	}, bg)
+	maxText(total, 30)
+	-- кнопки (на экране нарисованы — нажимают их покупатели)
+	local help = new("TextLabel", {
+		Name = "HelpButton",
+		Position = UDim2.new(0.04, 0, 0.785, 0),
+		Size = UDim2.new(0.34, 0, 0.085, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		TextColor3 = rgb(60, 66, 74),
+		Font = Enum.Font.GothamBold,
+		TextScaled = true,
+		Text = "ПОМОЩЬ",
+	}, bg)
+	round(help, 8)
+	new("UIStroke", { Color = rgb(190, 196, 204), Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, help)
+	new("UIPadding", { PaddingTop = UDim.new(0.24, 0), PaddingBottom = UDim.new(0.24, 0), PaddingLeft = UDim.new(0.08, 0), PaddingRight = UDim.new(0.08, 0) }, help)
+	local pay = new("TextLabel", {
+		Name = "PayButton",
+		Position = UDim2.new(0.41, 0, 0.785, 0),
+		Size = UDim2.new(0.55, 0, 0.085, 0),
+		BackgroundColor3 = rgb(30, 160, 84),
+		TextColor3 = Color3.new(1, 1, 1),
+		Font = Enum.Font.GothamBlack,
+		TextScaled = true,
+		Text = "ОПЛАТИТЬ",
+	}, bg)
+	round(pay, 8)
+	new("UIPadding", { PaddingTop = UDim.new(0.22, 0), PaddingBottom = UDim.new(0.22, 0), PaddingLeft = UDim.new(0.08, 0), PaddingRight = UDim.new(0.08, 0) }, pay)
+	-- подсказка внизу
+	local foot = new("TextLabel", {
+		Name = "Foot",
+		Position = UDim2.new(0, 0, 0.895, 0),
+		Size = UDim2.new(1, 0, 0.105, 0),
+		BackgroundColor3 = rgb(206, 212, 218),
+		BorderSizePixel = 0,
+		TextColor3 = rgb(40, 44, 50),
+		Font = Enum.Font.GothamBold,
+		TextScaled = true,
+		Text = "Оплата картой",
+	}, bg)
+	new("UIPadding", { PaddingTop = UDim.new(0.22, 0), PaddingBottom = UDim.new(0.22, 0), PaddingLeft = UDim.new(0.06, 0), PaddingRight = UDim.new(0.06, 0) }, foot)
+	return { Gui = sg, Bg = bg, Head = head, Body = body, Total = total, Foot = foot, Pay = pay, Help = help }
 end
 
 local function kioskStation(parent, i, kx)
@@ -1549,9 +1658,30 @@ local function kioskStation(parent, i, kx)
 	B(m, "BagRackTop", kx - 2.95, 4.25, KIOSK_Z - 2.44, kx - 1.3, 4.3, KIOSK_Z - 2.36, rgb(150, 152, 156), M.Metal)
 	B(m, "BagRackTop", kx - 2.95, 4.25, KIOSK_Z - 0.64, kx - 1.3, 4.3, KIOSK_Z - 0.56, rgb(150, 152, 156), M.Metal)
 	local bag = B(m, "Bag", kx - 2.75, 2.72, KIOSK_Z - 2.3, kx - 1.5, 4.2, KIOSK_Z - 0.7, rgb(240, 240, 236), M.Plastic, { Transparency = 0.25, CastShadow = false })
-	-- терминал для карт
-	local reader = B(m, "CardReader", kx + 0.85, 2.5, KIOSK_Z - 3.1, kx + 1.25, 3.0, KIOSK_Z - 2.7, rgb(30, 30, 34), M.SmoothPlastic)
+	-- терминал для карт: настоящий платёжный терминал (клавиатура к покупателю), над ним — маленький
+	-- экран покупателя с суммой; без модели — простой блок
+	local reader
+	if prop("Terminal", m, CFrame.lookAt(Vector3.new(kx + 1.05, 2.52, KIOSK_Z - 2.95), Vector3.new(kx + 1.05, 2.52, KIOSK_Z - 10)), 0.3) then
+		local rp = Vector3.new(kx + 1.05, 3.02, KIOSK_Z - 2.45)
+		reader = P(m, "CardReader", Vector3.new(0.5, 0.3, 0.04), CFrame.lookAt(rp, rp + Vector3.new(0, 0.35, -1)), rgb(18, 18, 20), M.SmoothPlastic, { CastShadow = false })
+		B(m, "ReaderStand", kx + 1.02, 2.5, KIOSK_Z - 2.43, kx + 1.08, 2.9, KIOSK_Z - 2.37, rgb(50, 52, 56), M.Metal)
+	else
+		reader = B(m, "CardReader", kx + 0.85, 2.5, KIOSK_Z - 3.1, kx + 1.25, 3.0, KIOSK_Z - 2.7, rgb(30, 30, 34), M.SmoothPlastic)
+	end
 	local readerLabel = sign(reader, N.Front, "", { color = rgb(120, 255, 160), light = 0, brightness = 1.5, ppS = 60, font = Enum.Font.Code, name = "ReaderScreen" })
+	-- сканер «биоптик»: вертикальное окно с красным свечением за стеклом стола
+	B(m, "ScanTower", kx - 0.62, 2.5, KIOSK_Z - 2.42, kx + 0.62, 3.08, KIOSK_Z - 2.28, rgb(36, 38, 42), M.SmoothPlastic)
+	local win = B(m, "ScanWindow", kx - 0.5, 2.6, KIOSK_Z - 2.44, kx + 0.5, 3.0, KIOSK_Z - 2.42, rgb(120, 20, 20), M.Glass, { Transparency = 0.15, CastShadow = false })
+	local glowRed = Instance.new("SurfaceLight")
+	glowRed.Face = N.Front
+	glowRed.Color = rgb(255, 40, 40)
+	glowRed.Brightness = 0.35
+	glowRed.Range = 3
+	glowRed.Angle = 70
+	glowRed.Parent = win
+	-- резиновый коврик перед кассой
+	local mat = B(m, "KioskMat", kx - 1.7, 0, KIOSK_Z - 5.3, kx + 1.7, 0.04, KIOSK_Z - 3.05, rgb(46, 48, 52), M.Rubber, { CanCollide = false })
+	skin(mat, I.RubberMat, 2, { N.Top }, rgb(90, 92, 96))
 	-- лампа-индикатор на стойке: зелёная — свободна, синяя — идёт покупка, мигает оранжевым — нужна помощь
 	Cyl(m, "LightPole", 0.12, 2.2, Vector3.new(kx + 0.85, 6.4, KIOSK_Z + 0.4), rgb(70, 72, 76), M.Metal)
 	local lamp = P(m, "StatusLamp", Vector3.new(0.5, 0.55, 0.5), CFrame.new(kx + 0.85, 7.75, KIOSK_Z + 0.4), rgb(40, 200, 90), M.Neon, { CastShadow = false })
@@ -1774,7 +1904,7 @@ local function buildPatrol(root, map)
 		{ Vector3.new(39.85, 4.6, 42), Vector3.new(-1, 0, 0) }, -- 3: зал, восточная стена за кассами
 		{ Vector3.new(-40, 4.6, -63.85), Vector3.new(0, 0, 1) }, -- 4: склад, дальняя стена
 		{ Vector3.new(-10.15, 4.6, -56), Vector3.new(-1, 0, 0) }, -- 5: у заднего выхода
-		{ Vector3.new(39.85, 4.6, -37), Vector3.new(-1, 0, 0) }, -- 6: конец служебного коридора
+		{ Vector3.new(39.85, 4.6, -37), Vector3.new(-1, 0, 0) }, -- 6: кабинет директора, у двери
 	}
 	map.Patrol = {}
 	for i, d in ipairs(defs) do
@@ -2013,28 +2143,25 @@ local function buildCorridors(root, map)
 	local panelLabelPart = B(f, "PanelLabel", -11.0, 3.2, -51.5, -10.96, 4.2, -48.5, C.Black, M.SmoothPlastic)
 	local panelLabel = sign(panelLabelPart, N.Left, "СЕТЬ: НОРМА", { color = rgb(80, 255, 120), light = 0, brightness = 1.5, ppS = 60, font = Enum.Font.Code })
 	map.Panel = { Box = panelBox, Breakers = breakers, Label = panelLabel }
-	-- Кулер в коридоре (огнетушители — buildSafety)
-	B(f, "WaterCooler", 37, 0, -39.5, 39, 4, -37.6, rgb(220, 220, 224), M.SmoothPlastic)
-	Cyl(f, "WaterBottle", 1.4, 1.8, Vector3.new(38, 4.9, -38.5), rgb(120, 180, 230), M.Glass, { Transparency = 0.35 })
-	-- Таблички на дверях
+	-- Таблички на дверях (дверь в комнату персонала — проём из служебного коридора)
 	local plates = {
-		{ 5.2, 5.8, -34.34, N.Front, "ОХРАНА" },
-		{ 30.2, 5.8, -34.34, N.Front, "КОМНАТА ПЕРСОНАЛА" },
-		{ 5.2, 5.8, -39.66, N.Back, "ХОЛОДИЛЬНАЯ КАМЕРА · -18 °C" },
-		{ 30.2, 5.8, -39.66, N.Back, "ДИРЕКТОР" },
+		{ 5.2, 5.8, -33.66, N.Back, "ХОЛОДИЛЬНАЯ КАМЕРА · -18 °C" },
+		{ 30.2, 5.8, -33.66, N.Back, "ДИРЕКТОР" },
 	}
 	for _, pl in ipairs(plates) do
 		local plate = P(f, "DoorPlate", Vector3.new(3.2, 0.9, 0.06), CFrame.new(pl[1], pl[2], pl[3]), rgb(240, 240, 236), M.SmoothPlastic)
 		sign(plate, pl[4], pl[5], { color = C.Black, ppS = 50 })
 	end
+	local staffPlate = P(f, "DoorPlate", Vector3.new(0.06, 0.9, 3.4), CFrame.new(-10.34, 9.0, -19.25), rgb(240, 240, 236), M.SmoothPlastic)
+	sign(staffPlate, N.Left, "КОМНАТА ПЕРСОНАЛА", { color = C.Black, ppS = 50 })
 	-- Свет
 	ceilingLight(f, Vector3.new(-14, 9.8, -20), 5, false, "Corridor", { brightness = 0.9, range = 14 })
 	local broken = ceilingLight(f, Vector3.new(-14, 9.8, -37), 5, false, "Corridor", { brightness = 0.9, range = 14, broken = true })
 	tag(broken, "AmbFluor")
 	ceilingLight(f, Vector3.new(-14, 9.8, -54), 5, false, "Corridor", { brightness = 0.9, range = 14, shadows = true })
-	ceilingLight(f, Vector3.new(0, 9.8, -37), 5, true, "Corridor", { brightness = 0.9, range = 14 })
-	ceilingLight(f, Vector3.new(20, 9.8, -37), 5, true, "Corridor", { brightness = 0.9, range = 14 })
-	ceilingLight(f, Vector3.new(34, 9.8, -37), 5, true, "Corridor", { brightness = 0.9, range = 14 })
+	-- холодильная камера и кабинет стали длиннее (до стены комнаты персонала) — у входа в них ещё по лампе
+	ceilingLight(f, Vector3.new(1, 9.8, -37.5), 5, true, "Cold", { color = C.LampCold, brightness = 1.0, range = 14 })
+	ceilingLight(f, Vector3.new(20, 9.8, -38), 5, true, "Office", { brightness = 0.55, range = 13 })
 	exitSign(f, Vector3.new(-14, 9.2, -63.6), Vector3.new(0, 0, 1))
 	exitSign(f, Vector3.new(-14, 9.2, -12.75), Vector3.new(0, 0, -1))
 end
@@ -2143,15 +2270,15 @@ local function buildRooms(root, map)
 	prop("Cooler", staff, CFrame.lookAt(Vector3.new(35.2, 0, -32.6), Vector3.new(35.2, 0, -20)), 4.6)
 	prop("Plant", staff, CFrame.new(34.9, 0, -14.9) * CFrame.Angles(0, math.rad(-20), 0), 3)
 	-- Табельные часы (начать смену)
-	local clock = B(staff, "TimeClock", 12.3, 4, -31.5, 12.9, 5.8, -29.5, rgb(60, 60, 64), M.SmoothPlastic)
-	local clockLabel = sign(clock, N.Right, "00:00", { color = rgb(255, 80, 60), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
-	local clockTitle = B(staff, "TimeClockTitle", 12.3, 5.9, -31.5, 12.32, 6.6, -29.5, rgb(240, 240, 236), M.SmoothPlastic)
-	sign(clockTitle, N.Right, "ТАБЕЛЬНЫЕ ЧАСЫ", { color = C.Black, ppS = 50 })
+	local clock = B(staff, "TimeClock", 33.5, 4, -33.7, 35.5, 5.8, -33.1, rgb(60, 60, 64), M.SmoothPlastic)
+	local clockLabel = sign(clock, N.Back, "00:00", { color = rgb(255, 80, 60), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
+	local clockTitle = B(staff, "TimeClockTitle", 33.5, 5.9, -33.72, 35.5, 6.6, -33.7, rgb(240, 240, 236), M.SmoothPlastic)
+	sign(clockTitle, N.Back, "ТАБЕЛЬНЫЕ ЧАСЫ", { color = C.Black, ppS = 50 })
 	map.Stations.TimeClock = clock
 	map.Stations.TimeClockLabel = clockLabel
 	-- Доска с правилами
-	local board = B(staff, "RulesBoard", 12.3, 3.2, -26.5, 12.45, 7.8, -17.5, rgb(160, 120, 80), M.Wood)
-	sign(board, N.Right, Texts.Rules, { color = rgb(30, 26, 20), ppS = 36, font = Enum.Font.Gotham, alignX = Enum.TextXAlignment.Left, alignY = Enum.TextYAlignment.Top, padding = 10, bg = rgb(244, 238, 222) })
+	local board = B(staff, "RulesBoard", 14, 3.2, -33.7, 23, 7.8, -33.55, rgb(160, 120, 80), M.Wood)
+	sign(board, N.Back, Texts.Rules, { color = rgb(30, 26, 20), ppS = 36, font = Enum.Font.Gotham, alignX = Enum.TextXAlignment.Left, alignY = Enum.TextYAlignment.Top, padding = 10, bg = rgb(244, 238, 222) })
 	-- Швабра и ведро
 	local bucket = Cyl(staff, "Bucket", 1.6, 1.4, Vector3.new(37.5, 0.7, -32.5), rgb(240, 200, 30), M.SmoothPlastic)
 	local mop = P(staff, "Mop", Vector3.new(0.2, 6, 0.2), CFrame.new(38.6, 3, -32.8) * CFrame.Angles(math.rad(8), 0, math.rad(-6)), rgb(80, 120, 200), M.SmoothPlastic)
@@ -2168,8 +2295,8 @@ local function buildRooms(root, map)
 	local cold = model("ColdRoom", f)
 	local metal = rgb(196, 202, 208)
 	B(cold, "Lining", -9.7, 0, -63.7, 11.7, 10, -63.4, metal, M.Metal)
-	B(cold, "Lining", -9.7, 0, -63.7, -9.4, 10, -40.4, metal, M.Metal)
-	B(cold, "Lining", 11.4, 0, -63.7, 11.7, 10, -40.4, metal, M.Metal)
+	B(cold, "Lining", -9.7, 0, -63.7, -9.4, 10, -34.4, metal, M.Metal)
+	B(cold, "Lining", 11.4, 0, -63.7, 11.7, 10, -34.4, metal, M.Metal)
 	for _, side in ipairs({ { -9.4, -6.8 }, { 8.8, 11.4 } }) do
 		for _, y in ipairs({ 0.4, 2.6, 4.8, 7.0 }) do
 			B(cold, "ColdShelf", side[1], y, -62, side[2], y + 0.12, -44, rgb(170, 176, 182), M.Metal)
@@ -2186,7 +2313,7 @@ local function buildRooms(root, map)
 	end
 	-- Полосовая завеса за дверью
 	for k = 0, 7 do
-		B(cold, "StripCurtain", -1.4 + k * 0.56, 0.3, -41.0, -0.9 + k * 0.56, 8.4, -40.9, rgb(200, 220, 230), M.Plastic, { Transparency = 0.55, CanCollide = false, CastShadow = false })
+		B(cold, "StripCurtain", -1.0 + k * 0.5, 0.3, -35.0, -0.55 + k * 0.5, 8.4, -34.9, rgb(200, 220, 230), M.Plastic, { Transparency = 0.55, CanCollide = false, CastShadow = false })
 	end
 	local thermo = B(cold, "ColdThermometer", -9.4, 4.4, -44.5, -9.25, 5.6, -42.5, C.Black, M.SmoothPlastic)
 	local thermoLabel = sign(thermo, N.Right, "-18 °C", { color = rgb(120, 200, 255), light = 0, brightness = 2, ppS = 60, font = Enum.Font.Code })
@@ -2245,7 +2372,7 @@ local function buildRooms(root, map)
 	end
 	map.Stations.Phone = phone
 	-- картотечный шкаф у двери и растение в углу
-	prop("FileCab", office, CFrame.lookAt(Vector3.new(29.6, 0, -41.25), Vector3.new(29.6, 0, -50)), 4.6)
+	prop("FileCab", office, CFrame.lookAt(Vector3.new(29.6, 0, -35.25), Vector3.new(29.6, 0, -50)), 4.6)
 	prop("Plant", office, CFrame.new(38.2, 0, -42.3) * CFrame.Angles(0, math.rad(30), 0), 3)
 	-- кружка кофе
 	local mugPos = Vector3.new(28.2, 3.11, -55.1)
@@ -2321,7 +2448,7 @@ local function buildRooms(root, map)
 	bulb:SetAttribute("LampColor", C.LampWarm)
 	tag(bulb, "StoreLight")
 	-- настенные часы со стрелками (клиент поворачивает стрелки по времени смены)
-	local wallClockPos = Vector3.new(17, 7.2, -40.42)
+	local wallClockPos = Vector3.new(17, 7.2, -34.42)
 	local face = P(office, "WallClock", Vector3.new(0.12, 2.2, 2.2), CFrame.new(wallClockPos) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(0, 0, 0), Color3.new(1, 1, 1), M.SmoothPlastic)
 	face.Shape = Enum.PartType.Cylinder
 	local hourHand = P(office, "HourHand", Vector3.new(0.12, 0.6, 0.03), CFrame.new(wallClockPos + Vector3.new(0, 0.22, -0.09)), C.Black, M.SmoothPlastic, { CanCollide = false })
@@ -2332,7 +2459,7 @@ local function buildRooms(root, map)
 	hourHand:SetAttribute("ClockHand", "Hour")
 	minuteHand:SetAttribute("ClockHand", "Minute")
 	-- график смен на стене
-	local schedule = B(office, "Schedule", 31, 3.6, -40.38, 38, 8.2, -40.3, rgb(250, 250, 246), M.SmoothPlastic)
+	local schedule = B(office, "Schedule", 31, 3.6, -34.38, 38, 8.2, -34.3, rgb(250, 250, 246), M.SmoothPlastic)
 	sign(schedule, N.Front, "ГРАФИК СМЕН · MART 24\n\nУтро 06:00–14:00 — Ирина К.\nДень 14:00–22:00 — Сергей П.\nВечер 18:00–00:00 — Олег Д.\nНОЧЬ 00:00–06:00 — НОВЫЙ СОТРУДНИК\n\nКасса №0 — —", { color = rgb(30, 30, 40), ppS = 40, font = Enum.Font.Gotham, alignX = Enum.TextXAlignment.Left, alignY = Enum.TextYAlignment.Top, padding = 12 })
 	-- стена мониторов видеонаблюдения (на восточной стене, смотрит в комнату)
 	B(office, "MonitorDesk", 37, 0, -57, 39.9, 2.6, -45, rgb(70, 66, 62), M.Wood)
@@ -2401,11 +2528,15 @@ end
 -------------------------------------------------------------------------------
 local function buildAlley(root, map)
 	local f = folder("Alley", root)
-	B(f, "Ground", -40, -1, -92, 10, 0, -64.5, rgb(46, 46, 48), M.Asphalt)
+	variant(B(f, "Ground", -40, -1, -92, 10, 0, -64.5, rgb(46, 46, 48), M.Asphalt), "NS_Asphalt", M.Asphalt, rgb(110, 110, 114))
 	local brick = rgb(120, 70, 56)
-	B(f, "WallS", -41, 0, -93, 11, 12, -92, brick, M.Brick)
-	B(f, "WallW", -41, 0, -92, -40, 12, -64.5, brick, M.Brick)
-	B(f, "WallE", 10, 0, -92, 11, 12, -64.5, brick, M.Brick)
+	for _, w in ipairs({
+		B(f, "WallS", -41, 0, -93, 11, 12, -92, brick, M.Brick),
+		B(f, "WallW", -41, 0, -92, -40, 12, -64.5, brick, M.Brick),
+		B(f, "WallE", 10, 0, -92, 11, 12, -64.5, brick, M.Brick),
+	}) do
+		variant(w, "NS_Brick", M.Brick, rgb(236, 230, 226))
+	end
 	local dumpster = B(f, "Dumpster", -5, 0, -80, 3, 4.6, -76, rgb(40, 90, 50), M.Metal)
 	local lid = B(f, "DumpsterLid", -5.1, 4.6, -80.1, 3.1, 4.9, -75.9, rgb(30, 70, 40), M.Metal)
 	-- два настоящих мусорных контейнера на колёсах (деталь-контейнер остаётся невидимой: на ней подсказка)
@@ -2444,10 +2575,8 @@ local function buildDoors(root, map)
 	map.Doors.Service = hingedDoor("Service", doorLeaf(f, -16, -12, -12, 8.5, doorColor, M.Metal, 1, false), Vector3.new(-16, 4, -12), 95, "Swing", "Служебное помещение")
 	map.Doors.WarehouseSide = hingedDoor("WarehouseSide", doorLeafZ(f, -42, -38, -18, 8.5, doorColor, M.Metal, 1), Vector3.new(-18, 4, -42), 95, "Swing", "Склад")
 	map.Doors.BackExit = hingedDoor("BackExit", doorLeaf(f, -16, -12, -64.5, 8.5, rgb(110, 116, 120), M.DiamondPlate, 1, false), Vector3.new(-16, 4, -64.5), 95, "Metal", "Задний выход")
-	map.Doors.Security = hingedDoor("Security", doorLeaf(f, -1, 3, -34, 8.5, rgb(150, 120, 90), M.Wood, 1, false), Vector3.new(-1, 4, -34), -95, "Swing", "Охрана")
-	map.Doors.Staff = hingedDoor("Staff", doorLeaf(f, 24, 28, -34, 8.5, rgb(150, 120, 90), M.Wood, 1, false), Vector3.new(24, 4, -34), -95, "Swing", "Комната персонала")
-	map.Doors.ColdRoom = hingedDoor("ColdRoom", doorLeaf(f, -1.5, 3, -40, 8.5, rgb(210, 214, 218), M.Metal, -1, false), Vector3.new(3, 4, -40), -95, "Freezer", "Холодильная камера")
-	map.Doors.Office = hingedDoor("Office", doorLeaf(f, 24, 28, -40, 8.5, rgb(120, 80, 50), M.Wood, 1, false), Vector3.new(24, 4, -40), 95, "Swing", "Кабинет менеджера")
+	map.Doors.ColdRoom = hingedDoor("ColdRoom", doorLeaf(f, -1, 3, -34, 8.5, rgb(210, 214, 218), M.Metal, -1, false), Vector3.new(3, 4, -34), -95, "Freezer", "Холодильная камера")
+	map.Doors.Office = hingedDoor("Office", doorLeaf(f, 24, 28, -34, 8.5, rgb(120, 80, 50), M.Wood, 1, false), Vector3.new(24, 4, -34), 95, "Swing", "Кабинет менеджера")
 end
 
 -------------------------------------------------------------------------------

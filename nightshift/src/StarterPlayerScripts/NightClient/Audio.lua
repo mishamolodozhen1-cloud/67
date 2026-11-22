@@ -30,7 +30,7 @@ local staticOn = false
 local cinematic = false
 local stepState = setmetatable({}, { __mode = "k" })
 
-local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Voice = "Voice", Music = "Music" }
+local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Voice = "Voice", Music = "Music" }
 
 local function makeGroup(name)
 	local g = Instance.new("SoundGroup")
@@ -156,7 +156,7 @@ local function zoneOf(pos)
 	if pos.Z >= -12 then
 		return "Sales"
 	end
-	if pos.X <= -10 or (pos.Z <= -34 and pos.Z >= -40) then
+	if pos.X <= -10 then
 		return "Corridor"
 	end
 	return "Room"

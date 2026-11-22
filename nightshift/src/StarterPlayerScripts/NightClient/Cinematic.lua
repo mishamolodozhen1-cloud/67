@@ -4,8 +4,9 @@
 -- Всё, что двигается в сцене (машина, герой, раздвижные двери, силуэт), — локальные копии:
 -- настоящие объекты карты на время сцены прячутся у этого игрока (LocalTransparencyModifier).
 --
---   0–2     чёрный экран, слышен дождь
---   2–17    улица: камера с той стороны дороги медленно приближается к MART 24, вывеска мерцает
+--   0–3     чёрный экран, дождь; удар молнии на миг освещает пустую улицу
+--   3–10    вывеска MART 24 вплотную: капли на объективе, неон трещит и мигает
+--   10–17   камера отъезжает через парковку и дорогу — магазин светится один во всей улице; дальняя молния
 --   17–31   приезжает машина, фары на мокром асфальте; встаёт у входа, мотор глохнет — тишина
 --   31–38   водитель выходит, закрывает дверь, стоит
 --   38–46   идёт ко входу (камера сзади), двери медленно разъезжаются, камера входит следом:
@@ -13,7 +14,10 @@
 --   46–66   пустой магазин: кассы, ряды, холодильники, камеры под потолком
 --   66–81   кабинет менеджера; записка на столе крупно
 --   81–92   мониторы видеонаблюдения; вход крупно — за стеклом стоит силуэт; помехи — его нет
---   92–100  электронные часы 23:59 → 00:00, сигнал; название NIGHT SHIFT; управление игроку
+--   92–100  электронные часы 23:59 → 00:00, сигнал; название NIGHT SHIFT зажигается буква за буквой, как неон
+--
+-- «Оператор» (v8): лёгкая ручная тряска у каждого плана, размытие при быстром движении камеры, плавная
+-- перефокусировка, вспышки молний с громом, капли дождя на объективе снаружи, плёночное зерно.
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -43,6 +47,12 @@ local doors = nil
 local savedDof = nil
 local savedNames = nil
 local gui, black, barTop, barBottom, titleHolder, titleLabel, subLabel, titleLine, titleScale, skipButton, waitLabel
+local lensLayer, grainLabel
+local rig = { Shake = 0, Freq = 0.4 } -- ручная тряска: амплитуда (градусы) и частота
+local prevCam = nil
+local blurFx, flashFx = nil, nil
+local lensOn = false
+local drops = {}
 local SKIP = "NS_INTRO_SKIP"
 local frameConn = nil
 
@@ -110,6 +120,12 @@ end
 
 local function setShot(duration, eval)
 	shot = { Start = now(), Dur = duration, Eval = eval }
+end
+
+-- Ручная камера: shake — амплитуда покачивания в градусах, freq — как быстро она «дышит»
+local function setRig(shake, freq)
+	rig.Shake = shake or 0
+	rig.Freq = freq or 0.4
 end
 
 -------------------------------------------------------------------------------
@@ -975,7 +991,8 @@ local function bedTo(name, volume, seconds)
 	end
 end
 
-local function dof(focus, radius, far, near)
+-- Глубина резкости. seconds — плавная перефокусировка (как фокус-пуллер), без него — сразу
+local function dof(focus, radius, far, near, seconds)
 	local d = Lighting:FindFirstChildOfClass("DepthOfFieldEffect")
 	if not d then
 		return
@@ -983,10 +1000,89 @@ local function dof(focus, radius, far, near)
 	if not savedDof then
 		savedDof = { FocusDistance = d.FocusDistance, InFocusRadius = d.InFocusRadius, FarIntensity = d.FarIntensity, NearIntensity = d.NearIntensity }
 	end
-	d.FocusDistance = focus
-	d.InFocusRadius = radius
-	d.FarIntensity = far
-	d.NearIntensity = near or 0
+	local goal = { FocusDistance = focus, InFocusRadius = radius, FarIntensity = far, NearIntensity = near or 0 }
+	if seconds and seconds > 0 then
+		TweenService:Create(d, TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), goal):Play()
+	else
+		for k, v in pairs(goal) do
+			d[k] = v
+		end
+	end
+end
+
+-- Молния: вспышка (двойная, как у настоящей) и гром — близкий сразу, дальний с задержкой
+local function lightning(close)
+	if not flashFx then
+		return
+	end
+	task.spawn(function()
+		local peak = close and 0.6 or 0.32
+		flashFx.Brightness = peak
+		task.wait(0.05)
+		flashFx.Brightness = peak * 0.1
+		task.wait(0.08)
+		flashFx.Brightness = peak * 0.75
+		TweenService:Create(flashFx, TweenInfo.new(close and 0.7 or 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Brightness = 0 }):Play()
+	end)
+	task.delay(close and 0.2 or 1.3, function()
+		ctx.Audio.Play(close and "ThunderClose" or "Thunder", nil, close and 0.9 or 0.7)
+	end)
+end
+
+-- Капли дождя на объективе (только пока камера снаружи)
+local function spawnDrop()
+	local size = math.random(8, 26)
+	local f = Instance.new("Frame")
+	f.Name = "Drop"
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Position = UDim2.fromScale(math.random(), math.random() * 0.9)
+	f.Size = UDim2.fromOffset(size, size * (1 + math.random() * 0.25))
+	f.BackgroundColor3 = Color3.fromRGB(210, 222, 236)
+	f.BackgroundTransparency = 1
+	f.BorderSizePixel = 0
+	f.ZIndex = 4
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0.5, 0)
+	c.Parent = f
+	local st = Instance.new("UIStroke")
+	st.Color = Color3.fromRGB(235, 242, 255)
+	st.Thickness = 1
+	st.Transparency = 1
+	st.Parent = f
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(0.6, 0.9), NumberSequenceKeypoint.new(1, 0.6) })
+	g.Parent = f
+	f.Parent = lensLayer
+	local d = { Frame = f, Stroke = st, Born = os.clock(), Life = 2.5 + math.random() * 4, Vy = 0, Run = math.random() < 0.3, Alpha = 0 }
+	table.insert(drops, d)
+end
+
+local function updateDrops(dt)
+	if lensOn and #drops < 34 and math.random() < dt * 5 then
+		spawnDrop()
+	end
+	for i = #drops, 1, -1 do
+		local d = drops[i]
+		local age = os.clock() - d.Born
+		local want = (lensOn and age < d.Life) and 1 or 0
+		d.Alpha = d.Alpha + (want - d.Alpha) * math.min(1, dt * (want > 0 and 6 or 2.5))
+		d.Frame.BackgroundTransparency = 1 - d.Alpha * 0.2
+		d.Stroke.Transparency = 1 - d.Alpha * 0.45
+		if d.Run and age > 0.8 then
+			-- тяжёлая капля срывается и стекает вниз
+			d.Vy = math.min(0.35, d.Vy + dt * 0.25)
+			d.Frame.Position = d.Frame.Position + UDim2.fromScale(0, d.Vy * dt)
+		end
+		if d.Alpha < 0.02 and want == 0 then
+			d.Frame:Destroy()
+			table.remove(drops, i)
+		end
+	end
+end
+
+local function setLensRain(on)
+	lensOn = on
 end
 
 local function fade(transparency, seconds)
@@ -1007,6 +1103,36 @@ local function showTitle(on, seconds)
 	TweenService:Create(titleScale, TweenInfo.new(seconds + 2.5, Enum.EasingStyle.Sine), { Scale = on and 1 or 1.02 }):Play()
 end
 
+-- Название зажигается как неоновая вывеска: буква за буквой, с треском и миганием, затем — удар
+local function titleReveal()
+	local text = titleLabel.Text
+	local n = utf8.len(text) or #text
+	titleLabel.MaxVisibleGraphemes = 0
+	titleLabel.TextTransparency = 0
+	TweenService:Create(titleScale, TweenInfo.new(3.6, Enum.EasingStyle.Sine), { Scale = 1 }):Play()
+	task.spawn(function()
+		for i = 1, n do
+			titleLabel.MaxVisibleGraphemes = i
+			if i % 3 == 1 then
+				ctx.Audio.Play("NeonBuzz", nil, 0.35, 0.9 + math.random() * 0.25)
+			end
+			task.wait(0.055)
+		end
+		titleLabel.MaxVisibleGraphemes = -1
+		-- пара «неоновых» морганий
+		for _ = 1, 2 do
+			titleLabel.TextTransparency = 0.7
+			task.wait(0.05)
+			titleLabel.TextTransparency = 0
+			task.wait(0.09)
+		end
+		ctx.Audio.Play("DarkHit", nil, 0.55)
+		local info = TweenInfo.new(0.9, Enum.EasingStyle.Sine)
+		TweenService:Create(subLabel, info, { TextTransparency = 0.15 }):Play()
+		TweenService:Create(titleLine, info, { BackgroundTransparency = 0.2 }):Play()
+	end)
+end
+
 -------------------------------------------------------------------------------
 -- Сцена
 -------------------------------------------------------------------------------
@@ -1020,20 +1146,58 @@ local function timeline()
 	local noteUp = note and note.CFrame.UpVector or Vector3.new(0, 0, -1)
 	ctx.Effects.SetClock(-3) -- 23:57
 
-	-- 1. УЛИЦА ----------------------------------------------------------------
-	dof(70, 60, 0.12, 0)
-	setShot(17, track({
-		Vector3.new(-27.5, 5.7, 143.6),
-		Vector3.new(-30, 5.3, 137),
-		Vector3.new(-33, 4.9, 129),
+	-- 1. ВЫВЕСКА И УЛИЦА -----------------------------------------------------
+	-- чернота, дождь; удар молнии на долю секунды показывает пустую улицу
+	setShot(3.2, track({ Vector3.new(-26, 9.5, 132), Vector3.new(-27, 9.3, 130) }, { Vector3.new(-48, 8, 50), Vector3.new(-48.5, 8, 50) }, 50, 49))
+	at(1.5)
+	lightning(true)
+	black.BackgroundTransparency = 0.35
+	task.delay(0.09, function()
+		black.BackgroundTransparency = 0.9
+	end)
+	task.delay(0.2, function()
+		black.BackgroundTransparency = 0
+	end)
+	-- вывеска вплотную: телевик, капли на объективе, неон трещит и мигает
+	at(3.0)
+	setLensRain(true)
+	setRig(0.22, 0.5)
+	dof(7.2, 2.2, 0.45, 0.7)
+	setShot(7.2, track({
+		Vector3.new(-40.8, 14.3, 58.6),
+		Vector3.new(-42.6, 14.5, 58.2),
+		Vector3.new(-44.4, 14.7, 57.9),
 	}, {
+		Vector3.new(-44.5, 15.0, 51.8),
+		Vector3.new(-46.6, 15.1, 51.8),
+		Vector3.new(-48.8, 15.2, 51.8),
+	}, 34, 31))
+	fade(1, 2.2)
+	bars(true, 2.5)
+	at(6.1)
+	ctx.Effects.SignFlicker(5)
+	ctx.Audio.Play("NeonBuzz", Vector3.new(-46, 15, 52.5), 1)
+	at(7.4)
+	ctx.Audio.Play("NeonBuzz", Vector3.new(-46, 15, 52.5), 0.6, 0.85)
+	-- отъезд: через парковку и дорогу — магазин светится один во всей улице
+	at(10.2)
+	setRig(0.15, 0.35)
+	dof(88, 60, 0.18, 0.15, 7.2) -- фокус едет вместе с камерой: вывеска остаётся резкой
+	setShot(7.2, track({
+		Vector3.new(-44.4, 14.7, 57.9),
+		Vector3.new(-41, 12.6, 70),
+		Vector3.new(-35, 9.2, 96),
+		Vector3.new(-30.5, 6.4, 124),
+		Vector3.new(-28, 5.6, 138),
+	}, {
+		Vector3.new(-48.8, 15.2, 51.8),
+		Vector3.new(-48, 12.5, 50),
+		Vector3.new(-48, 9.4, 50),
 		Vector3.new(-50.5, 7.8, 50),
 		Vector3.new(-51, 7.3, 50),
-		Vector3.new(-51.5, 6.9, 50),
-	}, 46, 41))
-	at(2)
-	fade(1, 3.5)
-	bars(true, 2.5)
+	}, 31, 46))
+	at(14.6)
+	lightning(false)
 
 	-- 2. МАШИНА ПРИЕЗЖАЕТ -----------------------------------------------------
 	at(16.2)
@@ -1041,6 +1205,8 @@ local function timeline()
 		ctx.Audio.Play("CarArrive", car.Body, 0.75)
 	end
 	at(17)
+	setRig(0.28, 0.45)
+	dof(22, 18, 0.2, 0, 1.2)
 	local carStart = 17.5
 	local carDur = 12
 	local lookSm = Vector3.new(60, 2, 123.5)
@@ -1074,9 +1240,13 @@ local function timeline()
 	if car then
 		setCarLights(false, false)
 	end
+	at(30.4)
+	lightning(false)
 
 	-- 3. ВОДИТЕЛЬ ВЫХОДИТ -----------------------------------------------------
 	at(31)
+	setRig(0.32, 0.5)
+	dof(14, 8, 0.3, 0.1)
 	local carDoor = makeCarDoor()
 	if car and car.Mesh then
 		-- Детализированная машина: камера с пассажирской стороны, водитель выходит за кузовом
@@ -1128,7 +1298,11 @@ local function timeline()
 	end
 
 	-- 4. К ВХОДУ И ВНУТРЬ (камера идёт сзади) ---------------------------------
+	at(37.2)
+	lightning(true)
 	at(38.5)
+	setRig(0.55, 0.9) -- оператор идёт следом — камера покачивается сильнее
+	dof(8, 6, 0.25, 0, 1)
 	actorGo({ Vector3.new(-47.2, 0, 64), Vector3.new(-50.6, 0, 57.8), Vector3.new(-52, 0, 53.6) }, 5.6)
 	local followPos = nil
 	setShot(8, function(_, _, dt)
@@ -1140,6 +1314,7 @@ local function timeline()
 	end)
 	at(40.4)
 	moveDoors(true, 2.8)
+	setLensRain(false) -- под козырьком капли на объективе высыхают
 	ctx.Audio.Play("DoorChime", Vector3.new(-52, 8, 46), 0.4)
 	at(42.6)
 	actorGo({
@@ -1154,6 +1329,8 @@ local function timeline()
 
 	-- 5. ПУСТОЙ МАГАЗИН -------------------------------------------------------
 	at(46.2)
+	setRig(0.18, 0.35)
+	dof(26, 22, 0.15, 0, 1.5)
 	local p0 = cam.CFrame.Position
 	local l0 = p0 + cam.CFrame.LookVector * 10
 	setShot(10.5, track({
@@ -1190,8 +1367,14 @@ local function timeline()
 		end
 		car = nil
 	end
+	at(52.4)
+	-- лампа над рядом коротко мигает
+	ctx.Effects.Flicker({ Zone = "Floor", Center = Vector3.new(-24, 0, 24), Radius = 9, Duration = 1.1 })
+	ctx.Audio.Play("FluorFlicker", Vector3.new(-24, 13, 24), 0.7)
 	at(56.7)
 	ctx.Effects.SetGradeTime(1.2)
+	setRig(0.15, 0.3)
+	dof(18, 14, 0.2, 0, 1)
 	if actor and actor.Model then
 		actor.Model:Destroy()
 	end
@@ -1202,13 +1385,15 @@ local function timeline()
 
 	-- 6. КАБИНЕТ МЕНЕДЖЕРА ----------------------------------------------------
 	at(66)
+	setRig(0.2, 0.35)
 	ctx.Effects.SetClock(-2) -- 23:58
 	bedTo("TensionDrone", 0.12, 4)
 	dof(14, 10, 0.18, 0)
 	setShot(4.8, track({ Vector3.new(18, 7.0, -62.2), Vector3.new(20, 6.5, -59.7) }, { Vector3.new(30.5, 4.6, -45), Vector3.new(29.5, 4.2, -46) }, 54, 50))
 	at(70.8)
-	-- записка крупно (камера над столом, текст читается)
-	dof(1.9, 0.9, 0.45, 0.1)
+	-- записка крупно (камера над столом, текст читается); фокус «доезжает» до текста
+	setRig(0.12, 0.3)
+	dof(1.9, 0.9, 0.45, 0.1, 0.9)
 	local noteFrom = notePos + Vector3.new(0, 2.6, 0) - noteUp * 0.46
 	local noteTo = notePos + Vector3.new(0, 1.98, 0) - noteUp * 0.34
 	setShot(10.2, function(u)
@@ -1219,6 +1404,7 @@ local function timeline()
 
 	-- 7. МОНИТОРЫ ------------------------------------------------------------
 	at(81)
+	setRig(0.12, 0.3)
 	ctx.Effects.SetClock(-1) -- 23:59
 	showFeeds(true)
 	bedTo("TensionDrone", 0.22, 3)
@@ -1228,7 +1414,8 @@ local function timeline()
 	-- наезд на экран 1 «ГЛАВНЫЙ ВХОД»
 	setShot(1.4, track({ Vector3.new(31.8, 5.9, -51.5), Vector3.new(34.6, 6.6, -54.2), Vector3.new(36.25, 6.95, -55.0) }, { Vector3.new(38.5, 5.8, -51.4), Vector3.new(38.4, 6.6, -54.4), Vector3.new(38.23, 6.95, -55.0) }, 47, 40))
 	at(86.6)
-	-- камера 1 на весь экран: за стеклом входа стоит силуэт
+	-- камера 1 на весь экран: за стеклом входа стоит силуэт (камера наблюдения неподвижна)
+	setRig(0, 0.3)
 	local view = ctx.Cameras.ShowFeed(1, "23:59")
 	bars(false, 0.15)
 	dof(40, 40, 0, 0)
@@ -1259,6 +1446,7 @@ local function timeline()
 	bedTo("TensionDrone", 0.16, 3)
 
 	-- 8. ЧАСЫ 23:59 → 00:00 И НАЗВАНИЕ ----------------------------------------
+	setRig(0.08, 0.3)
 	dof(1.85, 0.75, 0.5, 0.1)
 	local clockPos = Vector3.new(24.6, 3.15, -54.5)
 	setShot(3.1, track({ Vector3.new(24.75, 3.36, -52.55), Vector3.new(24.65, 3.3, -52.75) }, { clockPos, clockPos }, 32, 31))
@@ -1269,7 +1457,7 @@ local function timeline()
 	dof(9, 7, 0.25, 0)
 	setShot(4.4, track({ Vector3.new(24.65, 3.3, -52.75), Vector3.new(24.8, 4.4, -49.5), Vector3.new(25, 5.4, -46.2) }, { clockPos, Vector3.new(25, 3.3, -55), Vector3.new(25.5, 3.4, -56) }, 31, 50))
 	at(96.4)
-	showTitle(true, 1.3)
+	titleReveal()
 	bedTo("TensionDrone", 0, 3.5)
 	at(98.6)
 	showTitle(false, 1.1)
@@ -1292,6 +1480,18 @@ local function buildGui()
 	}, ctx.Player:WaitForChild("PlayerGui"))
 	barTop = UI.new("Frame", { Name = "BarTop", Size = UDim2.new(1, 0, 0, 0), BackgroundColor3 = Color3.new(0, 0, 0), ZIndex = 5 }, gui)
 	barBottom = UI.new("Frame", { Name = "BarBottom", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 0), BackgroundColor3 = Color3.new(0, 0, 0), ZIndex = 5 }, gui)
+	-- капли на объективе и плёночное зерно (под полосами кадра)
+	lensLayer = UI.new("Frame", { Name = "Lens", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 4 }, gui)
+	grainLabel = UI.new("ImageLabel", {
+		Name = "Grain",
+		Size = UDim2.new(1, 128, 1, 128),
+		BackgroundTransparency = 1,
+		Image = Config.Images.CctvNoise,
+		ImageTransparency = 0.94,
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(128, 128),
+		ZIndex = 4,
+	}, gui)
 	titleHolder = UI.new("Frame", {
 		Name = "Title",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1365,6 +1565,21 @@ local function cleanup()
 	pcall(function()
 		RunService:UnbindFromRenderStep("NS_Cinematic")
 	end)
+	if blurFx then
+		blurFx:Destroy()
+		blurFx = nil
+	end
+	if flashFx then
+		flashFx:Destroy()
+		flashFx = nil
+	end
+	lensOn = false
+	for _, d in ipairs(drops) do
+		d.Frame:Destroy()
+	end
+	drops = {}
+	prevCam = nil
+	setRig(0, 0.4)
 	if frameConn then
 		frameConn:Disconnect()
 		frameConn = nil
@@ -1474,6 +1689,19 @@ function Cinematic.Play(data)
 		ctx.Audio.SetCinematic(true)
 		bedTo("Music", 0, 1.5)
 		bedTo("TensionDrone", 0, 1.5)
+		-- эффекты «оператора»: размытие движения и вспышки молний (только у этого игрока)
+		blurFx = Instance.new("BlurEffect")
+		blurFx.Name = "NS_CineBlur"
+		blurFx.Size = 0
+		blurFx.Parent = Lighting
+		flashFx = Instance.new("ColorCorrectionEffect")
+		flashFx.Name = "NS_Lightning"
+		flashFx.TintColor = Color3.fromRGB(214, 226, 255)
+		flashFx.Brightness = 0
+		flashFx.Parent = Lighting
+		prevCam = nil
+		setRig(0, 0.4)
+		grainLabel.Visible = not (type(data) == "table" and data.Short == true)
 		ProximityPromptService.Enabled = false
 		pcall(function()
 			savedNames = { Name = ctx.Player.NameDisplayDistance, Health = ctx.Player.HealthDisplayDistance }
@@ -1484,6 +1712,7 @@ function Cinematic.Play(data)
 		black.BackgroundTransparency = 0
 		local short = type(data) == "table" and data.Short == true
 		titleLabel.Text = Texts.IntroTitle
+		titleLabel.MaxVisibleGraphemes = -1
 		titleLabel.TextColor3 = Color3.fromRGB(240, 240, 236)
 		subLabel.Text = Texts.IntroSubtitle .. " · НОЧЬ 1"
 		titleLabel.TextTransparency = 1
@@ -1522,11 +1751,34 @@ function Cinematic.Play(data)
 				local t = now() - shot.Start
 				local ok, cf, fov = pcall(shot.Eval, clamp01(t / shot.Dur), t, dt)
 				if ok and cf then
+					-- ручная камера: медленное «дыхание» оператора (шум Перлина по трём осям)
+					if rig.Shake > 0 then
+						local a = math.rad(rig.Shake)
+						local tt = now() * rig.Freq
+						cf = cf * CFrame.Angles(math.noise(tt, 1.3) * a, math.noise(tt, 7.1) * a, math.noise(tt, 13.7) * a * 0.5)
+					end
+					-- размытие движения: сильнее, когда камера быстро поворачивается или летит (на склейке — нет)
+					if blurFx and dt > 0 then
+						if prevCam then
+							local moved = (cf.Position - prevCam.Position).Magnitude
+							local ang = math.acos(math.clamp(prevCam.LookVector:Dot(cf.LookVector), -1, 1)) / dt
+							local want = math.clamp((ang - 0.3) * 5, 0, 7) + math.clamp((moved / dt - 16) * 0.12, 0, 3)
+							if moved > 5 then
+								want = 0
+							end
+							blurFx.Size = blurFx.Size + (want - blurFx.Size) * math.min(1, dt * 10)
+						end
+						prevCam = cf
+					end
 					cam.CFrame = cf
 					if fov then
 						cam.FieldOfView = fov
 					end
 				end
+			end
+			updateDrops(dt)
+			if grainLabel then
+				grainLabel.Position = UDim2.fromOffset(-math.random(0, 127), -math.random(0, 127))
 			end
 			local okA, errA = pcall(updateActor, dt)
 			if not okA then

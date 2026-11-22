@@ -24,7 +24,7 @@ local SCHEDULE = {
 		{ Kind = "orders", Text = "Выдать заказы в пункте выдачи", Room = "У входа, стойка выдачи", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
 	[1] = {
-		{ Kind = "cctv", Text = "Проверить все камеры наблюдения", Room = "Пост охраны у входа или комната охраны", Count = Config.CameraCount },
+		{ Kind = "cctv", Text = "Проверить все камеры наблюдения", Room = "Пост охраны у входа, пульт в комнате персонала или кабинет директора", Count = Config.CameraCount },
 		{ Kind = "help", Text = "Помогать покупателям на кассах самообслуживания", Room = "Кассы самообслуживания", Count = function(n) return 1 + n end },
 		{ Kind = "orders", Text = "Выдать заказы в пункте выдачи", Room = "У входа, стойка выдачи", Count = function(n) return 1 + math.floor(n / 2) end },
 	},
@@ -34,7 +34,7 @@ local SCHEDULE = {
 		{ Kind = "orders", Text = "Выдать заказы в пункте выдачи", Room = "У входа, стойка выдачи", Count = 1 },
 	},
 	[3] = {
-		{ Kind = "cctv", Text = "Снова проверить все камеры", Room = "Пост охраны у входа или комната охраны", Count = Config.CameraCount },
+		{ Kind = "cctv", Text = "Снова проверить все камеры", Room = "Пост охраны у входа, пульт в комнате персонала или кабинет директора", Count = Config.CameraCount },
 		{ Kind = "help", Text = "Помогать покупателям на кассах самообслуживания", Room = "Кассы самообслуживания", Count = 1 },
 	},
 	[4] = {

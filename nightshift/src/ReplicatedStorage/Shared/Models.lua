@@ -45,6 +45,7 @@ Models.Credits = {
 	"«Pothos Potted Plant» — AllQuad, CC BY 4.0",
 	"«Step Ladder» и «Wet Floor Sign» — louis-muir, CC BY 4.0",
 	"«File Cabinet» — Siberia, CC BY 4.0",
+	"«Payment terminal» — nofurion, CC BY 4.0",
 }
 
 -- Целые модели с текстурами (загружаются через InsertService:LoadAsset):
@@ -93,6 +94,8 @@ Models.Assets = {
 	Ladder = { Id = 124769423327419 }, -- стремянка
 	WetFloor = { Id = 75496316109050 }, -- табличка «Осторожно, мокрый пол» (надписи на сторонах ±X)
 	FileCab = { Id = 83969532200460 }, -- картотечный шкаф (ящики к LookVector)
+	-- v8: платёжный терминал на кассе самообслуживания (клавиатура к LookVector, надпись производителя закрашена)
+	Terminal = { Id = 135635399525375 },
 }
 Models.StaffCar = "CarMilano"
 Models.ParkedCars = { "CarFairheavenLT", "CarNegotiator", "CarFairheavenSW", "CarAce" }
