@@ -5,7 +5,9 @@
 Покупатели озвучены тремя голосами (M1, M2 — мужские, F1 — женский); у каждого покупателя свой голос
 и своя высота тона, поэтому они звучат по-разному. Охранник (игрок) — отдельный голос P.
 
-Запуск: tools/voices.py собирает звук, загружает его и пишет src/ReplicatedStorage/Shared/VoiceLines.lua.
+v11: озвучено в ElevenLabs (eleven_v4). Подача каждой реплики — теги TAGS/PLAYER_TAGS (их читает модель,
+вслух они не звучат). Сценарии для ElevenLabs печатает tools/eleven_scripts.py, нарезка — tools/voice_split.py,
+сборка спрайтов — tools/voices.py --reuse. (До v11 — синтез Piper, tools/voices.py без --reuse.)
 """
 
 # Покупатели ------------------------------------------------------------------
@@ -121,4 +123,90 @@ VOICES = {
     "M2": {"model": "ru_RU-dmitri-medium", "length": 1.0, "semitones": -0.5},
     "F1": {"model": "ru_RU-irina-medium", "length": 1.0, "semitones": 0.0},
     "P": {"model": "ru_RU-ruslan-medium", "length": 1.02, "semitones": 0.0},
+}
+
+# Подача реплик для ElevenLabs v4 (теги в квадратных скобках); нет тега — спокойно ([calm])
+TAGS = {
+    "Shop2": "[surprised]",
+    "Shop3": "[thoughtfully]",
+    "Empty1": "[puzzled]",
+    "Empty2": "[surprised]",
+    "Wait1": "[impatient]",
+    "Wait2": "[annoyed]",
+    "Wait3": "[impatient]",
+    "Wait4": "[tired]",
+    "Thanks5": "[relieved]",
+    "Angry1": "[annoyed]",
+    "Angry2": "[annoyed]",
+    "Angry3": "[angry]",
+    "Angry4": "[annoyed]",
+    "Angry5": "[annoyed]",
+    "Angry6": "[angry]",
+    "Angry7": "[sighs]",
+    "Help1": "[nervous]",
+    "Help2": "[nervous]",
+    "Help3": "[shouting]",
+    "NoPower": "[tired]",
+    "Order5": "[puzzled]",
+    "Order6": "[annoyed]",
+    "Order7": "[annoyed]",
+    "Caught1": "[nervous] [breathless]",
+    "Caught2": "[nervous]",
+    "Caught3": "[scared]",
+    "Check1": "[calm]",
+    "Check2": "[offended]",
+    "Check3": "[annoyed]",
+    "Weird1": "[slowly] [deep voice]",
+    "Weird2": "[slowly] [softly]",
+    "Dark1": "[gasps] [scared]",
+    "Dark2": "[scared]",
+    "Dark3": "[shouting]",
+    "Dark4": "[trembling voice]",
+    "Dark5": "[scared]",
+    "Dark6": "[shouting] [scared]",
+    "Dark7": "[whispers] [scared]",
+    "Dark8": "[panicked]",
+    "Dark9": "[shouting] [terrified]",
+    "Dark10": "[nervous]",
+    "Light1": "[exhales] [relieved]",
+    "Light2": "[relieved]",
+    "Light3": "[confused]",
+    "Beast1": "[terrified]",
+    "Beast2": "[shouting] [terrified]",
+    "Beast3": "[shouting] [panicked]",
+}
+
+PLAYER_TAGS = {
+    "Start1": "[tired]",
+    "Start2": "[tired]",
+    "Start3": "[sighs]",
+    "Delivery1": "[surprised]",
+    "Delivery2": "[tired]",
+    "Back1": "[nervous] [softly]",
+    "Back2": "[softly]",
+    "Saw1": "[trembling voice]",
+    "Saw2": "[whispers]",
+    "Saw3": "[whispers] [scared]",
+    "Saw4": "[breathless]",
+    "Scared1": "[panicked] [breathless]",
+    "Scared2": "[trembling voice]",
+    "Dark1": "[annoyed]",
+    "Dark2": "[nervous]",
+    "Dark3": "[sarcastic]",
+    "Dark4": "[calm]",
+    "Calm1": "[shouting]",
+    "Light1": "[relieved]",
+    "Light2": "[exhales]",
+    "Noise1": "[nervous]",
+    "Noise2": "[shouting]",
+    "Thief1": "[shouting]",
+    "Late1": "[tired]",
+}
+
+# Голоса ElevenLabs (из библиотеки голосов)
+ELEVEN_VOICES = {
+    "M1": ("RjY1wx8VeYo2R2WFDXfX", "Kup - Natural Russian YouTube Voice"),
+    "M2": ("pbmtwylSjrg30q2xSLkh", "Andrii"),
+    "F1": ("Fy6bUBXCIVErEtK9FN5d", "Liubava - Low, mature female voice"),
+    "P": ("BQ8zKfpkxw79bVmxuCXa", "Dzmitry - Expressive Russian Narrator"),
 }

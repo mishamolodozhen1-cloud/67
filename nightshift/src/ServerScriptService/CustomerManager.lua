@@ -43,14 +43,15 @@ function CustomerManager.All()
 end
 
 -- Голос покупателя: мужчины — M1 или M2, женщины — F1; у каждого своя высота тона
+-- (v11: живые голоса ElevenLabs меньше сдвигаются по тону, чтобы звучать естественно)
 local function voiceOf(npc)
 	if not npc.Voice then
 		if npc.Male == false then
 			npc.Voice = "F1"
-			npc.VoicePitch = rng:NextNumber(0.96, 1.1)
+			npc.VoicePitch = rng:NextNumber(0.97, 1.07)
 		else
 			npc.Voice = rng:NextNumber() < 0.5 and "M1" or "M2"
-			npc.VoicePitch = rng:NextNumber(0.9, 1.08)
+			npc.VoicePitch = rng:NextNumber(0.94, 1.06)
 		end
 	end
 	local pitch = npc.VoicePitch

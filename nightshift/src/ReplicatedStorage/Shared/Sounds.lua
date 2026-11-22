@@ -4,7 +4,7 @@
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
 -- v10: существо, скример, отключение света, испуг покупателей — Soundza (Sfx7); голоса покупателей
--- и охранника — синтез речи Piper (VoiceLines: Voice2, Voice3).
+-- и охранника — ElevenLabs (v11; VoiceLines: Voice2, Voice3).
 -- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt, Whisper, GlassKnock, ShelfCrash.
 local Sounds = {}
 
