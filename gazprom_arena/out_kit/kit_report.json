@@ -1,0 +1,269 @@
+{
+ "scale": 600.0,
+ "parts": [
+  {
+   "file": "bowl_1.stl",
+   "count": 1,
+   "tris": 9302,
+   "watertight": true,
+   "volume_cm3": 757.6,
+   "size_mm": [
+    167.5,
+    172.6,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_1.stl",
+   "count": 1,
+   "tris": 5860,
+   "watertight": true,
+   "volume_cm3": 374.3,
+   "size_mm": [
+    167.3,
+    160.0,
+    46.6
+   ]
+  },
+  {
+   "file": "bowl_2.stl",
+   "count": 1,
+   "tris": 16576,
+   "watertight": true,
+   "volume_cm3": 769.4,
+   "size_mm": [
+    172.7,
+    191.9,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_2.stl",
+   "count": 1,
+   "tris": 6256,
+   "watertight": true,
+   "volume_cm3": 396.3,
+   "size_mm": [
+    167.4,
+    179.2,
+    60.6
+   ]
+  },
+  {
+   "file": "bowl_3.stl",
+   "count": 1,
+   "tris": 8586,
+   "watertight": true,
+   "volume_cm3": 1026.4,
+   "size_mm": [
+    182.8,
+    183.2,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_3.stl",
+   "count": 1,
+   "tris": 6068,
+   "watertight": true,
+   "volume_cm3": 450.8,
+   "size_mm": [
+    173.5,
+    173.7,
+    61.3
+   ]
+  },
+  {
+   "file": "bowl_4.stl",
+   "count": 1,
+   "tris": 16476,
+   "watertight": true,
+   "volume_cm3": 769.4,
+   "size_mm": [
+    191.9,
+    172.7,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_4.stl",
+   "count": 1,
+   "tris": 6298,
+   "watertight": true,
+   "volume_cm3": 396.3,
+   "size_mm": [
+    179.2,
+    167.4,
+    60.6
+   ]
+  },
+  {
+   "file": "bowl_5.stl",
+   "count": 1,
+   "tris": 9046,
+   "watertight": true,
+   "volume_cm3": 751.8,
+   "size_mm": [
+    167.5,
+    172.6,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_5.stl",
+   "count": 1,
+   "tris": 5858,
+   "watertight": true,
+   "volume_cm3": 374.3,
+   "size_mm": [
+    167.3,
+    160.0,
+    46.6
+   ]
+  },
+  {
+   "file": "bowl_6.stl",
+   "count": 1,
+   "tris": 16578,
+   "watertight": true,
+   "volume_cm3": 769.4,
+   "size_mm": [
+    172.7,
+    191.9,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_6.stl",
+   "count": 1,
+   "tris": 6348,
+   "watertight": true,
+   "volume_cm3": 396.3,
+   "size_mm": [
+    167.4,
+    179.2,
+    60.6
+   ]
+  },
+  {
+   "file": "bowl_7.stl",
+   "count": 1,
+   "tris": 8574,
+   "watertight": true,
+   "volume_cm3": 1026.4,
+   "size_mm": [
+    182.8,
+    183.2,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_7.stl",
+   "count": 1,
+   "tris": 6068,
+   "watertight": true,
+   "volume_cm3": 450.8,
+   "size_mm": [
+    173.5,
+    173.7,
+    61.3
+   ]
+  },
+  {
+   "file": "bowl_8.stl",
+   "count": 1,
+   "tris": 16386,
+   "watertight": true,
+   "volume_cm3": 769.4,
+   "size_mm": [
+    191.9,
+    172.7,
+    76.7
+   ]
+  },
+  {
+   "file": "roof_8.stl",
+   "count": 1,
+   "tris": 6234,
+   "watertight": true,
+   "volume_cm3": 396.3,
+   "size_mm": [
+    179.2,
+    167.4,
+    60.6
+   ]
+  },
+  {
+   "file": "pylon.stl",
+   "count": 8,
+   "tris": 150,
+   "watertight": true,
+   "volume_cm3": 10.9,
+   "size_mm": [
+    96.8,
+    96.8,
+    14.8
+   ]
+  },
+  {
+   "file": "roof_panel.stl",
+   "count": 2,
+   "tris": 1794,
+   "watertight": true,
+   "volume_cm3": 74.5,
+   "size_mm": [
+    101.2,
+    12.3,
+    173.3
+   ]
+  },
+  {
+   "file": "pitch.stl",
+   "count": 1,
+   "tris": 2978,
+   "watertight": true,
+   "volume_cm3": 133.4,
+   "size_mm": [
+    199.5,
+    132.8,
+    9.0
+   ]
+  },
+  {
+   "file": "goal_play.stl",
+   "count": 2,
+   "tris": 3206,
+   "watertight": true,
+   "volume_cm3": 2.2,
+   "size_mm": [
+    12.0,
+    52.8,
+    30.4
+   ]
+  },
+  {
+   "file": "player_bases_x11.stl",
+   "count": 2,
+   "tris": 8404,
+   "watertight": true,
+   "volume_cm3": 6.7,
+   "size_mm": [
+    81.0,
+    60.0,
+    3.9
+   ]
+  },
+  {
+   "file": "ball.stl",
+   "count": 1,
+   "tris": 2048,
+   "watertight": true,
+   "volume_cm3": 0.2,
+   "size_mm": [
+    7.0,
+    7.0,
+    7.0
+   ]
+  }
+ ]
+}

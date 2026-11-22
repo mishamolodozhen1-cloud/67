@@ -1,15 +1,15 @@
-<title>Газпром Арена 1:2000</title>
+<title>Макет Газпром Арены</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one-screen viewer, 3D stage fills the left, a spec sheet panel on the right; stacks on phones. */
+/* Layout: one-screen app. The 3D stage fills the left; a spec sheet with print and assembly notes scrolls on the right; stacks on phones. */
 :root {
   --bg: #eef1f4;
   --panel: #f8fafb;
-  --stage-top: #dfe6ec;
-  --stage-bottom: #c9d3dc;
+  --stage-top: #dce4eb;
+  --stage-bottom: #c4cfd9;
   --fg: #16202a;
   --muted: #5b6875;
   --line: #d3dae1;
@@ -22,13 +22,13 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f151b; --panel: #141c23; --stage-top: #1b2630; --stage-bottom: #0e141a;
+    --bg: #0f151b; --panel: #141c23; --stage-top: #1c2732; --stage-bottom: #0e141a;
     --fg: #e6edf3; --muted: #93a2b0; --line: #26333f; --accent: #5aa9e0; --accent-ink: #08131c; --chip: #1d2731;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0f151b; --panel: #141c23; --stage-top: #1b2630; --stage-bottom: #0e141a;
+  --bg: #0f151b; --panel: #141c23; --stage-top: #1c2732; --stage-bottom: #0e141a;
   --fg: #e6edf3; --muted: #93a2b0; --line: #26333f; --accent: #5aa9e0; --accent-ink: #08131c; --chip: #1d2731;
   color-scheme: dark;
 }
@@ -37,11 +37,7 @@ body {
   background: var(--bg); color: var(--fg);
   font-family: var(--font-body); font-size: 14px; line-height: 1.5;
 }
-.app {
-  height: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-}
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 400px; }
 .stage {
   position: relative; min-width: 0; min-height: 0;
   background: linear-gradient(180deg, var(--stage-top), var(--stage-bottom));
@@ -59,16 +55,17 @@ body {
 }
 .stage .status[hidden] { display: none; }
 .toolbar {
-  position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px));
-  display: flex; flex-wrap: wrap; gap: 8px; right: 12px;
+  position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px)); right: 12px;
+  display: flex; flex-wrap: wrap; gap: 8px; pointer-events: none;
 }
+.toolbar > * { pointer-events: auto; }
 .seg {
   display: inline-flex; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; padding: 3px; gap: 2px;
 }
 .seg button, .btn {
   font: 500 13px/1 var(--font-body); color: var(--fg); background: transparent;
-  border: 0; border-radius: 7px; padding: 8px 11px; cursor: pointer;
+  border: 0; border-radius: 7px; padding: 8px 11px; cursor: pointer; white-space: nowrap;
 }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .seg button:hover:not([aria-pressed="true"]), .btn:hover { background: var(--chip); }
@@ -79,65 +76,60 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--panel); border-left: 1px solid var(--line);
   overflow-y: auto; min-width: 0;
   padding-block: 28px 32px; padding-left: 24px; padding-right: max(24px, env(safe-area-inset-right, 0px));
-  display: flex; flex-direction: column; gap: 24px;
+  display: flex; flex-direction: column; gap: 26px;
 }
-.eyebrow {
-  font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
-}
-h1 {
-  font: 700 26px/1.15 var(--font-display); margin: 6px 0 8px; text-wrap: balance; letter-spacing: -.01em;
-}
+.eyebrow { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 26px/1.15 var(--font-display); margin: 6px 0 8px; text-wrap: balance; letter-spacing: -.01em; }
 .lede { color: var(--muted); margin: 0; max-width: 60ch; }
-h2 {
-  font: 500 12px/1.3 var(--font-display); letter-spacing: .06em; text-transform: uppercase;
-  margin: 0 0 10px; color: var(--fg);
-}
+h2 { font: 500 12px/1.3 var(--font-display); letter-spacing: .06em; text-transform: uppercase; margin: 0 0 10px; }
 dl.specs { margin: 0; display: grid; grid-template-columns: auto 1fr; border-top: 1px solid var(--line); }
 dl.specs dt, dl.specs dd { margin: 0; padding: 7px 0; border-bottom: 1px solid var(--line); }
 dl.specs dt { color: var(--muted); padding-right: 12px; }
 dl.specs dd { text-align: right; font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
-.legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
-.legend li {
-  display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 0 -6px; border-radius: 6px; cursor: default;
-}
-.legend li:hover, .legend li:focus-visible { background: var(--chip); outline: none; }
-.legend li[hidden] { display: none !important; }
-.sw { width: 12px; height: 12px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
-ul.tips { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
-.note {
-  font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; margin: 0;
-}
-code { font-family: var(--font-mono); font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
-.files { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.files li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-.files span { color: var(--muted); font-size: 12px; text-align: right; }
+ul.list, ol.list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+ol.list li::marker { font-family: var(--font-mono); color: var(--muted); }
+.tbl-wrap { overflow-x: auto; }
+table.parts { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.parts th, table.parts td { text-align: left; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.parts th { font: 500 11px/1.3 var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+table.parts td.n, table.parts th.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.parts code { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; margin: 0; }
 
-@media (max-width: 820px) {
+@media (max-width: 860px) {
   .app { height: auto; grid-template-columns: 1fr; }
-  .stage { height: 64svh; min-height: 340px; }
+  .stage { height: 68svh; min-height: 380px; }
   .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .toolbar { left: max(10px, env(safe-area-inset-left, 0px)); top: 10px; }
-  .seg button, .btn { padding: 7px 9px; font-size: 12px; }
+  .toolbar { left: max(8px, env(safe-area-inset-left, 0px)); right: 8px; top: 8px; gap: 6px; }
+  .seg button, .btn { padding: 7px 8px; font-size: 12px; }
   .stage .hint { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 
 <div class="app">
-  <section class="stage" id="stage" aria-label="3D-модель стадиона">
+  <section class="stage" id="stage" aria-label="3D-макет стадиона">
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Крыша">
-        <button id="roof-closed" aria-pressed="true">Крыша закрыта</button>
-        <button id="roof-open" aria-pressed="false">Открыта</button>
+        <button id="roof-on" aria-pressed="true">Крыша</button>
+        <button id="roof-off" aria-pressed="false">Без крыши</button>
+        <button id="roof-explode" aria-pressed="false">По деталям</button>
+      </div>
+      <div class="seg" role="group" aria-label="Раздвижная крыша">
+        <button id="panels-closed" aria-pressed="true">Закрыта</button>
+        <button id="panels-open" aria-pressed="false">Открыта</button>
       </div>
       <div class="seg" role="group" aria-label="Режим показа">
         <button id="mode-color" aria-pressed="true">Цвета</button>
-        <button id="mode-print" aria-pressed="false">Как напечатается</button>
+        <button id="mode-print" aria-pressed="false">Пластик</button>
       </div>
-      <button class="btn" id="reset-view">Сброс вида</button>
+      <div class="seg" role="group" aria-label="Камера">
+        <button id="cam-out" aria-pressed="true">Снаружи</button>
+        <button id="cam-stand" aria-pressed="false">С трибуны</button>
+        <button id="cam-pitch" aria-pressed="false">У поля</button>
+      </div>
     </div>
-    <div class="status" id="status">Загрузка модели…</div>
+    <div class="status" id="status">Загрузка макета…</div>
     <div class="hint">Тяните — вращать · колесо — масштаб · правая кнопка — сдвиг</div>
   </section>
 
@@ -145,56 +137,88 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--chip); 
     <header>
       <div class="eyebrow">Санкт-Петербург · Крестовский остров</div>
       <h1>Газпром Арена</h1>
-      <p class="lede">Масштабная модель стадиона для 3D-печати. Цельная замкнутая сетка, печатается без поддержек. Два варианта: с закрытой и с открытой раздвижной крышей.</p>
+      <p class="lede">Подробный игровой макет для 3D-печати. Внутри два яруса трибун с рядами, проходами и ложами. Крыша снимается, её половины раздвигаются, а на поле можно играть в настольный футбол фигурками ростом 4 см.</p>
     </header>
 
     <section>
-      <h2>Модель</h2>
+      <h2>Макет</h2>
       <dl class="specs">
-        <dt>Масштаб</dt><dd>1:2000 · 1 мм = 2 м</dd>
-        <dt>Габариты</dt><dd>184 × 184 × 55 мм</dd>
-        <dt>Объём тела</dt><dd id="spec-volume">453 см³</dd>
-        <dt>Треугольников</dt><dd id="spec-tris">46 592</dd>
-        <dt>Сетка</dt><dd>замкнутая, manifold</dd>
+        <dt>Масштаб</dt><dd>1:600 · 1 мм = 0,6 м</dd>
+        <dt>Собранный стадион</dt><dd>Ø 487 × 183 мм</dd>
+        <dt>Поле по разметке</dt><dd>175 × 113 мм</dd>
+        <dt>Высота под крышей</dt><dd>72 мм</dd>
+        <dt>Проём крыши</dt><dd>200 × 147 мм</dd>
+        <dt>Деталей</dt><dd>32</dd>
+        <dt>Пластик, оценка</dt><dd>≈ 2,5–3,5 кг</dd>
       </dl>
     </section>
 
     <section>
-      <h2>Реальный стадион → модель</h2>
-      <dl class="specs">
-        <dt>Диаметр крыши</dt><dd>≈286 м → 143 мм</dd>
-        <dt>Высота без пилонов</dt><dd>≈75 м → 37 мм</dd>
-        <dt>Высота с пилонами</dt><dd>≈110 м → 55 мм</dd>
-        <dt>Пилоны</dt><dd>8, стальные, с вантами</dd>
-        <dt>Поле</dt><dd>105 × 68 м → 52 × 34 мм</dd>
-      </dl>
+      <h2>Что воспроизведено</h2>
+      <ul class="list">
+        <li>Нижний ярус на 26 рядов и верхний на 32 ряда, проходы-лестницы и выходы из подтрибунных тоннелей.</li>
+        <li>Кольцо VIP-лож в два этажа между ярусами, остекление с импостами.</li>
+        <li>Два видеотабло над трибунами за воротами.</li>
+        <li>Выкатное поле 120 × 80 м с полной разметкой и скамейками запасных.</li>
+        <li>Неподвижная крыша с панелями, кольцевыми швами и фермами снизу.</li>
+        <li>Фермы-пути с треугольной решёткой и две половины крыши, которые по ним ездят.</li>
+        <li>8 наклонных пилонов высотой 110 м, по две ванты на каждый.</li>
+        <li>Наклонный фасад: витражи, 96 импостов, междуэтажные пояса, 15 входов и ворота, через которые выкатывается поле.</li>
+        <li>Стилобат с четырьмя парадными лестницами.</li>
+      </ul>
     </section>
 
     <section>
-      <h2>Части модели</h2>
-      <ul class="legend" id="legend"></ul>
+      <h2>Для игры</h2>
+      <ul class="list">
+        <li>Фигурки ставятся на подставки с двумя шипами. Шаг шипов 8 мм, диаметр 4,85 мм, как у стандартных строительных кубиков. На гладком дне подставка скользит по полю.</li>
+        <li>Игровые ворота 48 × 28 мм намеренно больше масштабных, чтобы в них помещался вратарь.</li>
+        <li>Играть можно без крыши. С крышей рука проходит в проём, когда половины крыши раздвинуты.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Детали для печати</h2>
+      <div class="tbl-wrap">
+        <table class="parts">
+          <thead><tr><th>Деталь</th><th class="n">Шт.</th><th class="n">Размер, мм</th></tr></thead>
+          <tbody>
+            <tr><td>Чаша, сектор<br><code>bowl_1 … bowl_8</code></td><td class="n">8</td><td class="n">до 192 × 183 × 77</td></tr>
+            <tr><td>Крыша, сектор<br><code>roof_1 … roof_8</code></td><td class="n">8</td><td class="n">до 179 × 174 × 61</td></tr>
+            <tr><td>Пилон, печать лёжа<br><code>pylon</code></td><td class="n">8</td><td class="n">97 × 97 × 15</td></tr>
+            <tr><td>Половина раздвижной крыши, печать на ребре<br><code>roof_panel</code></td><td class="n">2</td><td class="n">101 × 12 × 173</td></tr>
+            <tr><td>Поле<br><code>pitch</code></td><td class="n">1</td><td class="n">200 × 133 × 9</td></tr>
+            <tr><td>Игровые ворота<br><code>goal_play</code></td><td class="n">2</td><td class="n">12 × 53 × 30</td></tr>
+            <tr><td>Подставки, 11 на столе<br><code>player_bases_x11</code></td><td class="n">2</td><td class="n">81 × 60 × 4</td></tr>
+            <tr><td>Мяч<br><code>ball</code></td><td class="n">1</td><td class="n">Ø 7</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section>
       <h2>Печать</h2>
-      <ul class="tips">
-        <li>FDM, сопло 0,4 мм, слой 0,12–0,16 мм. Поддержки не нужны: фасад и кромка крыши наклонены не больше ~48° от вертикали, ванты — около 41°.</li>
-        <li>Верх пилонов тонкий (~1,5 мм): снизьте скорость для мелких слоёв или включите обдув на 100 %.</li>
-        <li>Стол меньше 190 мм — уменьшите модель в слайсере до 90 % (масштаб ≈1:2200).</li>
-        <li>Для двух цветов в открытом варианте поле приподнято на 0,25 мм: смените пластик на зелёный на этом слое.</li>
+      <ul class="list">
+        <li>Все детали помещаются на стол 220 × 220 мм и печатаются без поддержек.</li>
+        <li>Сопло 0,4 мм, слой 0,12–0,16 мм. Для секторов чаши и крыши хватит 2–3 стенок и 8–10 % заполнения «гироид».</li>
+        <li>Поле: на высоте 5,0 мм смените пластик на белый, и разметка получится белой. Верх скамеек тоже станет белым.</li>
+        <li>Подставки и шипы печатайте слоем 0,12 мм. Если фигурки садятся туго или болтаются, подстройте компенсацию отверстий в слайсере на ±0,05 мм.</li>
       </ul>
     </section>
 
     <section>
-      <h2>Файлы</h2>
-      <ul class="files">
-        <li><code>gazprom_arena_closed.stl</code><span>крыша закрыта</span></li>
-        <li><code>gazprom_arena_open.stl</code><span>крыша открыта</span></li>
-        <li><code>generate.py</code><span>генератор, масштаб меняется ключом <code>--scale</code></span></li>
-      </ul>
+      <h2>Сборка</h2>
+      <ol class="list">
+        <li>Нарежьте пруток 1,75 мм на штифты по 13 мм. Соедините 8 секторов чаши в кольцо на штифтах и клее.</li>
+        <li>Положите поле в центр чаши.</li>
+        <li>Так же соберите кольцо крыши из 8 секторов.</li>
+        <li>Проденьте пилоны через отверстия в крыше и поставьте крышу на чашу. Нижние концы пилонов войдут в гнёзда в чаше.</li>
+        <li>Ванты сделайте из прутка 1,75 мм или лески: от отверстий в верхушке пилона к отверстиям в крыше и фермах.</li>
+        <li>Поставьте половины крыши пазами на гребни ферм. Они сдвигаются к краям и открывают поле.</li>
+      </ol>
     </section>
 
-    <p class="note">Модель приблизительная. Она построена по открытым данным: диаметр и высота, число пилонов, размер поля и подвижной крыши. Рабочих чертежей в открытом доступе нет, поэтому силуэт и пропорции переданы близко к оригиналу, а мелкие детали фасада, трибун и ферм упрощены.</p>
+    <p class="note">Макет приблизительный. Он построен по открытым данным: диаметр крыши 286 м, высота крыши 79 м, пилоны 110 м, два яруса трибун, 104 ложи, выкатное поле 120 × 80 м. Рабочих чертежей в открытом доступе нет, поэтому число рядов, форма ферм и детали фасада восстановлены по типичным решениям для стадионов такого размера.</p>
   </aside>
 </div>
 
@@ -210,26 +234,16 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-const PART_LABELS = {
-  podium: 'Стилобат и лестницы', facade: 'Стеклянный фасад', ribs: 'Импосты фасада',
-  roof: 'Неподвижная крыша', roof_band: 'Пути раздвижной крыши', bowl_wall: 'Стены чаши', panels: 'Раздвижные панели', pylons: 'Пилоны',
-  stays: 'Ванты', stands: 'Трибуны', pitch: 'Поле'
-};
-const SPECS = {
-  closed: { volume: '453 см³', tris: '46 592' },
-  open:   { volume: '343 см³', tris: '35 996' }
-};
-
 const stage = document.getElementById('stage');
 const statusEl = document.getElementById('status');
-const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.92;
+renderer.toneMappingExposure = 0.95;
 stage.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -237,157 +251,226 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
 scene.environmentIntensity = 0.55;
 
-const camera = new THREE.PerspectiveCamera(32, 1, 1, 5000);
-const HOME = { pos: new THREE.Vector3(180, 118, 200), target: new THREE.Vector3(0, 12, 0) };
-camera.position.copy(HOME.pos);
+const camera = new THREE.PerspectiveCamera(34, 1, 2, 8000);
+const VIEWS = {
+  out:   { pos: [520, 330, 560], target: [0, 30, 0] },
+  stand: { pos: [-20, 62, 128], target: [0, 6, -10] },
+  pitch: { pos: [-112, 20, 58], target: [10, 8, -4] },
+  explode: { pos: [640, 470, 700], target: [0, 85, 0] },
+};
+camera.position.set(...VIEWS.out.pos);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.copy(HOME.target);
+controls.target.set(...VIEWS.out.target);
 controls.enableDamping = true;
-controls.minDistance = 70;
-controls.maxDistance = 900;
+controls.minDistance = 12;
+controls.maxDistance = 1800;
 controls.maxPolarAngle = Math.PI * 0.495;
-controls.autoRotate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-controls.autoRotateSpeed = 0.6;
+controls.autoRotate = !reduceMotion;
+controls.autoRotateSpeed = 0.45;
 controls.addEventListener('start', () => { controls.autoRotate = false; });
 
 scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x5b6470, 0.55));
 const sun = new THREE.DirectionalLight(0xfff1df, 1.9);
-sun.position.set(160, 260, 120);
+sun.position.set(320, 560, 240);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -160, right: 160, top: 160, bottom: -160, near: 50, far: 700 });
-sun.shadow.bias = -0.0008;
-sun.shadow.normalBias = 0.9;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -340, right: 340, top: 340, bottom: -340, near: 100, far: 1600 });
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.8;
 scene.add(sun);
 
-// ground with a soft contact shadow (colour mode)
-const ground = new THREE.Mesh(new THREE.CircleGeometry(600, 96), new THREE.ShadowMaterial({ opacity: 0.22 }));
+const ground = new THREE.Mesh(new THREE.CircleGeometry(1600, 96), new THREE.ShadowMaterial({ opacity: 0.2 }));
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// printer bed 220 x 220 mm with a 10 mm grid (print mode)
-const bed = new THREE.Group();
-const bedPlate = new THREE.Mesh(new THREE.BoxGeometry(220, 2, 220),
-  new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 0.6, metalness: 0.2 }));
-bedPlate.position.y = -1.01;
-bedPlate.receiveShadow = true;
-bed.add(bedPlate);
-const grid = new THREE.GridHelper(220, 22, 0x56606b, 0x3a424b);
-grid.position.y = 0.02;
-bed.add(grid);
-bed.visible = false;
-scene.add(bed);
-
 const printMat = new THREE.MeshStandardMaterial({ color: 0xc3cad2, roughness: 0.62, metalness: 0.0, flatShading: true });
-const variants = { closed: new THREE.Group(), open: new THREE.Group() };
-const parts = { closed: {}, open: {} };
-scene.add(variants.closed, variants.open);
+const groups = new Map();       // node prefix -> { meshes, kind, index, offset }
+const model = new THREE.Group();
+scene.add(model);
 
-const state = { roof: 'closed', mode: 'color' };
+// Mowing stripes for the grass, mapped from the plate's own footprint.
+function grassTexture() {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 64;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 16; i++) {
+    g.fillStyle = i % 2 ? '#3f8f47' : '#4a9c51';
+    g.fillRect(i * 64, 0, 64, 64);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
-function onModel(gltf) {
+// An original, generic 4 cm mannequin for scale: rounded body, simple limbs.
+function figure(shirt) {
+  const f = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: 0xe9c9a8, roughness: 0.7 });
+  const kit = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.55 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.6 });
+  const add = (geo, mat, x, y, z, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.z = rz; m.castShadow = true; f.add(m); };
+  const leg = new THREE.CapsuleGeometry(2.1, 11, 4, 12);
+  add(leg, dark, -2.6, 9.5, 0); add(leg, dark, 2.6, 9.5, 0);
+  add(new THREE.CapsuleGeometry(5.2, 7, 6, 16), kit, 0, 24, 0);
+  const arm = new THREE.CapsuleGeometry(1.6, 9, 4, 12);
+  add(arm, kit, -7.2, 23.5, 0, 0.18); add(arm, kit, 7.2, 23.5, 0, -0.18);
+  add(new THREE.SphereGeometry(4.6, 24, 16), skin, 0, 35.2, 0);
+  return f;
+}
+
+function nodeInfo(name) {
+  const [prefix, key] = name.split('__');
+  const m = prefix.match(/^([a-z]+(?:_[a-z]+)?)_(\d+)$/);
+  if (m) return { prefix, key, kind: m[1], index: +m[2] };
+  return { prefix, key, kind: prefix, index: 0 };
+}
+
+function setup(gltf) {
   const meshes = [];
   gltf.scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
   for (const m of meshes) {
-    const [variant, key] = (m.name || m.parent?.name || '').split('__');
-    if (!variants[variant]) continue;
+    const info = nodeInfo(m.name || m.parent?.name || '');
     m.castShadow = true;
     m.receiveShadow = true;
     m.material = m.material.clone();
-    m.material.side = THREE.FrontSide;
-    m.userData.colorMat = m.material;
-    m.userData.key = key;
-    if (key === 'facade') { m.material.metalness = 0.5; m.material.roughness = 0.2; m.material.envMapIntensity = 1.6; }
-    variants[variant].add(m);
-    (parts[variant][key] ||= []).push(m);
+    const mat = m.material;
+    if (info.key === 'facade') { mat.metalness = 0.55; mat.roughness = 0.18; mat.envMapIntensity = 1.6; }
+    if (info.key === 'glass') { mat.metalness = 0.6; mat.roughness = 0.15; }
+    if (info.key === 'screen') { mat.emissive = new THREE.Color(0x1d3b5a); mat.emissiveIntensity = 0.8; }
+    if (info.key === 'panel') { mat.transparent = true; mat.opacity = 0.82; mat.roughness = 0.35; }
+    if (info.key === 'grass') {
+      const g = m.geometry, p = g.attributes.position, uv = new Float32Array(p.count * 2);
+      g.computeBoundingBox();
+      const bb = g.boundingBox;
+      for (let i = 0; i < p.count; i++) {
+        uv[2 * i] = (p.getX(i) - bb.min.x) / (bb.max.x - bb.min.x);
+        uv[2 * i + 1] = (p.getZ(i) - bb.min.z) / (bb.max.z - bb.min.z);
+      }
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      mat.map = grassTexture();
+      mat.color.set(0xffffff);
+    }
+    m.userData.colorMat = mat;
+    m.userData.key = info.key;
+    model.add(m);
+    if (!groups.has(info.prefix)) groups.set(info.prefix, { ...info, meshes: [], offset: new THREE.Vector3(), goal: new THREE.Vector3() });
+    groups.get(info.prefix).meshes.push(m);
   }
-  buildLegend();
-  apply();
+  // scale figures on the pitch
+  const team = [[-30, 12, 0xc8302b], [25, -14, 0x2457a6], [-12, -22, 0xc8302b], [40, 10, 0x2457a6]];
+  team.forEach(([x, y, c], i) => {
+    const f = figure(c);
+    f.position.set(x, 5 + 0.5 + 3.9, -y);
+    f.rotation.y = (i % 2 ? -1 : 1) * Math.PI / 2;
+    const g = { prefix: 'fig_' + i, kind: 'figure', index: i, meshes: [], offset: new THREE.Vector3(), goal: new THREE.Vector3(), obj: f };
+    f.traverse((o) => { if (o.isMesh) { o.userData.colorMat = o.material; o.userData.key = 'figure'; g.meshes.push(o); } });
+    groups.set(g.prefix, g);
+    model.add(f);
+  });
+  apply(true);
   statusEl.hidden = true;
 }
 
-fetch('preview_model.json')
-  .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+const state = { roof: 'on', panels: 'closed', mode: 'color' };
+
+function sectorDir(index) {
+  const a = THREE.MathUtils.degToRad(45 * index);
+  return new THREE.Vector3(Math.cos(a), 0, -Math.sin(a));
+}
+
+function apply(snap = false) {
+  const exploded = state.roof === 'explode';
+  for (const g of groups.values()) {
+    let visible = true;
+    const goal = new THREE.Vector3();
+    switch (g.kind) {
+      case 'bowl':
+        if (exploded) goal.copy(sectorDir(g.index)).multiplyScalar(45);
+        break;
+      case 'roof': case 'pylon':
+        visible = state.roof !== 'off';
+        if (exploded) goal.copy(sectorDir(g.index)).multiplyScalar(45).add(new THREE.Vector3(0, 150, 0));
+        break;
+      case 'cable':
+        visible = state.roof === 'on';
+        break;
+      case 'panel':
+        visible = state.roof !== 'off' && state.panels === 'closed';
+        if (exploded) goal.set(0, 230, 0);
+        break;
+      case 'panelopen':
+        visible = state.roof !== 'off' && state.panels === 'open';
+        if (exploded) goal.set(0, 230, 0);
+        break;
+    }
+    g.goal.copy(goal);
+    if (snap || reduceMotion) g.offset.copy(goal);
+    for (const m of g.meshes) {
+      m.visible = visible;
+      m.material = state.mode === 'print' && g.kind !== 'figure' ? printMat : m.userData.colorMat;
+    }
+    if (g.obj) g.obj.visible = visible;
+  }
+  pressed('roof-on', state.roof === 'on'); pressed('roof-off', state.roof === 'off'); pressed('roof-explode', exploded);
+  pressed('panels-closed', state.panels === 'closed'); pressed('panels-open', state.panels === 'open');
+  pressed('mode-color', state.mode === 'color'); pressed('mode-print', state.mode === 'print');
+}
+function pressed(id, v) { document.getElementById(id).setAttribute('aria-pressed', String(v)); }
+
+function setView(name) {
+  const v = VIEWS[name];
+  controls.autoRotate = false;
+  camera.position.set(...v.pos);
+  controls.target.set(...v.target);
+  controls.update();
+  for (const k of ['out', 'stand', 'pitch']) pressed('cam-' + k, k === name || (name === 'explode' && k === 'out'));
+}
+
+const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
+on('roof-on', () => { state.roof = 'on'; apply(); });
+on('roof-off', () => { state.roof = 'off'; apply(); });
+on('roof-explode', () => { state.roof = 'explode'; apply(); setView('explode'); });
+on('panels-closed', () => { state.panels = 'closed'; apply(); });
+on('panels-open', () => { state.panels = 'open'; apply(); });
+on('mode-color', () => { state.mode = 'color'; apply(); });
+on('mode-print', () => { state.mode = 'print'; apply(); });
+on('cam-out', () => setView('out'));
+on('cam-stand', () => setView('stand'));
+on('cam-pitch', () => setView('pitch'));
+
+fetch('kit_preview.json')
+  .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
   .then(({ data }) => {
     const bin = atob(data);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    new GLTFLoader().parse(bytes.buffer, '', onModel, showLoadError);
+    new GLTFLoader().parse(bytes.buffer, '', setup, showLoadError);
   })
   .catch(showLoadError);
 
-function showLoadError() {
-  statusEl.textContent = 'Модель не загрузилась. Обновите страницу.';
-}
-
-function buildLegend() {
-  const ul = document.getElementById('legend');
-  for (const [key, label] of Object.entries(PART_LABELS)) {
-    const mesh = (parts.open[key] || parts.closed[key] || [])[0];
-    if (!mesh) continue;
-    const li = document.createElement('li');
-    li.tabIndex = 0;
-    li.dataset.key = key;
-    const sw = document.createElement('span');
-    sw.className = 'sw';
-    sw.style.background = '#' + mesh.userData.colorMat.color.getHexString(THREE.SRGBColorSpace);
-    li.append(sw, document.createTextNode(label));
-    const on = () => highlight(key, true), off = () => highlight(key, false);
-    li.addEventListener('mouseenter', on); li.addEventListener('focus', on);
-    li.addEventListener('mouseleave', off); li.addEventListener('blur', off);
-    ul.append(li);
-  }
-}
-
-function highlight(key, on) {
-  for (const v of Object.keys(parts)) for (const m of parts[v][key] || []) {
-    const mat = m.material;
-    if (!mat.emissive) continue;
-    mat.emissive.set(on ? 0x2a7fc0 : 0x000000);
-    mat.emissiveIntensity = on ? 0.55 : 0;
-  }
-}
-
-function apply() {
-  variants.closed.visible = state.roof === 'closed';
-  variants.open.visible = state.roof === 'open';
-  for (const v of Object.keys(parts)) for (const list of Object.values(parts[v])) for (const m of list) {
-    m.material = state.mode === 'print' ? printMat : m.userData.colorMat;
-  }
-  bed.visible = state.mode === 'print';
-  ground.visible = state.mode !== 'print';
-  document.getElementById('spec-volume').textContent = SPECS[state.roof].volume;
-  document.getElementById('spec-tris').textContent = SPECS[state.roof].tris;
-  for (const li of document.querySelectorAll('#legend li')) {
-    li.hidden = state.roof === 'closed' && ['stands', 'pitch', 'bowl_wall'].includes(li.dataset.key);
-  }
-  setPressed('roof-closed', state.roof === 'closed');
-  setPressed('roof-open', state.roof === 'open');
-  setPressed('mode-color', state.mode === 'color');
-  setPressed('mode-print', state.mode === 'print');
-}
-function setPressed(id, v) { document.getElementById(id).setAttribute('aria-pressed', String(v)); }
-
-document.getElementById('roof-closed').onclick = () => { state.roof = 'closed'; apply(); };
-document.getElementById('roof-open').onclick = () => { state.roof = 'open'; apply(); };
-document.getElementById('mode-color').onclick = () => { state.mode = 'color'; apply(); };
-document.getElementById('mode-print').onclick = () => { state.mode = 'print'; apply(); };
-document.getElementById('reset-view').onclick = () => {
-  camera.position.copy(HOME.pos); controls.target.copy(HOME.target); controls.update();
-};
+function showLoadError() { statusEl.textContent = 'Макет не загрузился. Обновите страницу.'; }
 
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / Math.max(h, 1);
-  // pull back on narrow screens so the whole stadium fits
-  camera.fov = camera.aspect < 0.9 ? 44 : 32;
+  camera.fov = camera.aspect < 0.9 ? 48 : 34;
   camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
 resize();
 
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => {
+  for (const g of groups.values()) {
+    if (!g.offset.equals(g.goal)) {
+      g.offset.lerp(g.goal, 0.12);
+      if (g.offset.distanceTo(g.goal) < 0.05) g.offset.copy(g.goal);
+    }
+    for (const m of g.meshes) if (!g.obj) m.position.copy(g.offset);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
 </script>
