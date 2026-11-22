@@ -126,8 +126,8 @@ Remotes:WaitForChild("Subtitle").OnClientEvent:Connect(function(speaker, text, s
 	ctx.HUD.Subtitle(speaker, text, seconds)
 end)
 
-Remotes:WaitForChild("Sound").OnClientEvent:Connect(function(name, position, volume)
-	ctx.Audio.Play(name, position, volume)
+Remotes:WaitForChild("Sound").OnClientEvent:Connect(function(name, position, volume, pitch, fx)
+	ctx.Audio.Play(name, position, volume, pitch, fx)
 end)
 
 local EFFECTS = {
@@ -149,8 +149,14 @@ local EFFECTS = {
 	Apparition = function(data)
 		ctx.Effects.Apparition(data)
 	end,
-	Caught = function()
-		ctx.Effects.Caught()
+	Caught = function(data)
+		ctx.Effects.Caught(data)
+	end,
+	LightsChase = function(data)
+		ctx.Effects.LightsChase(data)
+	end,
+	BehindYou = function(data)
+		ctx.Effects.BehindYou(data or {})
 	end,
 	Read = function(data)
 		ctx.HUD.ShowDocument(data)

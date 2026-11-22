@@ -203,12 +203,44 @@ function TaskManager.ProgressKind(kind, amount)
 	return false
 end
 
+-- Задания с покупателями не даём в часы, когда покупатели в эту ночь уже не приходят
+local NEEDS_CUSTOMERS = { help = true, orders = true }
+
 function TaskManager.OnHour(hour)
 	local n = playerCount()
+	local untilHour = Config.Night(S.Net.Get("Night")).CustomersUntil or 4
 	for _, def in ipairs(SCHEDULE[hour] or {}) do
-		local count = type(def.Count) == "function" and def.Count(n) or def.Count
-		TaskManager.Add({ Id = def.Kind .. "_h" .. hour, Kind = def.Kind, Text = def.Text, Room = def.Room, Count = count })
+		if not (NEEDS_CUSTOMERS[def.Kind] and hour >= untilHour) then
+			local count = type(def.Count) == "function" and def.Count(n) or def.Count
+			TaskManager.Add({ Id = def.Kind .. "_h" .. hour, Kind = def.Kind, Text = def.Text, Room = def.Room, Count = count })
+		end
 	end
+end
+
+-- Снять невыполненные задания этого типа (например, покупатели исчезли — помогать больше некому).
+-- Сделанная часть засчитывается, остальное из плана убирается
+function TaskManager.Drop(kind, reason)
+	local dropped = 0
+	for _, t in pairs(tasks) do
+		if t.Kind == kind and not t.Done then
+			t.Count = math.max(1, t.Progress)
+			if t.Progress >= 1 then
+				t.Progress = t.Count
+				complete(t)
+			else
+				t.Folder:Destroy()
+				tasks[t.Id] = nil
+			end
+			dropped = dropped + 1
+		end
+	end
+	if dropped > 0 then
+		publishPercent()
+		if reason then
+			S.Net.Notify(nil, reason, "anomaly")
+		end
+	end
+	return dropped
 end
 
 function TaskManager.Percent()

@@ -57,6 +57,23 @@ local function soundAlarm(npc)
 	end
 end
 
+-- Ворота пищат сами, хотя рядом никого нет (поздние ночи). На камере над выходом в этот момент —
+-- пустой проход. Возвращает позицию ворот, чтобы событие могло поставить там шаги
+function Security.GhostAlarm()
+	alarmUntil = os.clock() + 4
+	S.Net.Sound("GateAlarm", map.Gates.Center, 1)
+	task.spawn(function()
+		local on = true
+		while os.clock() < alarmUntil do
+			gateLamps(on)
+			on = not on
+			task.wait(0.25)
+		end
+		gateLamps(false)
+	end)
+	return map.Gates.Center
+end
+
 -- Каждый кадр: кто пересёк линию ворот наружу
 local function watchGates()
 	local g = map.Gates

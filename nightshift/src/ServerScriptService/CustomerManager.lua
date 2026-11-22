@@ -3,8 +3,10 @@
 --   самообслуживания, сам сканирует и платит картой, уходит через проход между кассами.
 -- Вор: берёт товар, оглядывается и прячет под куртку, идёт мимо касс к выходу — сработают ворота.
 -- За заказом: идёт к стойке выдачи, называет номер и ждёт, пока охранник принесёт коробку.
--- Странные (появляются после 01:00 по событиям): «Наблюдатель» стоит и смотрит на игрока,
--- «У стены» смотрит в стену, «Задом наперёд» ходит спиной вперёд, «Постоянный» каждую ночь берёт одно и то же.
+-- Странные (появляются по событиям ночи): «Наблюдатель» стоит и смотрит на игрока,
+-- «У стены» смотрит в стену, «Задом наперёд» ходит спиной вперёд, «Постоянный» каждую ночь берёт одно и то же,
+-- «Без лица» (ночи 4–5) идёт за игроком по пятам и исчезает, если подойти.
+-- По событиям все покупатели разом поворачиваются к игроку (TurnHeads) или исчезают (VanishAll).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
@@ -20,6 +22,7 @@ local customers = {}
 local rng = Random.new()
 local lastSpawn = 0
 local nextId = 0
+local closed = false -- после VanishAll покупатели не приходят до конца смены
 
 local GREET = { "Добрый вечер.", "Здравствуйте.", "Ночь сегодня тихая…", "О, открыто. Отлично." }
 local IMPATIENT = { "Есть кто на кассе?", "Долго ещё?", "Кассир, ау?", "Мне бы оплатить…" }
@@ -295,6 +298,37 @@ function BEHAVIOUR.Watcher(npc)
 	leave(npc, nil)
 end
 
+-- Без лица: заходит, встаёт в нескольких шагах от игрока и смотрит. Если отойти — идёт следом.
+-- Если подойти вплотную — помехи, и его больше нет
+function BEHAVIOUR.Faceless(npc)
+	npc.Weird = true
+	enter(npc)
+	npc.Humanoid.WalkSpeed = 6.5
+	local untilT = os.clock() + 75
+	while npc.Alive and os.clock() < untilT do
+		local root, d = nearestPlayer(npc.Root.Position, 90)
+		if not root then
+			task.wait(0.5)
+		elseif d < 5 then
+			S.Net.Sound("Static", npc.Root.Position, 0.6)
+			S.Net.Sound("Whisper", npc.Root.Position, 0.7)
+			task.wait(0.15)
+			remove(npc)
+			return
+		elseif d > 16 and S.Store.RoomAt(root.Position) then
+			-- идёт следом, но останавливается в нескольких шагах
+			local target = root.Position + (npc.Root.Position - root.Position).Unit * 9
+			NpcFactory.WalkTo(npc, Vector3.new(target.X, 0, target.Z), 4)
+		else
+			NpcFactory.Face(npc, root.Position)
+			task.wait(0.35)
+		end
+	end
+	if npc.Alive then
+		leave(npc, nil)
+	end
+end
+
 -- Стоит лицом к хлебному стеллажу, пока к нему не подойдут
 function BEHAVIOUR.WallFacer(npc)
 	enter(npc)
@@ -326,7 +360,7 @@ function CustomerManager.Spawn(kind)
 		return nil
 	end
 	local home = Util.pick(map.Points.CustomerSpawns, rng)
-	local npc = NpcFactory.Customer(map.Dynamic, home)
+	local npc = NpcFactory.Customer(map.Dynamic, home, kind == "Faceless" and NpcFactory.FacelessLook() or nil)
 	if not npc then
 		return nil
 	end
@@ -359,9 +393,10 @@ function CustomerManager.Start()
 	task.spawn(function()
 		while true do
 			task.wait(1)
-			if S.Net.Get("Phase") == "Shift" then
+			if S.Net.Get("Phase") == "Shift" and not closed then
 				local hour = math.floor((S.Net.Get("Minutes") or 0) / 60)
-				local interval = Config.CustomerInterval[hour]
+				local untilHour = Config.Night(S.Net.Get("Night")).CustomersUntil or 4
+				local interval = hour < untilHour and Config.CustomerInterval[hour] or nil
 				if interval and #customers < Config.MaxCustomers and os.clock() - lastSpawn >= interval then
 					lastSpawn = os.clock()
 					local roll = rng:NextNumber()
@@ -386,6 +421,53 @@ function CustomerManager.Reset()
 		NpcFactory.Destroy(npc)
 	end
 	customers = {}
+	closed = false
+end
+
+-- Все покупатели разом замирают и поворачиваются к ближайшему игроку, потом идут дальше как ни в чём не бывало
+function CustomerManager.TurnHeads(seconds)
+	local list = {}
+	for _, npc in ipairs(customers) do
+		if npc.Alive and not npc.Caught then
+			table.insert(list, npc)
+		end
+	end
+	for _, npc in ipairs(list) do
+		npc.Frozen = true
+		NpcFactory.StopActions(npc)
+	end
+	local untilT = os.clock() + (seconds or 6)
+	task.spawn(function()
+		while os.clock() < untilT do
+			for _, npc in ipairs(list) do
+				if npc.Alive then
+					local root = nearestPlayer(npc.Root.Position, 120)
+					if root then
+						NpcFactory.Face(npc, root.Position)
+					end
+				end
+			end
+			task.wait(0.25)
+		end
+		for _, npc in ipairs(list) do
+			if npc.Alive and not npc.Caught then
+				npc.Frozen = false
+			end
+		end
+	end)
+	return #list
+end
+
+-- Все покупатели исчезают (пятая ночь после 03:00), новые больше не приходят
+function CustomerManager.VanishAll()
+	closed = true
+	for i = #customers, 1, -1 do
+		local npc = customers[i]
+		if npc.Alive then
+			S.Net.Sound("Static", npc.Root.Position, 0.35)
+		end
+		remove(npc)
+	end
 end
 
 return CustomerManager

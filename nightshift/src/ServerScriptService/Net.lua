@@ -41,7 +41,8 @@ function Net.Init(mode)
 	state:SetAttribute("Power", true)
 	state:SetAttribute("Countdown", 0)
 	state:SetAttribute("Percent", 0)
-	state:SetAttribute("Night", 0)
+	state:SetAttribute("Night", 1)
+	state:SetAttribute("NightMax", 1)
 	state:SetAttribute("Clues", 0)
 	state.Parent = ReplicatedStorage
 
@@ -94,9 +95,10 @@ function Net.Subtitle(player, speaker, text, seconds)
 	send("Subtitle", player, speaker, text, seconds or 5)
 end
 
--- Звук у всех игроков: в точке position (Vector3) или «в голове» (nil)
-function Net.Sound(name, position, volume, player)
-	send("Sound", player, name, position, volume)
+-- Звук у всех игроков: в точке position (Vector3) или «в голове» (nil).
+-- pitch — скорость (ниже 1 — ниже и медленнее), fx = "Distort" — искажённый, как из сломанного динамика
+function Net.Sound(name, position, volume, player, pitch, fx)
+	send("Sound", player, name, position, volume, pitch, fx)
 end
 
 -- Рация охраны: щелчок, сообщение в телефоне от «Диспетчера» и субтитр
@@ -105,12 +107,24 @@ function Net.RadioCall(player, text)
 	send("Phone", player, "Рация (диспетчер)", text)
 end
 
--- Объявление по громкой связи: сигнал + голос + субтитры
-function Net.PA(line)
-	send("Sound", nil, "PAChime", nil, nil)
-	task.delay(2.4, function()
-		send("Sound", nil, line, nil, nil)
-		send("Subtitle", nil, "Громкая связь", Sounds.Subtitles[line] or "", 7)
+-- Объявление по громкой связи: сигнал + голос + субтитры.
+-- opts.Pitch / opts.Distort — замедленный искажённый голос (поздние ночи), opts.Text — свой субтитр
+function Net.PA(line, opts)
+	opts = opts or {}
+	local fx = opts.Distort and "Distort" or nil
+	send("Sound", nil, "PAChime", nil, nil, opts.Pitch and math.max(0.7, opts.Pitch) or nil, fx)
+	task.delay(2.4 / (opts.Pitch or 1), function()
+		send("Sound", nil, line, nil, nil, opts.Pitch, fx)
+		send("Subtitle", nil, "Громкая связь", opts.Text or Sounds.Subtitles[line] or "", 7)
+	end)
+end
+
+-- Объявление без голоса: сигнал, треск динамика и субтитр (диктор молчит, говорит кто-то другой)
+function Net.PAText(text, distort)
+	send("Sound", nil, "PAChime", nil, nil, distort and 0.78 or nil, distort and "Distort" or nil)
+	task.delay(2.2, function()
+		send("Sound", nil, "Static", nil, 0.35)
+		send("Subtitle", nil, "Громкая связь", text, 6)
 	end)
 end
 

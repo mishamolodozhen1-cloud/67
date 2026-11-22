@@ -30,6 +30,7 @@ local subtitleLabel
 local carryFrame, carryLabel
 local staminaBack, staminaFill
 local lobbyPanel, lobbyStats, lobbyCountdown, lobbyRoom
+local lobbyNightTitle, lobbyNightInfo, lobbyNightDots, lobbyPrev, lobbyNext
 local countdownLabel
 local modals = {}
 local settingsRows = {}
@@ -376,7 +377,9 @@ local function updateClock()
 	waitPanel.Visible = phase == "Intro" and not ctx.IntroPlaying
 	clockLabel.Text = Util.clock(minutes)
 	local code = s:GetAttribute("RoomCode") or ""
-	nightLabel.Text = string.format("НОЧЬ %d · %s", math.max(1, s:GetAttribute("Night") or 1), code ~= "" and ("КОМНАТА " .. code) or Texts.StoreName)
+	local night = math.clamp(s:GetAttribute("Night") or 1, 1, Config.NightCount)
+	local info = Texts.Nights[night]
+	nightLabel.Text = string.format("НОЧЬ %d · %s", night, code ~= "" and ("КОМНАТА " .. code) or (info and info.Title or Texts.StoreName))
 	barFill.Size = UDim2.new(math.clamp(minutes / (Config.ShiftHours * 60), 0, 1), 0, 1, 0)
 	local power = s:GetAttribute("Power") ~= false
 	powerLabel.Visible = not power and phase == "Shift"
@@ -388,6 +391,16 @@ local function updateClock()
 	if phase == "Lobby" then
 		local left = s:GetAttribute("Countdown") or 0
 		lobbyCountdown.Text = string.format("Смена начнётся сама через %d с", left)
+		-- выбор ночи: открытые ночи — по прогрессу игроков в комнате
+		local max = math.clamp(s:GetAttribute("NightMax") or 1, 1, Config.NightCount)
+		lobbyNightTitle.Text = string.format("НОЧЬ %d — «%s»", night, info and info.Title or "")
+		lobbyNightInfo.Text = info and info.Lobby or ""
+		lobbyPrev.Visible = night > 1
+		lobbyNext.Visible = night < max
+		for i, d in ipairs(lobbyNightDots) do
+			local color = i == night and UI.Colors.Accent or (i <= max and UI.Colors.Text or UI.Colors.Muted)
+			UI.setDot(d, color, i <= max)
+		end
 		-- комната: код для друзей и сколько сотрудников уже здесь
 		local count = #Players:GetPlayers()
 		if code ~= "" then
@@ -426,10 +439,13 @@ function HUD.SetProfile(profile)
 		return (n or 0) > 0 and "есть" or "нет"
 	end
 	lobbyStats.Text = string.format(
-		"Смен отработано: %d · заработано: %d руб. · лучший план: %d%%\nКонцовки: хорошая %s · плохая %s · секретная %s",
+		"Смен отработано: %d · заработано: %d руб. · лучший план: %d%%\nОткрыто ночей: %d из %d%s · концовки: хорошая %s · плохая %s · секретная %s",
 		profile.Nights or 0,
 		profile.Earnings or 0,
 		profile.BestPercent or 0,
+		math.clamp(profile.NightUnlocked or 1, 1, Config.NightCount),
+		Config.NightCount,
+		(profile.Completed or 0) > 0 and " (все пять ночей пройдены)" or "",
 		mark(profile.Good),
 		mark(profile.Bad),
 		mark(profile.Secret)
@@ -484,6 +500,10 @@ end
 
 function HUD.ShowEnding(stats)
 	local e = Texts.Endings[stats.Kind] or Texts.Endings.Bad
+	local nightInfo = Texts.Nights[math.clamp(stats.Night or 1, 1, Config.NightCount)]
+	if stats.Kind == "Good" and nightInfo and nightInfo.Good then
+		e = nightInfo.Good
+	end
 	endingTitle.Text = e.Title
 	endingTitle.TextColor3 = stats.Kind == "Good" and UI.Colors.Good or (stats.Kind == "Secret" and UI.Colors.Anomaly or UI.Colors.Accent)
 	endingSubtitle.Text = e.Subtitle
@@ -504,11 +524,11 @@ function HUD.ShowEnding(stats)
 	task.spawn(function()
 		local left = Config.EndingSeconds - 8
 		while modals.Ending.Visible and left > 0 do
-			endingFooter.Text = string.format("Новая смена через %d с", left)
+			endingFooter.Text = string.format("%s через %d с", (stats.Kind == "Bad" or (stats.Night or 1) >= Config.NightCount) and "Новая смена" or "Следующая ночь", left)
 			task.wait(1)
 			left = left - 1
 		end
-		endingFooter.Text = "Новая смена…"
+		endingFooter.Text = (stats.Kind == "Bad") and "Ночь придётся повторить…" or "Следующая ночь…"
 	end)
 end
 
@@ -806,9 +826,53 @@ local function buildLobby()
 		LayoutOrder = 3,
 	}, lobbyPanel)
 	UI.corner(lobbyRoom, 8)
-	lobbyStats = UI.text("Загрузка профиля…", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, LayoutOrder = 4 }, lobbyPanel)
-	UI.text(Texts.LobbyHint .. (UI.IsTouch and "." or " — или нажмите Enter."), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, TextColor3 = UI.Colors.Amber, LayoutOrder = 5 }, lobbyPanel)
-	local row = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 6 }, lobbyPanel)
+	-- выбор ночи: < НОЧЬ 3 — «Отключение» >, что ждёт на смене, пять отметок
+	local nightRow = UI.new("Frame", {
+		Name = "NightSelect",
+		Size = UDim2.new(1, 0, 0, 92),
+		BackgroundColor3 = UI.Colors.PanelLight,
+		BackgroundTransparency = 0.1,
+		LayoutOrder = 4,
+	}, lobbyPanel)
+	UI.corner(nightRow, 8)
+	local function pickNight(dir)
+		local cur = ctx.State:GetAttribute("Night") or 1
+		ctx.Remotes.Action:FireServer("SelectNight", cur + dir)
+	end
+	lobbyPrev = UI.button("", { Position = UDim2.fromOffset(8, 22), Size = UDim2.fromOffset(46, 46) }, nightRow, function()
+		pickNight(-1)
+	end)
+	UI.chevron(lobbyPrev, "Left", 16, UI.Colors.Text, 3)
+	lobbyNext = UI.button("", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 22), Size = UDim2.fromOffset(46, 46) }, nightRow, function()
+		pickNight(1)
+	end)
+	UI.chevron(lobbyNext, "Right", 16, UI.Colors.Text, 3)
+	lobbyNightTitle = UI.text("НОЧЬ 1", {
+		Position = UDim2.fromOffset(62, 8),
+		Size = UDim2.new(1, -124, 0, 24),
+		TextSize = 19,
+		Font = Enum.Font.GothamBlack,
+		TextXAlignment = Enum.TextXAlignment.Center,
+	}, nightRow)
+	lobbyNightInfo = UI.text("", {
+		Position = UDim2.fromOffset(62, 33),
+		Size = UDim2.new(1, -124, 0, 36),
+		TextSize = 13,
+		TextColor3 = UI.Colors.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Top,
+	}, nightRow)
+	local dots = UI.new("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(5 * 10 + 4 * 8, 10), BackgroundTransparency = 1 }, nightRow)
+	UI.list(dots, 8, true)
+	lobbyNightDots = {}
+	for i = 1, Config.NightCount do
+		local d = UI.dot(dots, 10, UI.Colors.Muted, false)
+		d.LayoutOrder = i
+		table.insert(lobbyNightDots, d)
+	end
+	lobbyStats = UI.text("Загрузка профиля…", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, LayoutOrder = 5 }, lobbyPanel)
+	UI.text(Texts.LobbyHint .. (UI.IsTouch and "." or " — или нажмите Enter."), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, TextColor3 = UI.Colors.Amber, LayoutOrder = 6 }, lobbyPanel)
+	local row = UI.new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 7 }, lobbyPanel)
 	UI.button("НАЧАТЬ СМЕНУ" .. keyHint("Enter"), {
 		Size = UDim2.fromOffset(240, 42),
 		BackgroundColor3 = UI.Colors.Accent,
@@ -819,7 +883,7 @@ local function buildLobby()
 	lobbyCountdown = UI.text("", { Position = UDim2.fromOffset(256, 0), Size = UDim2.new(1, -256, 1, 0), TextSize = 14, TextColor3 = UI.Colors.Muted }, row)
 	-- авторы 3D-моделей (лицензия CC BY 4.0 требует их указывать)
 	local Models = require(Shared:WaitForChild("Models"))
-	UI.text("3D-модели: " .. table.concat(Models.Credits, " · "), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 11, TextColor3 = UI.Colors.Muted, LayoutOrder = 7 }, lobbyPanel)
+	UI.text("3D-модели: " .. table.concat(Models.Credits, " · "), { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 11, TextColor3 = UI.Colors.Muted, LayoutOrder = 8 }, lobbyPanel)
 end
 
 function HUD.RequestStart()
@@ -973,7 +1037,7 @@ function HUD.Init(c)
 
 	-- Состояние смены
 	local s = ctx.State
-	for _, key in ipairs({ "Minutes", "Phase", "Power", "Countdown", "Night", "RoomCode", "RoomSolo" }) do
+	for _, key in ipairs({ "Minutes", "Phase", "Power", "Countdown", "Night", "NightMax", "RoomCode", "RoomSolo" }) do
 		s:GetAttributeChangedSignal(key):Connect(updateClock)
 	end
 	s:GetAttributeChangedSignal("Percent"):Connect(updatePlan)

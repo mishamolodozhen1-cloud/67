@@ -24,12 +24,13 @@ local groups = {}
 local emitters = {} -- { Sound, Part, Kind, Base }
 local beds = {} -- имя -> Sound (2D петли)
 local rainEq
+local musicWarp
 local threat = 0
 local staticOn = false
 local cinematic = false
 local stepState = setmetatable({}, { __mode = "k" })
 
-local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Voice = "Voice", Music = "Music" }
+local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Voice = "Voice", Music = "Music" }
 
 local function makeGroup(name)
 	local g = Instance.new("SoundGroup")
@@ -75,14 +76,31 @@ local function loopSound(name)
 	return s, def
 end
 
--- Короткий звук. position = nil — звук «в голове» (без направления)
-function Audio.Play(name, position, volume, pitch)
+-- Короткий звук. position = nil — звук «в голове» (без направления).
+-- pitch — скорость воспроизведения; fx = "Distort" — хрип сломанного динамика
+function Audio.Play(name, position, volume, pitch, fx)
 	local s, def = spriteSound(name, volume)
 	if not s then
 		return nil
 	end
-	if pitch then
+	if type(pitch) == "number" and pitch > 0.2 and pitch < 3 then
 		s.PlaybackSpeed = pitch
+	else
+		pitch = nil
+	end
+	if fx == "Distort" then
+		local d = Instance.new("DistortionSoundEffect")
+		d.Level = 0.55
+		d.Parent = s
+		local eq = Instance.new("EqualizerSoundEffect")
+		eq.LowGain = -14
+		eq.MidGain = 4
+		eq.HighGain = -8
+		eq.Parent = s
+		local tr = Instance.new("TremoloSoundEffect")
+		tr.Depth = 0.35
+		tr.Frequency = 7
+		tr.Parent = s
 	end
 	local holder = s
 	if typeof(position) == "Vector3" then
@@ -360,6 +378,10 @@ function Audio.Init(c)
 	beds.Music = (Audio.Loop("StoreMusic", nil))
 	if beds.Music then
 		beds.Music.SoundGroup = groups.Music
+		musicWarp = Instance.new("DistortionSoundEffect")
+		musicWarp.Level = 0.32
+		musicWarp.Enabled = false
+		musicWarp.Parent = beds.Music
 	end
 	for _, s in pairs(beds) do
 		s.Volume = 0
@@ -416,23 +438,38 @@ function Audio.Init(c)
 			approach(beds.StoreRoom, (zone == "Sales" and power) and 0.36 or 0, 0.25)
 			local late = math.clamp((hour - 1) / 4, 0, 1)
 			approach(beds.LowRoom, (zone == "Corridor" or zone == "Room") and (0.25 + late * 0.3) or (inside and late * 0.2 or 0), 0.2)
-			-- Музыка из динамиков: тише в подсобке, пропадает в 03:00, искажается после 04:00
+			-- Музыка из динамиков: тише в подсобке. По ночам она замедляется, потом «плывёт»
+			-- (Warped: медленно, с хрипом и качанием скорости, как зажёванная кассета), потом пропадает
 			if not cinematic then
 				local m = 0
 				if power and (phase == "Shift" or phase == "Lobby" or phase == "Countdown") and musicMode ~= "Off" then
 					m = (zone == "Sales") and 1 or (zone == "Outside" and 0.1 or 0.3)
 					if musicMode == "Slow" then
 						m = m * 0.7
+					elseif musicMode == "Warped" then
+						m = m * 0.85
 					end
 				end
 				approach(beds.Music, m * 0.22, 0.2)
 				if beds.Music then
-					beds.Music.PlaybackSpeed = (musicMode == "Slow") and 0.8 or 1
+					local speed = 1
+					if musicMode == "Slow" then
+						speed = 0.8
+					elseif musicMode == "Warped" then
+						speed = 0.7 + math.sin(os.clock() * 0.9) * 0.035 + math.sin(os.clock() * 2.3) * 0.012
+					end
+					beds.Music.PlaybackSpeed = speed
+					if musicWarp then
+						musicWarp.Enabled = musicMode == "Warped"
+					end
 				end
-				-- Тревожный гул: ближе к утру, в темноте и рядом с Покупателем
+				-- Тревожный гул: с каждой ночью начинается раньше; громче в темноте и рядом с Покупателем
 				local dread = 0
 				if phase == "Shift" then
-					dread = math.max((hour >= 2) and 0.12 + (hour - 2) * 0.08 or 0, (not power) and 0.3 or 0, threat * 0.8)
+					local n = math.clamp(state:GetAttribute("Night") or 1, 1, 5)
+					local from = 5 - n -- ночь 1: с 04:00 … ночь 5: с 00:00
+					local hourDread = hour >= from and math.min(0.5, 0.08 + (hour - from) * 0.07) or 0
+					dread = math.max(hourDread, (not power) and (0.25 + n * 0.04) or 0, threat * 0.8)
 				end
 				approach(beds.TensionDrone, dread, 0.2)
 			end

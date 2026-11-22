@@ -1,6 +1,8 @@
 -- ShiftManager: ход смены.
---   Lobby     — игроки в комнате персонала; смену начинает отметка на табельных часах
---               (или кнопка «Начать смену»), либо она начнётся сама через Config.LobbyAutoStart секунд
+--   Lobby     — игроки в комнате персонала; выбирают ночь (1–5, открытые по прогрессу) и начинают
+--               смену отметкой на табельных часах (или кнопкой), либо она начнётся сама через
+--               Config.LobbyAutoStart секунд
+-- Ночи: хорошая (или секретная) концовка открывает следующую ночь, плохая — ночь повторяется.
 --   Countdown — короткий отсчёт
 --   Shift     — часы идут от 00:00 до 06:00, каждый час добавляет задания и события
 --   Ending    — концовка (хорошая, плохая или секретная), потом магазин сбрасывается и снова лобби
@@ -18,7 +20,9 @@ local map, S
 local phase = "Lobby"
 local minutes = 0
 local served = 0
-local night = 0
+local night = 1
+local selected = 1 -- ночь, выбранная в лобби
+local userPicked = false -- игроки выбрали ночь сами (иначе — самая дальняя открытая)
 local startRequested = false
 local finishKind = nil
 local introPlayers, introDone = {}, {}
@@ -35,6 +39,59 @@ end
 
 function ShiftManager.Phase()
 	return phase
+end
+
+local testMax = nil -- проверка на сервере без игроков (TestUnlock)
+
+-- Самая дальняя ночь, открытая хотя бы у одного игрока на сервере
+local function unlockedMax()
+	local best = testMax or 1
+	for _, p in ipairs(Players:GetPlayers()) do
+		local profile = S.Data.Get(p)
+		if profile then
+			best = math.max(best, tonumber(profile.NightUnlocked) or 1)
+		end
+	end
+	return math.clamp(best, 1, Config.NightCount)
+end
+
+local function refreshNights()
+	local max = unlockedMax()
+	S.Net.Set("NightMax", max)
+	if not userPicked then
+		selected = max
+	end
+	selected = math.clamp(selected, 1, max)
+	if phase == "Lobby" or phase == "Countdown" then
+		S.Net.Set("Night", selected)
+	end
+end
+
+function ShiftManager.Night()
+	return night
+end
+
+-- Только для проверки на сервере без игроков: считать открытыми ночи до n (из игры не вызывается)
+function ShiftManager.TestUnlock(n)
+	testMax = n
+end
+
+-- Игрок выбрал ночь в лобби
+function ShiftManager.SelectNight(player, n)
+	if phase ~= "Lobby" or startRequested then
+		return
+	end
+	n = math.floor(tonumber(n) or 0)
+	if n < 1 or n > unlockedMax() then
+		return
+	end
+	userPicked = true
+	if n ~= selected then
+		selected = n
+		S.Net.Set("Night", n)
+		local info = Texts.Nights[n]
+		S.Net.Notify(nil, string.format("%s выбрал(а) ночь %d — «%s»", player.DisplayName, n, info and info.Title or ""), "info")
+	end
 end
 
 function ShiftManager.RequestStart(player)
@@ -86,7 +143,8 @@ function ShiftManager.Finish(kind)
 end
 
 local function startShift()
-	night = night + 1
+	refreshNights()
+	night = selected
 	minutes = 0
 	served = 0
 	finishKind = nil
@@ -95,11 +153,12 @@ local function startShift()
 	publishClock()
 	S.Store.SetLobby(false)
 	setPhase("Shift")
-	S.Events.Plan()
+	S.Events.Plan(night)
 	S.Events.OnHour(0)
 	S.Tasks.OnHour(0)
 	S.Customers.OnShiftStart()
-	S.Net.Notify(nil, "Смена началась. Магазин работает до 06:00", "info")
+	local info = Texts.Nights[night]
+	S.Net.Notify(nil, string.format("Ночь %d — «%s». Смена до 06:00", night, info and info.Title or ""), "info")
 	S.Events.OnMinute(0)
 end
 
@@ -135,9 +194,18 @@ local function endShift(kind)
 	S.Net.Effect(nil, "Ending", stats)
 	if kind == "Good" then
 		S.Net.PA("ShiftOver")
+		local info = Texts.Nights[night]
+		local after = info and info.GoodPhone or { Texts.Unknown, Texts.Endings.Good.Phone }
 		task.delay(9, function()
-			S.Net.Phone(nil, Texts.Unknown, Texts.Endings.Good.Phone)
+			S.Net.Phone(nil, after[1], after[2])
 		end)
+	end
+	-- следующая ночь: после хорошей или секретной концовки — дальше, после плохой — та же ночь
+	if kind == "Bad" then
+		selected = night
+		userPicked = true
+	else
+		userPicked = false
 	end
 	print(string.format("[Смена] ночь %d, концовка %s, выполнено %d%%", night, kind, pct))
 end
@@ -159,6 +227,8 @@ local function resetAll()
 	S.Net.Set("Ending", "")
 	S.Net.Set("Countdown", 0)
 	startRequested = false
+	setPhase("Lobby")
+	refreshNights()
 	for _, p in ipairs(Players:GetPlayers()) do
 		pcall(function()
 			p:LoadCharacter()
@@ -181,8 +251,10 @@ function ShiftManager.Start()
 			setPhase("Lobby")
 			local left = Config.LobbyAutoStart
 			S.Net.Set("Countdown", left)
+			refreshNights()
 			while not startRequested and left > 0 do
 				task.wait(1)
+				refreshNights() -- профили игроков могли загрузиться только что
 				if #Players:GetPlayers() > 0 then
 					left = left - 1
 					S.Net.Set("Countdown", left)
@@ -200,10 +272,14 @@ function ShiftManager.Start()
 			for _, p in ipairs(Players:GetPlayers()) do
 				introPlayers[p] = true
 			end
+			-- полная кат-сцена — перед первой ночью, перед остальными — короткий титр «НОЧЬ N»
+			refreshNights()
+			local short = selected > 1
 			setPhase("Intro")
-			S.Net.Effect(nil, "Intro", { Seconds = Config.IntroSeconds })
+			S.Net.Effect(nil, "Intro", { Seconds = Config.IntroSeconds, Night = selected, Short = short })
 			local introStart = os.clock()
-			while os.clock() - introStart < Config.IntroSeconds + 8 do
+			local introLimit = short and 18 or Config.IntroSeconds + 8
+			while os.clock() - introStart < introLimit do
 				task.wait(0.5)
 				local waiting = false
 				for p in pairs(introPlayers) do

@@ -1413,6 +1413,36 @@ local function cleanup()
 	ProximityPromptService.Enabled = true
 end
 
+-- Перед ночами 2–5: короткий титр на чёрном экране — «НОЧЬ N» и название ночи.
+-- Чем дальше ночь, тем тяжелее звук; в ночи 4–5 надпись на миг сбивается в «КАССА 0»
+local function nightCard(data)
+	local n = math.clamp(data.Night or 2, 1, Config.NightCount)
+	local info = Texts.Nights[n]
+	titleLabel.Text = "НОЧЬ " .. n
+	subLabel.Text = info and string.format("«%s»", info.Title) or ""
+	if n >= 3 then
+		ctx.Audio.Play("Riser", nil, 0.35 + n * 0.05)
+	end
+	at(0.6)
+	ctx.Audio.Play(n >= 4 and "DarkHit" or "ClockBeep", nil, n >= 4 and 0.8 or 0.6)
+	showTitle(true, 1.3)
+	at(3.4)
+	if n >= 4 then
+		for _ = 1, 2 do
+			titleLabel.Text = "КАССА 0"
+			titleLabel.TextColor3 = UI.Colors.Accent
+			ctx.Audio.Play("TvGlitch", nil, 0.5)
+			task.wait(0.07)
+			titleLabel.Text = "НОЧЬ " .. n
+			titleLabel.TextColor3 = Color3.fromRGB(240, 240, 236)
+			task.wait(0.16)
+		end
+	end
+	at(5.6)
+	showTitle(false, 1.1)
+	at(6.9)
+end
+
 function Cinematic.IsPlaying()
 	return playing
 end
@@ -1452,6 +1482,10 @@ function Cinematic.Play(data)
 		end)
 
 		black.BackgroundTransparency = 0
+		local short = type(data) == "table" and data.Short == true
+		titleLabel.Text = Texts.IntroTitle
+		titleLabel.TextColor3 = Color3.fromRGB(240, 240, 236)
+		subLabel.Text = Texts.IntroSubtitle .. " · НОЧЬ 1"
 		titleLabel.TextTransparency = 1
 		subLabel.TextTransparency = 1
 		titleLine.BackgroundTransparency = 1
@@ -1467,6 +1501,9 @@ function Cinematic.Play(data)
 		local cam = workspace.CurrentCamera
 		cam.CameraType = Enum.CameraType.Scriptable
 		local okSetup, setupErr = pcall(function()
+			if short then
+				return -- короткий титр: машина и двери не нужны
+			end
 			car = makeCar()
 			if car then
 				placeCar(0)
@@ -1527,7 +1564,9 @@ function Cinematic.Play(data)
 			end
 		end)
 
-		local ok, err = pcall(timeline)
+		local ok, err = pcall(short and function()
+			nightCard(data)
+		end or timeline)
 		if not ok and err ~= SKIP then
 			warn("[Кат-сцена] " .. tostring(err))
 		end

@@ -9,6 +9,8 @@
 --   • «Покупатель»: сообщаем серверу, видим ли его (он не двигается, пока на него смотрят),
 --     поворачиваем ему голову к камере, звук сердцебиения рядом
 --   • видения (их видит только этот игрок), поимка, сцены концовок
+--   • ночи: с каждой ночью больше мигающих ламп, свет тусклее, картинка темнее и бесцветнее
+--   • лампы гаснут цепочкой к игроку (LightsChase), дыхание за спиной и скример (BehindYou)
 local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -44,6 +46,7 @@ local vignetteBoost = 0
 local wallHands = {}
 local deskClockLabel
 local clockOverride = nil
+local nightDark = 0 -- 0..1, насколько темнее картинка в эту ночь (Config.Nights[n].Dark)
 Effects.Ready = false
 
 local rayParams = RaycastParams.new()
@@ -104,9 +107,11 @@ end
 local function collect()
 	for _, part in ipairs(CollectionService:GetTagged("StoreLight")) do
 		local zone = part:GetAttribute("Zone") or ""
+		local light = part:FindFirstChildWhichIsA("Light")
 		table.insert(lamps, {
 			Part = part,
-			Light = part:FindFirstChildWhichIsA("Light"),
+			Light = light,
+			BaseBrightness = light and light.Brightness or 0,
 			Color = part:GetAttribute("LampColor") or part.Color,
 			Zone = zone,
 			Unit = tonumber(string.match(zone, "^Fridge(%d+)$")),
@@ -353,17 +358,18 @@ local function updateGrade()
 	end
 	local zone = ctx.Audio.ZoneOf(cam.CFrame.Position)
 	local power = powerOn()
-	local key = zone .. (power and "" or "Dark")
+	local key = zone .. (power and "" or "Dark") .. nightDark
 	if key == gradeKey then
 		return
 	end
 	gradeKey = key
 	local g = GRADES[zone] or GRADES.Sales
+	local tint = g.Tint:Lerp(Color3.fromRGB(196, 206, 214), nightDark * 0.5)
 	TweenService:Create(grade, TweenInfo.new(gradeTime, Enum.EasingStyle.Sine), {
-		TintColor = g.Tint,
-		Saturation = g.Saturation - (power and 0 or 0.25),
-		Contrast = g.Contrast,
-		Brightness = g.Brightness - (power and 0 or 0.03),
+		TintColor = tint,
+		Saturation = g.Saturation - (power and 0 or 0.25) - nightDark * 0.22,
+		Contrast = g.Contrast + nightDark * 0.08,
+		Brightness = g.Brightness - (power and 0 or 0.03) - nightDark * 0.05,
 	}):Play()
 end
 
@@ -574,7 +580,7 @@ end
 -------------------------------------------------------------------------------
 -- Поимка
 -------------------------------------------------------------------------------
-function Effects.Caught()
+function Effects.Caught(data)
 	if cinematic then
 		return
 	end
@@ -582,7 +588,17 @@ function Effects.Caught()
 	ctx.CameraLocked = true
 	local cam = workspace.CurrentCamera
 	ctx.Controls.SetEnabled(false)
-	ctx.Audio.Play("Stinger", nil, 1)
+	local jump = type(data) == "table" and data.Jump == true
+	if jump then
+		-- поздние ночи: резкий крик и красная вспышка
+		ctx.Audio.Play("JumpScare", nil, 1)
+		ctx.HUD.Fade(0.5, 0.04, Color3.fromRGB(70, 0, 0))
+		task.delay(0.12, function()
+			ctx.HUD.Fade(1, 0.3)
+		end)
+	else
+		ctx.Audio.Play("Stinger", nil, 1)
+	end
 	local dyn = workspace:FindFirstChild("Dynamic")
 	local model = dyn and dyn:FindFirstChild("TheCustomer")
 	local head = model and model:FindFirstChild("Head")
@@ -717,6 +733,174 @@ function Effects.SetCinematic(on)
 	cinematic = on
 end
 
+-- Ночь: сколько ламп мигает всю смену и насколько тусклее свет (Config.Nights)
+local function applyNight()
+	local cfg = Config.Night(ctx.State:GetAttribute("Night"))
+	nightDark = cfg.Dark or 0
+	-- одни и те же лампы в каждой ночи: порядок по «случайному» числу от позиции лампы
+	local indoor = {}
+	for _, l in ipairs(lamps) do
+		l.NightBroken = nil
+		if l.Zone ~= "Outside" and not l.Broken then
+			local p = l.Part.Position
+			l.Hash = (math.sin(p.X * 12.9898 + p.Z * 78.233) * 43758.5453) % 1
+			table.insert(indoor, l)
+		end
+		if l.Light then
+			l.Light.Brightness = l.BaseBrightness * ((l.Zone ~= "Outside") and (1 - nightDark * 0.35) or 1)
+		end
+	end
+	table.sort(indoor, function(a, b)
+		return a.Hash < b.Hash
+	end)
+	for i = 1, math.min(cfg.BrokenLamps or 0, #indoor) do
+		indoor[i].NightBroken = true
+	end
+	gradeKey = nil
+	Effects.ApplyLights()
+end
+
+-- Лампы гаснут одна за другой, начиная с дальних: темнота идёт к игроку. Когда гаснет последняя —
+-- у того, к кому она шла (Victim), за спиной тяжело дышат. Потом свет с треском возвращается
+function Effects.LightsChase(data)
+	local target = data.Target
+	if not target or cinematic then
+		return
+	end
+	local list = {}
+	for _, l in ipairs(lamps) do
+		local d = (Vector3.new(l.Part.Position.X, 0, l.Part.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude
+		if l.Zone ~= "Outside" and d < 70 then
+			l.ChaseD = d
+			table.insert(list, l)
+		end
+	end
+	if #list == 0 then
+		return
+	end
+	table.sort(list, function(a, b)
+		return a.ChaseD > b.ChaseD
+	end)
+	local duration = data.Duration or 4
+	task.spawn(function()
+		-- гасим по времени, а не по одной лампе за кадр: сколько ламп уже должно погаснуть к этому моменту
+		local t0 = os.clock()
+		local done = 0
+		while done < #list do
+			local want = math.min(#list, math.floor(#list * (os.clock() - t0) / duration) + 1)
+			while done < want do
+				done = done + 1
+				local l = list[done]
+				flickering[l] = true
+				setLamp(l, false)
+				if done % 4 == 1 then
+					ctx.Audio.Play("FlashClick", l.Part.Position, 0.9, 0.6)
+				end
+			end
+			task.wait(0.03)
+		end
+		ctx.Audio.Play("PowerDown", target + Vector3.new(0, 10, 0), 0.5)
+		if data.Victim == ctx.Player.UserId then
+			task.wait(0.6)
+			Effects.BehindYou({ Jump = false, Quiet = true })
+		end
+		task.wait(2.4)
+		local t = os.clock() + 1.1
+		while os.clock() < t do
+			for _, l in ipairs(list) do
+				setLamp(l, lampShouldBeOn(l) and math.random() < 0.5)
+			end
+			task.wait(math.random(4, 10) / 100)
+		end
+		for _, l in ipairs(list) do
+			flickering[l] = nil
+		end
+		Effects.ApplyLights()
+		ctx.Audio.Play("FluorFlicker", target + Vector3.new(0, 10, 0), 0.6)
+	end)
+end
+
+-- Тряска камеры (после обновления камеры Roblox)
+local function shake(seconds, strength)
+	if not RunService:IsClient() then
+		return
+	end
+	local untilT = os.clock() + seconds
+	local name = "NS_Shake" .. tostring(math.random(1, 1e6))
+	RunService:BindToRenderStep(name, Enum.RenderPriority.Camera.Value + 2, function()
+		local left = untilT - os.clock()
+		if left <= 0 then
+			RunService:UnbindFromRenderStep(name)
+			return
+		end
+		local k = strength * (left / seconds)
+		local cam = workspace.CurrentCamera
+		cam.CFrame = cam.CFrame * CFrame.Angles((math.random() - 0.5) * k, (math.random() - 0.5) * k, (math.random() - 0.5) * k * 0.5)
+	end)
+end
+
+-- Скример: лицо Покупателя вплотную к камере на долю секунды
+function Effects.JumpScare()
+	local cam = workspace.CurrentCamera
+	local look = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+	if look.Magnitude < 0.1 then
+		return
+	end
+	look = look.Unit
+	local camPos = cam.CFrame.Position
+	local spot = camPos + look * 1.9
+	local fig = spawnLocalFigure(CFrame.lookAt(Vector3.new(spot.X, camPos.Y - 5.3, spot.Z), Vector3.new(camPos.X, camPos.Y - 5.3, camPos.Z)))
+	ctx.Audio.Play("JumpScare", nil, 1)
+	ctx.HUD.Fade(0.55, 0.04, Color3.fromRGB(70, 0, 0))
+	vignetteBoost = 0.7
+	shake(0.6, 0.09)
+	task.delay(0.45, function()
+		if fig then
+			fig:Destroy()
+		end
+		ctx.HUD.Fade(1, 0.7)
+		vignetteBoost = 0
+	end)
+end
+
+-- Тяжёлое дыхание за спиной. Обернётесь за 3.5 с — помехи (или скример, если Jump), не обернётесь —
+-- шёпот «…я здесь…»
+local function flatYaw(v)
+	return math.atan2(-v.X, -v.Z)
+end
+
+function Effects.BehindYou(data)
+	if cinematic or ctx.CameraLocked then
+		return
+	end
+	local cam = workspace.CurrentCamera
+	local cf = cam.CFrame
+	local look = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+	if look.Magnitude < 0.1 then
+		return
+	end
+	local back = cf.Position - look.Unit * 2.2 + Vector3.new(0, -0.4, 0)
+	ctx.Audio.Play("Breath", back, data.Quiet and 0.8 or 1)
+	local startYaw = flatYaw(cf.LookVector)
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < 3.5 do
+			task.wait(0.05)
+			local d = (flatYaw(cam.CFrame.LookVector) - startYaw + math.pi) % (2 * math.pi) - math.pi
+			if math.abs(d) > math.rad(115) then
+				if data.Jump then
+					Effects.JumpScare()
+				else
+					ctx.Audio.Play("Static", nil, 0.3)
+				end
+				return
+			end
+		end
+		ctx.Audio.Play("Whisper", cam.CFrame.Position - Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z).Unit * 1.4, 0.8)
+		ctx.HUD.Subtitle("Шёпот", Texts.Whisper.Behind, 3)
+	end)
+end
+
 function Effects.Init(c)
 	ctx = c
 	saveLighting()
@@ -757,7 +941,8 @@ function Effects.Init(c)
 		Effects.UpdateClocks()
 	end)
 	ctx.State:GetAttributeChangedSignal("Minutes"):Connect(Effects.UpdateClocks)
-	Effects.ApplyLights()
+	ctx.State:GetAttributeChangedSignal("Night"):Connect(applyNight)
+	applyNight()
 	Effects.UpdateClocks()
 	Effects.Ready = true
 
@@ -766,7 +951,7 @@ function Effects.Init(c)
 		while true do
 			task.wait(math.random(5, 30) / 100)
 			for _, l in ipairs(lamps) do
-				if l.Broken and not flickering[l] and lampShouldBeOn(l) then
+				if (l.Broken or l.NightBroken) and not flickering[l] and lampShouldBeOn(l) then
 					setLamp(l, math.random() < 0.82)
 				end
 			end

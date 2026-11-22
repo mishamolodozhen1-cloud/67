@@ -1,5 +1,6 @@
 -- DataService: сохранение прогресса игрока в DataStore.
--- Храним: сколько смен отработано, какие концовки получены, заработок, лучший процент и настройки.
+-- Храним: сколько смен отработано, какие концовки получены, заработок, лучший процент,
+-- до какой ночи открыт доступ и настройки.
 -- В Roblox Studio для проверки включите Game Settings → Security → Enable Studio Access to API Services.
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -19,6 +20,8 @@ local function defaultProfile()
 		Secret = 0,
 		Earnings = 0,
 		BestPercent = 0,
+		NightUnlocked = 1, -- до какой ночи (1–5) открыт доступ
+		Completed = 0, -- сколько раз пережита пятая ночь
 		Settings = {
 			Music = 0.6,
 			Sfx = 1,
@@ -129,6 +132,14 @@ function DataService.RecordShift(player, kind, stats)
 	profile[kind] = (profile[kind] or 0) + 1
 	profile.Earnings = profile.Earnings + (stats.Salary or 0)
 	profile.BestPercent = math.max(profile.BestPercent, stats.Percent or 0)
+	-- ночь пройдена (хорошая или секретная концовка) — открывается следующая
+	local night = math.clamp(math.floor(tonumber(stats.Night) or 1), 1, 5)
+	if kind ~= "Bad" then
+		profile.NightUnlocked = math.clamp(math.max(profile.NightUnlocked or 1, night + 1), 1, 5)
+		if night >= 5 then
+			profile.Completed = (profile.Completed or 0) + 1
+		end
+	end
 	task.spawn(save, player)
 end
 

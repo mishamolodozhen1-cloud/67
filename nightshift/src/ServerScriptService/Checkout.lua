@@ -469,6 +469,40 @@ function Checkout.IsLane4Active()
 	return hauntedActive
 end
 
+-- Поздние ночи: на всех свободных кассах на seconds секунд загорается красная надпись text
+-- (у каждой кассы может быть своя, если text — список). Лампы краснеют, касса пищит.
+local creepyToken = 0
+function Checkout.Creepy(seconds, text)
+	creepyToken = creepyToken + 1
+	local token = creepyToken
+	local shown = {}
+	for _, k in ipairs(kiosks) do
+		if k.State == "Idle" and not k.Customer then
+			local line = type(text) == "table" and text[(k.Index - 1) % #text + 1] or text
+			k.Creepy = true
+			setLamp(k, RED)
+			screen(k, "КАССА 0", line, "", "14.11.2003  03:47", Color3.fromRGB(120, 10, 10))
+			table.insert(shown, k)
+		end
+	end
+	if #shown > 0 then
+		S.Net.Sound("ScanError", shown[1].ScanSpot, 0.6)
+		S.Net.Sound("ScanError", shown[#shown].ScanSpot, 0.6)
+	end
+	task.delay(seconds or 8, function()
+		if token ~= creepyToken then
+			return
+		end
+		for _, k in ipairs(shown) do
+			k.Creepy = nil
+			if k.State == "Idle" and not k.Customer then
+				idleScreen(k)
+			end
+		end
+	end)
+	return #shown
+end
+
 -------------------------------------------------------------------------------
 function Checkout.SetupTask(t)
 	if t.Kind == "closelanes" then
@@ -498,6 +532,7 @@ end
 
 function Checkout.Reset()
 	revenue = 0
+	creepyToken = creepyToken + 1
 	for _, k in ipairs(kiosks) do
 		clearItems(k)
 		k.Customer = nil

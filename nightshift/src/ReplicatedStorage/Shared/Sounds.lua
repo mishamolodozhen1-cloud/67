@@ -3,7 +3,7 @@
 --   List  — короткие звуки. Несколько звуков склеены в один файл («спрайт»), а здесь записано,
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
--- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt.
+-- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt, Whisper, GlassKnock, ShelfCrash.
 local Sounds = {}
 
 Sounds.Files = {
@@ -14,6 +14,7 @@ Sounds.Files = {
 	Sfx2 = "rbxassetid://99267307944697",
 	Sfx3 = "rbxassetid://89980517795896", -- интерфейс, касса, фонарик
 	Sfx4 = "rbxassetid://116252145157890", -- охрана: ворота, кассы самообслуживания, рация, обход, пакеты, одежда
+	Sfx5 = "rbxassetid://79699487349928", -- хоррор (v6): дыхание, шёпот, стук в стекло, ручка двери, скример, крик, обвал полки
 }
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
@@ -102,6 +103,14 @@ Sounds.List = {
 	ParcelBox = { File = "Sfx4", Start = 13.521, Stop = 14.284, Loop = false, Volume = 0.55 }, -- коробка заказа
 	TagBeep = { File = "Sfx4", Start = 14.884, Stop = 15.181, Loop = false, Volume = 0.5 }, -- метка обхода
 	Receipt = { File = "Sfx4", Start = 15.781, Stop = 17.309, Loop = false, Volume = 0.5 }, -- печать чека
+	-- хоррор (v6)
+	Breath = { File = "Sfx5", Start = 0.02, Stop = 1.049, Loop = false, Volume = 0.85 }, -- тяжёлый выдох за спиной
+	Whisper = { File = "Sfx5", Start = 1.649, Stop = 4.999, Loop = false, Volume = 0.6 }, -- шёпот у самого уха
+	GlassKnock = { File = "Sfx5", Start = 5.599, Stop = 6.974, Loop = false, Volume = 0.9 }, -- стук ногтями в витрину
+	DoorHandle = { File = "Sfx5", Start = 7.574, Stop = 8.432, Loop = false, Volume = 0.8 }, -- кто-то дёргает ручку
+	JumpScare = { File = "Sfx5", Start = 9.032, Stop = 11.183, Loop = false, Volume = 0.85 },
+	Scream = { File = "Sfx5", Start = 11.783, Stop = 14.527, Loop = false, Volume = 0.6 }, -- далёкий нечеловеческий крик
+	ShelfCrash = { File = "Sfx5", Start = 15.127, Stop = 18.457, Loop = false, Volume = 0.9 }, -- банки сыплются с полки
 }
 
 -- Фоновые петли: отдельный файл, громкость

@@ -818,6 +818,18 @@ function StoreSystems.SetLobby(isLobby)
 	prompts.TimeClock.Enabled = isLobby
 end
 
+-- Пятая ночь: товар исчезает со всех полок разом (смена сбросит магазин обратно)
+function StoreSystems.EmptyAll()
+	local n = 0
+	for _, f in ipairs(map.Facings) do
+		if not f.Empty then
+			setFacingVisible(f, false)
+			n = n + 1
+		end
+	end
+	return n
+end
+
 function StoreSystems.SetClock(text)
 	map.Stations.TimeClockLabel.Text = text
 end

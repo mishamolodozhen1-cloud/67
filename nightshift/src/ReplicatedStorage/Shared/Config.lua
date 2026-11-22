@@ -37,6 +37,31 @@ Config.ThiefEscapeZ = 74 -- вор, убежавший дальше этой л�
 Config.FalseAlarmChance = 0.05 -- ворота иногда пищат на честного покупателя (забыли снять метку)
 Config.PatrolPoints = 6
 
+-- Пять ночей ------------------------------------------------------------------
+-- Первая ночь — обычная работа. С каждой следующей ночью Покупатель приходит раньше,
+-- света меньше, а странностей больше. Хорошая концовка открывает следующую ночь,
+-- плохая — ночь придётся повторить. Часы ниже — игровые часы смены (0 = 00:00).
+--   Apparition — с этого часа Покупатель является «видениями»
+--   Stalk      — с этого часа он в магазине и переставляется ближе, пока на него не смотрят
+--   Hunt       — с этого часа охотится (подкрадывается за спину)
+--   DarkHunt   — после этого часа охотится и тогда, когда нет света
+--   Pace       — во сколько раз быстрее он переставляется
+--   BrokenLamps — сколько ламп мигает всю ночь; Dark — насколько темнее и бесцветнее картинка (0..1)
+--   CustomersUntil — до какого часа приходят обычные покупатели
+--   JumpScare  — показывать лицо Покупателя на весь экран, когда он поймал
+Config.NightCount = 5
+Config.Nights = {
+	[1] = { Pace = 1, BrokenLamps = 0, Dark = 0, CustomersUntil = 4, JumpScare = false },
+	[2] = { Apparition = 3, Pace = 1, BrokenLamps = 3, Dark = 0.12, CustomersUntil = 4, JumpScare = false },
+	[3] = { Apparition = 2, Stalk = 4, Hunt = 5, DarkHunt = 4, Pace = 1, BrokenLamps = 7, Dark = 0.25, CustomersUntil = 4, JumpScare = true },
+	[4] = { Apparition = 1, Stalk = 3, Hunt = 5, DarkHunt = 3, Pace = 1.25, BrokenLamps = 12, Dark = 0.4, CustomersUntil = 3, JumpScare = true },
+	[5] = { Apparition = 1, Stalk = 2, Hunt = 4, DarkHunt = 2, Pace = 1.5, BrokenLamps = 18, Dark = 0.55, CustomersUntil = 3, JumpScare = true },
+}
+
+function Config.Night(n)
+	return Config.Nights[math.clamp(math.floor(tonumber(n) or 1), 1, Config.NightCount)]
+end
+
 -- Монстр «Покупатель» -------------------------------------------------------
 Config.CaughtPenaltyMinutes = 10 -- на столько игровых минут сдвигаются часы, если Покупатель поймал игрока
 Config.CatchDistance = 4.5

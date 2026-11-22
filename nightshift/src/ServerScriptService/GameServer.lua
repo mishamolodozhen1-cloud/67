@@ -207,6 +207,9 @@ function GameServer.Start()
 	function ACTIONS.StartShift(player)
 		ShiftManager.RequestStart(player)
 	end
+	function ACTIONS.SelectNight(player, n)
+		ShiftManager.SelectNight(player, n)
+	end
 	function ACTIONS.Drop(player)
 		StoreSystems.Drop(player)
 	end

@@ -337,6 +337,14 @@ local function randomLook()
 	return simpleLook()
 end
 
+-- Покупатель без лица (поздние ночи): обычная одежда, бледная кожа, вместо лица — гладкая кожа
+function NpcFactory.FacelessLook()
+	local look = randomLook()
+	look.NoFace = true
+	look.Skin = rgb(224, 216, 210)
+	return look
+end
+
 -- Облик «Покупателя»: обычный высокий человек в сером пальто. Вблизи видно, что у него нет лица.
 NpcFactory.MonsterLook = {
 	Realistic = true,

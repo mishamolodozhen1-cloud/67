@@ -1,10 +1,12 @@
 -- MonsterAI: «Покупатель». Выглядит как обычный покупатель, но никогда не ходит у вас на глазах.
---   00:00–02:00  его нет (только мелкие странности)
---   02:00–04:00  «видения»: стоит в необычных местах и смотрит; исчезает, когда от него отворачиваются;
---                может появиться на камерах наблюдения
---   04:00–05:00  он в магазине: пока на него никто не смотрит, переставляется ближе к игроку
---   при отключении света и после 05:00 — охота: подкрадывается за спину; если догнал — игрок теряет
---   сознание, приходит в себя в комнате персонала, а часы смены уходят вперёд.
+-- Когда он появляется, зависит от ночи (Config.Nights): в первую ночь его нет совсем, во вторую —
+-- только видения под утро, а к пятой ночи он с первого часа в магазине и охотится уже с 04:00.
+--   видения   — стоит в необычных местах и смотрит; исчезает, когда от него отворачиваются;
+--               может появиться на камерах наблюдения
+--   подкрадывается — пока на него никто не смотрит, переставляется ближе к игроку
+--   охота     — подкрадывается за спину; если догнал — игрок теряет сознание, приходит в себя
+--               в комнате персонала, а часы смены уходят вперёд
+--   за витриной — по событию стоит снаружи и смотрит в магазин сквозь стекло (Show)
 -- «Смотрит ли кто-то» сообщают клиенты: камера игрока видит голову монстра и её ничто не загораживает.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -31,6 +33,7 @@ local nextMove = 0
 local caughtCooldown = {}
 local lastCatch = 0
 local behindTarget -- игрок, за спиной которого стоит монстр
+local staged -- показ по событию (за витриной): { Until, Seen, SeenAt }
 
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -276,7 +279,8 @@ local function catch(player)
 	end
 	caughtCooldown[player] = now
 	lastCatch = now
-	S.Net.Effect(player, "Caught")
+	local cfg = Config.Night(S.Net.Get("Night"))
+	S.Net.Effect(player, "Caught", { Jump = cfg.JumpScare == true })
 	S.Net.Sound("DarkHit", nil, 0.9, player)
 	S.Store.ClearCarry(player, false)
 	nextAppear = now + rng:NextNumber(25, 40)
@@ -292,18 +296,24 @@ local function catch(player)
 end
 
 -------------------------------------------------------------------------------
+-- Режим по ночи и часу смены (Config.Nights)
 local function mode()
 	local minutes = S.Net.Get("Minutes") or 0
 	local hour = math.floor(minutes / 60)
-	if hour < 2 then
-		return nil
-	end
-	if (hour >= 4 and not S.Power.IsOn()) or hour >= 5 then
+	local cfg = Config.Night(S.Net.Get("Night"))
+	if (cfg.Hunt and hour >= cfg.Hunt) or (cfg.DarkHunt and hour >= cfg.DarkHunt and not S.Power.IsOn()) then
 		return "Hunt"
-	elseif hour >= 4 then
+	elseif cfg.Stalk and hour >= cfg.Stalk then
 		return "Stalk"
+	elseif cfg.Apparition and hour >= cfg.Apparition then
+		return "Apparition"
 	end
-	return "Apparition"
+	return nil
+end
+MonsterAI.Mode = mode
+
+local function pace()
+	return Config.Night(S.Net.Get("Night")).Pace or 1
 end
 
 local function step(dt)
@@ -314,9 +324,34 @@ local function step(dt)
 		if present then
 			hide()
 		end
+		staged = nil
 		return
 	end
 	updateFilter()
+	-- показ по событию: стоит, пока не посмотрят и не отвернутся (или пока не выйдет время)
+	if staged then
+		local seen, watcher = observed()
+		local now = os.clock()
+		if seen then
+			if not staged.Seen then
+				staged.Seen = true
+				staged.SeenAt = now
+				if staged.OnSeen then
+					task.spawn(staged.OnSeen, watcher)
+				end
+			end
+			local wroot = Util.rootOf(watcher)
+			if wroot then
+				NpcFactory.PlaceAt(npc, faceTo(monsterPos(), wroot.Position))
+			end
+		end
+		if now > staged.Until or (staged.Seen and not seen and now - staged.SeenAt > 0.8) then
+			hide()
+			staged = nil
+			nextAppear = now + rng:NextNumber(14, 24)
+		end
+		return
+	end
 	local m = mode()
 	if not m then
 		if present then
@@ -354,7 +389,7 @@ local function step(dt)
 			if vanishPending then
 				hide()
 				vanishPending = false
-				nextAppear = now + (m == "Apparition" and rng:NextNumber(25, 55) or rng:NextNumber(6, 14))
+				nextAppear = now + (m == "Apparition" and rng:NextNumber(25, 55) or rng:NextNumber(6, 14)) / pace()
 				return
 			end
 			if m ~= "Apparition" and now >= nextMove and now - lastObserved > 1.5 then
@@ -395,7 +430,7 @@ local function step(dt)
 						end
 					end
 				end
-				nextMove = now + (m == "Hunt" and rng:NextNumber(3.2, 4.8) or rng:NextNumber(8, 13))
+				nextMove = now + (m == "Hunt" and rng:NextNumber(3.2, 4.8) or rng:NextNumber(8, 13)) / pace()
 			end
 		end
 	else
@@ -460,6 +495,43 @@ function MonsterAI.ReportCamera(player, index)
 	end
 end
 
+-- Показать по событию: стоит в точке cf, пока его не увидят и не отвернутся (или seconds секунд).
+-- onSeen(player) вызывается, когда его впервые заметили. false — сейчас нельзя (сцена, изгнан, рядом смотрят)
+function MonsterAI.Show(cf, seconds, onSeen)
+	if not npc or banished or held or staged then
+		return false
+	end
+	updateFilter()
+	if (present and observed()) or canBeSeen(cf.Position) then
+		return false
+	end
+	place(cf)
+	behindTarget = nil
+	vanishPending = false
+	staged = { Until = os.clock() + (seconds or 20), Seen = false, SeenAt = 0, OnSeen = onSeen }
+	return true
+end
+
+-- За витриной: снаружи у стекла напротив игрока, смотрит внутрь
+function MonsterAI.WindowSpot(player)
+	local root = Util.rootOf(player)
+	if not root then
+		return nil
+	end
+	local best, bestD = nil, math.huge
+	for _, x in ipairs({ -63, -40, -27, -14, -1, 12, 25, 36 }) do
+		local pos = Vector3.new(x, 0.3, 51.6) -- тротуар у витрины на высоте 0.3
+		local d = (pos - root.Position).Magnitude
+		if d > 10 and d < 60 and d < bestD then
+			best, bestD = pos, d
+		end
+	end
+	if not best then
+		return nil
+	end
+	return CFrame.lookAt(best, Vector3.new(root.Position.X, best.Y, root.Position.Z))
+end
+
 -- Сцена кассы №0: поставить и не трогать
 function MonsterAI.Hold(cf)
 	held = true
@@ -504,6 +576,7 @@ function MonsterAI.Start()
 end
 
 function MonsterAI.Reset()
+	staged = nil
 	held = false
 	banished = false
 	vanishPending = false
