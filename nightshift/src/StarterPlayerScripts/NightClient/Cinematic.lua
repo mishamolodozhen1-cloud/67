@@ -27,6 +27,9 @@
 -- Голос — звуки «H_<ключ>» (Shared/HeroLines); пока их нет — только субтитры, длина по тексту.
 -- Живая игра: голова смотрит туда, о чём он говорит (IK), кивает в такт речи, руки на руле,
 -- к радио, к телефону, к лицу; вздохи, наклоны корпуса. IK — только у R15.
+-- v13: камеры в машине — на капоте (сквозь лобовое), снаружи у окна водителя, на заднем сиденье; везде не
+-- ближе 3.5 studs от головы героя, крупность — длинным объективом. IKControl без сглаживания движком
+-- (оно тянуло кисти за машиной — руки дрожали на ходу).
 --
 -- «Оператор» (v8): лёгкая ручная тряска у каждого плана, размытие при быстром движении камеры, плавная
 -- перефокусировка, вспышки молний с громом, капли дождя на объективе снаружи, плёночное зерно.
@@ -410,6 +413,9 @@ local function makeIK(a)
 				c.Pole = pole
 			end
 			c.Weight = 0
+			-- v13: без сглаживания движком. Оно ведёт цель в координатах мира, а машина едет ~20 studs/с —
+			-- кисть всё время «догоняла» руль и дрожала. Плавность — своя, в координатах машины (updateIK)
+			c.SmoothTime = 0
 			c.Parent = a.Hum
 			a.IK[key] = { Control = c, Target = target, Pole = pole, Cur = Vector3.zero, Goal = Vector3.zero, InCar = false, Rate = rate, BaseRate = rate, Fresh = true }
 		end)
@@ -519,8 +525,8 @@ local function updateIK(dt)
 					-- на выдохе опускается. Смещения — по углу (не зависят от расстояния до цели)
 					local d = math.max(1, (p - rootCF.Position).Magnitude) / 6
 					local talk = speech.Speaking and 1 or 0.3
-					local up = talk * (math.noise(t * 2.2, 3.3) * 0.6 + (speech.Speaking and math.sin(t * 6.1) * 0.09 or 0)) - a.Sigh * 0.9
-					local side = talk * math.noise(t * 1.3, 8.8) * 0.7
+					local up = talk * (math.noise(t * 1.5, 3.3) * 0.5 + (speech.Speaking and math.sin(t * 4.2) * 0.06 or 0)) - a.Sigh * 0.9
+					local side = talk * math.noise(t * 0.9, 8.8) * 0.6
 					p = p + rootCF.UpVector * (up * d) + rootCF.RightVector * (side * d)
 				end
 				k.Target.CFrame = CFrame.new(p)
@@ -906,6 +912,12 @@ local function makeCar()
 	end
 	m.Parent = folder
 	hideModel(real)
+	-- v13: стёкла копии светлее (у настоящей машины — тонировка 0.42): водителя снимают сквозь них
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") and d:GetAttribute("Role") == "Window" then
+			d.Transparency = 0.8
+		end
+	end
 	local spot = real:GetPivot().Position
 	local c = { Model = m, Real = real, Body = m.PrimaryPart, BodyY = real.PrimaryPart.Position.Y, Lights = {}, Lamps = {} }
 	if real:GetAttribute("YawFix") then
@@ -987,8 +999,8 @@ local function poseCar(pos, dir, ds, dt, turn)
 		-- неровности асфальта на ходу: кузов (и камера в салоне) чуть потряхивает
 		if speed > 4 then
 			local bump = math.min(1, speed / 25)
-			car.HeaveV = car.HeaveV + math.noise(car.Spin * 0.3, 0.5) * 4.5 * bump * dt
-			car.RollV = car.RollV + math.noise(car.Spin * 0.23, 7.5) * 0.5 * bump * dt
+			car.HeaveV = car.HeaveV + math.noise(car.Spin * 0.2, 0.5) * 2.2 * bump * dt
+			car.RollV = car.RollV + math.noise(car.Spin * 0.15, 7.5) * 0.25 * bump * dt
 		end
 		car.Pitch, car.PitchV = spring(car.Pitch, car.PitchV, pitchTarget, dt, 70, 8)
 		car.Roll, car.RollV = spring(car.Roll, car.RollV, rollTarget, dt, 80, 7)
@@ -1850,18 +1862,19 @@ local function timeline()
 	end)
 
 	-- внутри: дождь стучит по крыше, мотор, тихое радио; герой за рулём
+	-- v13: камеры в машине не ближе 3.5 studs от головы; крупность — длинным объективом.
+	-- Камера на капоте смотрит на водителя сквозь лобовое стекло (капли на объективе)
 	at(21.9)
 	loopOff("EngineOut")
-	setLensRain(false)
 	ctx.Audio.SetInCar(true)
 	loopOn("CarEngine", "Engine", 0.42)
 	loopOn("CarRain", "Rain", 0.5)
 	radioOn(0.08)
-	setRig(0.1, 0.3)
+	setRig(0.04, 0.3) -- камера закреплена на машине: качается только с кузовом
 	if interior then
 		driveLine(255, 22)
-		dof(3.2, 2.2, 0.35, 0) -- водитель резкий, дорога впереди мягкая
-		carShot(7.4, { Vector3.new(2.45, 4.32, 0.5), Vector3.new(2.3, 4.28, 0.62) }, { Vector3.new(-6, 3.4, 0.9), Vector3.new(-6, 3.45, 1.15) }, 60, 57)
+		dof(6.2, 3.0, 0.3, 0) -- лицо резкое, салон за ним мягкий
+		carShot(7.4, { Vector3.new(-5.6, 4.35, 0.95), Vector3.new(-5.5, 4.3, 1.2) }, { Vector3.new(0.4, 3.85, 1.2), Vector3.new(0.45, 3.95, 1.15) }, 36, 32)
 	else
 		-- машина без салона (модель не загрузилась): едем следом за ней (медленно — к 61-й секунде
 		-- она как раз у поворота на парковку)
@@ -1889,12 +1902,12 @@ local function timeline()
 	at(28.7)
 	actorSigh(1) -- тишина; вздыхает
 
-	-- профиль: за окном водителя проплывают фонари
+	-- снаружи, у окна водителя: он смотрит в своё окно — прямо в камеру; позади камеры проходят фонари
 	at(29.3)
 	if interior then
 		driveLine(255, 22)
-		dof(1.7, 1.0, 0.4, 0)
-		carShot(8.3, { Vector3.new(-0.2, 3.93, -1.1), Vector3.new(-0.32, 3.98, -0.98) }, { Vector3.new(0.55, 4.0, 1.2), Vector3.new(0.55, 4.02, 1.22) }, 52, 49)
+		dof(4.9, 2.2, 0.35, 0)
+		carShot(8.3, { Vector3.new(-0.6, 4.2, 5.9), Vector3.new(-0.3, 4.22, 5.75) }, { Vector3.new(0.2, 3.9, 1.0), Vector3.new(0.35, 3.95, 1.1) }, 40, 36)
 	end
 	at(29.9)
 	say("Ride2", function(d)
@@ -1922,12 +1935,26 @@ local function timeline()
 		end)
 	end)
 
-	-- сзади, между креслами: руль, дорога, магнитола
+	-- с заднего правого сиденья (3.9 studs от головы): жест, руль, дорога; когда радио затрещит —
+	-- камера медленно наклоняется к магнитоле, фокус переходит на неё (один план, без склейки)
 	at(37.6)
+	setLensRain(false)
+	setRig(0.08, 0.3)
 	if interior then
-		driveLine(250, 22)
-		dof(2.8, 2.5, 0.3, 0)
-		carShot(6.8, { Vector3.new(3.3, 4.45, -0.2), Vector3.new(3.15, 4.42, -0.05) }, { Vector3.new(-5, 3.4, 1.3), Vector3.new(-5, 3.42, 1.1) }, 55, 52)
+		driveLine(255, 17)
+		dof(3.9, 2.4, 0.3, 0)
+		setShot(11.8, function(_, t)
+			local cf = car and car.BodyCF
+			if not cf then
+				return nil
+			end
+			local a = easeSine(t / 11.8) -- медленный дрейф
+			local b = easeSine((t - 6.4) / 4.2) -- к магнитоле
+			-- (сама магнитола спереди закрыта его рукой — в кадре голова и рука, которая к ней тянется)
+			local eye = Vector3.new(3.5, 4.35, -1.35):Lerp(Vector3.new(3.3, 4.3, -1.5), a)
+			local look = Vector3.new(-0.6, 3.7, 0.7):Lerp(Vector3.new(-0.9, 3.45, 0.6), b)
+			return cf * CFrame.lookAt(eye, look), 50 - 4 * b
+		end, true)
 	end
 	at(38.6)
 	say("Road2", function(d)
@@ -1949,13 +1976,9 @@ local function timeline()
 	at(44.25)
 	ik("Look", LOOK_RADIO, true, nil, nil, 6) -- резко на треск
 
-	-- магнитола крупно: рука тянется, стучит по ней, щёлкает кнопкой
+	-- рука тянется к магнитоле, стучит по ней, щёлкает кнопкой; фокус — на магнитолу, плечо в размытии
 	at(44.4)
-	if interior then
-		driveLine(230, 22)
-		dof(1.6, 0.9, 0.5, 0)
-		carShot(5.0, { Vector3.new(-0.1, 3.5, -0.75), Vector3.new(-0.05, 3.45, -0.68) }, { Vector3.new(-1.55, 2.6, 0.1), Vector3.new(-1.5, 2.62, 0.15) }, 50, 46)
-	end
+	dof(4.4, 2.0, 0.3, 0.15, 1.6)
 	at(44.7)
 	say("Radio1", function(d)
 		after(d * 0.35, function()
@@ -1977,12 +2000,14 @@ local function timeline()
 		end)
 	end)
 
-	-- крупный профиль: тишина, только дождь
+	-- лицо крупно с капота, длинным объективом (6.4 studs): тишина, только дождь
 	at(49.4)
+	setLensRain(true)
+	setRig(0.04, 0.3)
 	if interior then
 		driveLine(240, 22)
-		dof(1.6, 0.9, 0.42, 0)
-		carShot(5.4, { Vector3.new(-0.05, 3.98, -0.8), Vector3.new(-0.12, 3.99, -0.74) }, { Vector3.new(0.6, 4.0, 1.19), Vector3.new(0.6, 4.0, 1.2) }, 44, 42)
+		dof(6.4, 2.5, 0.4, 0)
+		carShot(5.4, { Vector3.new(-5.8, 4.2, 1.9), Vector3.new(-5.75, 4.22, 1.75) }, { Vector3.new(0.55, 4.05, 1.2), Vector3.new(0.55, 4.1, 1.2) }, 24, 22)
 	end
 	at(49.8)
 	say("Radio2", function(d)
@@ -2000,10 +2025,12 @@ local function timeline()
 
 	-- впереди в дожде загорается вывеска
 	at(54.8)
+	setLensRain(false)
+	setRig(0.08, 0.3)
 	if interior then
 		driveLine(194, 16) -- сбрасывает скорость перед поворотом; к 61-й секунде — у начала пути на парковку (x 95)
-		dof(60, 80, 0, 0.3) -- вывеска вдали резкая, голова водителя в размытии
-		carShot(6.2, { Vector3.new(2.7, 4.4, 0.25), Vector3.new(2.4, 4.35, 0.2) }, { Vector3.new(-8, 3.4, -0.5), Vector3.new(-8, 3.5, -0.9) }, 54, 50)
+		dof(60, 80, 0, 0.3) -- вывеска вдали резкая, голова водителя (3.5 studs) в размытии
+		carShot(6.2, { Vector3.new(3.9, 4.45, 0.2), Vector3.new(3.8, 4.45, 0.1) }, { Vector3.new(-8, 3.5, -1.2), Vector3.new(-8, 3.55, -1.6) }, 52, 48)
 	end
 	at(55.3)
 	ik("Look", STORE_SIGN, false, nil, nil, 2.5) -- заметил; голова «ведёт» вывеску, пока машина едет
@@ -2083,14 +2110,15 @@ local function timeline()
 	lightning(false)
 
 	-- 4. ПРИЕХАЛИ. СООБЩЕНИЕ ОТ ДИРЕКТОРА (v12) -------------------------------
+	-- снаружи у окна водителя, медленный наезд: по стеклу течёт дождь, телефон светит ему в лицо
 	at(75.0)
-	setLensRain(false)
+	setLensRain(true)
 	ctx.Audio.SetInCar(true)
 	loopOn("CarRain", "Rain", 0.42)
-	setRig(0.12, 0.3)
+	setRig(0.06, 0.3)
 	if interior then
-		dof(1.8, 1.0, 0.4, 0)
-		carShot(12.4, { Vector3.new(-0.25, 3.95, -1.05), Vector3.new(-0.15, 3.92, -0.95) }, { Vector3.new(0.55, 4.0, 1.2), Vector3.new(0.55, 3.85, 1.12) }, 50, 44)
+		dof(4.8, 2.0, 0.35, 0)
+		carShot(12.4, { Vector3.new(-0.6, 4.2, 5.9), Vector3.new(-0.45, 4.2, 5.4) }, { Vector3.new(0.25, 3.9, 1.05), Vector3.new(-0.05, 3.9, 1.0) }, 38, 33)
 	end
 	at(75.4)
 	say("Stop1", function()
@@ -2122,13 +2150,14 @@ local function timeline()
 	say("Msg1")
 	at(86.6)
 	showPhone(false)
-	dof(1.8, 1.0, 0.4, 0, 0.5)
+	dof(4.5, 2.0, 0.35, 0, 0.5)
 
 	-- сзади: телефон в карман, смотрит на магазин сквозь мокрое стекло
 	at(87.4)
+	setLensRain(false)
 	if interior then
 		dof(10, 14, 0.15, 0.3)
-		carShot(3.8, { Vector3.new(3.0, 4.42, 0.45), Vector3.new(2.85, 4.4, 0.5) }, { Vector3.new(-8, 3.7, 0.4), Vector3.new(-8, 3.65, 0.6) }, 50, 47)
+		carShot(3.8, { Vector3.new(3.5, 4.35, -1.35), Vector3.new(3.4, 4.33, -1.25) }, { Vector3.new(-8, 3.8, 2.0), Vector3.new(-8, 3.75, 2.2) }, 50, 47)
 	end
 	ik("R", POCKET, true, nil, nil, 4)
 	at(87.7)
@@ -2321,14 +2350,15 @@ local function timeline()
 	ctx.Effects.SetClock(-2) -- 23:58
 	bedTo("TensionDrone", 0.12, 4)
 	dof(14, 10, 0.18, 0)
-	-- стоит у стола, опираясь на него руками, голова над запиской
-	actor = makeActor(Vector3.new(notePos.X + 1.3, 0, notePos.Z + 3.4), 0)
+	-- стоит у стола, опираясь на него руками, голова над запиской; v13: на шаг дальше от записки —
+	-- на крупном плане записки его голова в 3.5+ studs от камеры и не лезет в кадр
+	actor = makeActor(Vector3.new(notePos.X + 1.8, 0, notePos.Z + 3.9), 0)
 	actor.Forward = Vector3.new(0, 0, -1)
-	actor.Lean = -0.09
+	actor.Lean = -0.07
 	makeIK(actor)
 	ik("Look", notePos, false, 0.85, 0.6)
-	ik("L", Vector3.new(notePos.X + 0.4, notePos.Y + 0.05, notePos.Z + 1.7), false, 1, 0.8)
-	ik("R", Vector3.new(notePos.X + 2.2, notePos.Y + 0.05, notePos.Z + 1.8), false, 1, 0.8)
+	ik("L", Vector3.new(notePos.X + 1.0, notePos.Y + 0.05, notePos.Z + 1.95), false, 1, 0.8)
+	ik("R", Vector3.new(notePos.X + 2.7, notePos.Y + 0.05, notePos.Z + 1.95), false, 1, 0.8)
 	setShot(4.8, track({ Vector3.new(18, 7.0, -62.2), Vector3.new(20, 6.5, -59.7) }, { Vector3.new(30.5, 4.6, -45), Vector3.new(29.5, 4.2, -46) }, 54, 50))
 	at(129.0)
 	-- записка крупно (камера над столом, текст читается); фокус «доезжает» до текста
@@ -2367,10 +2397,11 @@ local function timeline()
 	glowLight.Shadows = false
 	glowLight.Parent = screenGlow
 	local SCREEN1 = Vector3.new(38, 7, -55)
+	-- v13: стоит дальше от камеры, камера — сзади-слева через его плечо (5.7 studs)
 	if actor then
 		actor.Path = {}
-		actor.Pos = Vector3.new(33.6, 0, -49.0)
-		actor.Forward = Vector3.new(4.4, 0, -6).Unit
+		actor.Pos = Vector3.new(34.4, 0, -47.4)
+		actor.Forward = Vector3.new(3.6, 0, -7.6).Unit
 		actor.Yaw = math.atan2(-actor.Forward.X, -actor.Forward.Z)
 		actor.Lean = 0
 		actor.LeanCur = 0
@@ -2378,10 +2409,10 @@ local function timeline()
 		ik("R", Vector3.zero, false, 0, 0.1)
 		ik("Look", SCREEN1, false, 0.85, 0.1)
 	end
-	setShot(4.2, track({ Vector3.new(31.0, 5.9, -51.6), Vector3.new(31.8, 5.9, -51.5) }, { Vector3.new(38.5, 5.75, -51.4), Vector3.new(38.5, 5.8, -51.4) }, 49, 47))
+	setShot(4.2, track({ Vector3.new(30.0, 6.2, -44.0), Vector3.new(30.4, 6.15, -44.5) }, { Vector3.new(38.5, 5.8, -52.0), Vector3.new(38.4, 5.85, -52.4) }, 49, 46))
 	at(140.2)
-	-- наезд на экран 1 «ГЛАВНЫЙ ВХОД»
-	setShot(1.4, track({ Vector3.new(31.8, 5.9, -51.5), Vector3.new(34.6, 6.6, -54.2), Vector3.new(36.25, 6.95, -55.0) }, { Vector3.new(38.5, 5.8, -51.4), Vector3.new(38.4, 6.6, -54.4), Vector3.new(38.23, 6.95, -55.0) }, 47, 40))
+	-- наезд на экран 1 «ГЛАВНЫЙ ВХОД»: дугой выше и левее героя (не ближе 3.9 studs от головы)
+	setShot(1.4, track({ Vector3.new(30.4, 6.15, -44.5), Vector3.new(32.0, 7.6, -50.5), Vector3.new(36.25, 6.95, -55.0) }, { Vector3.new(38.4, 5.85, -52.4), Vector3.new(38.4, 6.6, -54.4), Vector3.new(38.23, 6.95, -55.0) }, 46, 40))
 	at(141.6)
 	-- камера 1 на весь экран: за стеклом входа стоит силуэт (камера наблюдения неподвижна)
 	setRig(0, 0.3)
@@ -2415,10 +2446,12 @@ local function timeline()
 	bedTo("TensionDrone", 0.2, 3)
 
 	-- 10. ЛИЦО В СВЕТЕ МОНИТОРОВ (v12) ----------------------------------------
-	-- камера со стороны экранов, чуть сбоку от его взгляда
-	setRig(0.1, 0.3)
-	dof(2.9, 1.2, 0.45, 0)
-	setShot(9.6, track({ Vector3.new(35.4, 5.75, -50.4), Vector3.new(35.2, 5.7, -50.2) }, { Vector3.new(33.6, 5.0, -48.9), Vector3.new(33.6, 4.95, -48.95) }, 44, 38))
+	-- камера со стороны экранов, чуть сбоку от его взгляда; v13: 4.6 studs и длинный объектив
+	-- (было 2.1 stud — камера почти упиралась в лицо)
+	setRig(0.06, 0.3)
+	dof(4.6, 1.6, 0.45, 0)
+	local faceAt = actor and actor.HeadPart and actor.HeadPart.Position or Vector3.new(34.4, 4.95, -47.4)
+	setShot(9.6, track({ Vector3.new(37.1, 6.0, -51.0), Vector3.new(37.0, 5.95, -50.8) }, { faceAt, faceAt + Vector3.new(0, -0.05, 0) }, 30, 26))
 	ik("Look", SCREEN1 + Vector3.new(0, -0.2, 0.3), false, 0.9, 0.2, 6)
 	at(147.7)
 	say("Odd1", function(d)
@@ -2434,7 +2467,10 @@ local function timeline()
 		if actor then
 			actor.Lean = 0.03 -- выпрямляется
 		end
-		ik("Look", Vector3.new(30.5, 3.2, -53.5), false, nil, nil, 2.2) -- отводит глаза: «показалось»
+		-- отводит глаза влево-вниз: «показалось»
+		local fwd = actor and actor.Forward or Vector3.new(0.43, 0, -0.9)
+		local head = actor and actor.HeadPart and actor.HeadPart.Position or Vector3.new(34.4, 4.95, -47.4)
+		ik("Look", head + fwd * 2 + Vector3.new(fwd.Z, 0, -fwd.X) * 3 + Vector3.new(0, -1.8, 0), false, nil, nil, 2.2)
 		after(d * 0.8, function()
 			ik("Look", SCREEN1, false, nil, nil, 2)
 		end)
@@ -2443,14 +2479,14 @@ local function timeline()
 	actorSigh(1)
 	at(154.4)
 	say("Odd3", function(d)
-		local head = actor and actor.HeadPart and actor.HeadPart.Position or Vector3.new(33.6, 5.0, -49.0)
-		local fwd = actor and actor.Forward or Vector3.new(0.6, 0, -0.8)
+		local head = actor and actor.HeadPart and actor.HeadPart.Position or Vector3.new(34.4, 4.95, -47.4)
+		local fwd = actor and actor.Forward or Vector3.new(0.43, 0, -0.9)
 		ik("R", head + fwd * 0.45 + Vector3.new(0, 0.05, 0), false, 1, 0.5, 4) -- ладонью по лицу
 		after(d * 0.55, function()
 			ik("R", head + fwd * 0.4, false, 0, 0.7)
 		end)
 		-- качает головой
-		local base = Vector3.new(33.0, 3.4, -53.5)
+		local base = head + fwd * 4 + Vector3.new(0, -1.5, 0)
 		local right = Vector3.new(-fwd.Z, 0, fwd.X)
 		for i = 1, 3 do
 			after(d * 0.55 + i * 0.28, function()
