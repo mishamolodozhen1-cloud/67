@@ -162,6 +162,11 @@ function ModelKit.Has(name)
 	return templates[name] ~= nil
 end
 
+-- Образец целой модели (чтобы один раз поправить его перед копированием)
+function ModelKit.Template(name)
+	return assets[name]
+end
+
 function ModelKit.HasAsset(name)
 	return assets[name] ~= nil
 end

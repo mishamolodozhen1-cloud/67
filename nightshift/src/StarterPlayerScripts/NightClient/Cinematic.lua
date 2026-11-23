@@ -28,8 +28,9 @@
 -- Живая игра: голова смотрит туда, о чём он говорит (IK), кивает в такт речи, руки на руле,
 -- к радио, к телефону, к лицу; вздохи, наклоны корпуса. IK — только у R15.
 -- v13: камеры в машине — на капоте (сквозь лобовое), снаружи у окна водителя, на заднем сиденье; везде не
--- ближе 3.5 studs от головы героя, крупность — длинным объективом. IKControl без сглаживания движком
--- (оно тянуло кисти за машиной — руки дрожали на ходу).
+-- ближе 3.5 studs от головы героя, крупность — длинным объективом.
+-- v14: руки и голова — свой IK (плечо и локоть — две кости, поворот шеи), позы пишутся в суставы после
+-- анимации; IKControl больше не используется (с ним руки на ходу дёргались, будто он бешено крутит руль).
 --
 -- «Оператор» (v8): лёгкая ручная тряска у каждого плана, размытие при быстром движении камеры, плавная
 -- перефокусировка, вспышки молний с громом, капли дождя на объективе снаружи, плёночное зерно.
@@ -76,6 +77,7 @@ local lensOn = false
 local drops = {}
 local SKIP = "NS_INTRO_SKIP"
 local frameConn = nil
+local stepConn = nil -- v14: свой IK пишет позы в суставы после анимации
 
 local groundParams = RaycastParams.new()
 groundParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -387,42 +389,69 @@ local function invisiblePart(name, size)
 	return p
 end
 
+-- v14: свой IK вместо IKControl. Поза руки (плечо и локоть — две кости) и поворот головы считаются здесь
+-- и пишутся прямо в Motor6D.Transform сразу после анимации (RunService.Stepped). Так поза одна и та же
+-- в каждом кадре: рука не «догоняет» руль и не мечется между двумя решениями движка (было похоже, что
+-- герой бешено крутит руль). Цели — в координатах машины (едут с ней) или мира.
+local function motorOf(m, partName, jointName)
+	local p = m:FindFirstChild(partName)
+	local j = p and p:FindFirstChild(jointName)
+	return (j and j:IsA("Motor6D")) and j or nil
+end
+
+-- Поворот, у которого ось X смотрит в x, ось Y — в y (x и y перпендикулярны)
+local function frameOf(x, y)
+	return CFrame.fromMatrix(Vector3.zero, x, y, x:Cross(y))
+end
+
+local FWD = Vector3.new(0, 0, -1)
+
 local function makeIK(a)
-	if not (a.Model and a.R15 and a.Hum) then
+	if not (a.Model and a.R15) then
 		return
 	end
 	local m = a.Model
+	local ut = m:FindFirstChild("UpperTorso")
+	if not ut then
+		return
+	end
+	a.UT = ut
 	a.IK = {}
-	local function add(key, kind, rootName, effName, attachName, rate)
-		local rootPart = m:FindFirstChild(rootName)
-		local eff = m:FindFirstChild(effName)
-		if not (rootPart and eff) then
+	local function arm(key, side)
+		local sh = motorOf(m, side .. "UpperArm", side .. "Shoulder")
+		local el = motorOf(m, side .. "LowerArm", side .. "Elbow")
+		local wr = motorOf(m, side .. "Hand", side .. "Wrist")
+		if not (sh and el and wr) then
 			return
 		end
-		pcall(function()
-			local c = Instance.new("IKControl")
-			c.Name = "NS_IK_" .. key
-			c.Type = kind
-			c.ChainRoot = rootPart
-			c.EndEffector = (attachName and eff:FindFirstChild(attachName)) or eff
-			local target = invisiblePart("IK_" .. key)
-			c.Target = target
-			local pole = nil
-			if kind == Enum.IKControlType.Position then
-				pole = invisiblePart("IKPole_" .. key)
-				c.Pole = pole
-			end
-			c.Weight = 0
-			-- v13: без сглаживания движком. Оно ведёт цель в координатах мира, а машина едет ~20 studs/с —
-			-- кисть всё время «догоняла» руль и дрожала. Плавность — своя, в координатах машины (updateIK)
-			c.SmoothTime = 0
-			c.Parent = a.Hum
-			a.IK[key] = { Control = c, Target = target, Pole = pole, Cur = Vector3.zero, Goal = Vector3.zero, InCar = false, Rate = rate, BaseRate = rate, Fresh = true }
-		end)
+		-- поза покоя в координатах UpperTorso: плечевой сустав, локоть, запястье
+		local ua0 = sh.C0 * sh.C1:Inverse()
+		local e0 = ua0 * el.C0.Position
+		local la0 = ua0 * el.C0 * el.C1:Inverse()
+		local w0 = la0 * wr.C0.Position
+		local s0 = sh.C0.Position
+		local u0 = (e0 - s0).Unit
+		local f0 = (w0 - e0).Unit
+		local h0 = u0:Cross(FWD).Unit -- ось сгиба локтя: предплечье уходит вперёд
+		local h0f = (h0 - f0 * h0:Dot(f0)).Unit
+		-- от запястья до точки хвата (кисть держит руль ладонью, а не запястьем)
+		local hand = m:FindFirstChild(side .. "Hand")
+		local grip = hand and hand:FindFirstChild(side .. "GripAttachment")
+		local gripLen = grip and (grip.Position - wr.C1.Position).Magnitude or 0.3
+		a.IK[key] = {
+			Kind = "Arm", Sh = sh, El = el, S = s0, UA0 = ua0, LA0 = la0, E0 = e0,
+			L1 = (e0 - s0).Magnitude, L2 = (w0 - e0).Magnitude, Grip = gripLen,
+			F0u = frameOf(u0, h0), F0f = frameOf(f0, h0f),
+			Cur = Vector3.zero, Goal = Vector3.zero, InCar = false, Rate = 5, BaseRate = 5, Fresh = true,
+			W = 0, WGoal = 0, WSpeed = 2,
+		}
 	end
-	add("Look", Enum.IKControlType.LookAt, "UpperTorso", "Head", nil, 3.2)
-	add("L", Enum.IKControlType.Position, "LeftUpperArm", "LeftHand", "LeftGripAttachment", 5)
-	add("R", Enum.IKControlType.Position, "RightUpperArm", "RightHand", "RightGripAttachment", 5)
+	arm("L", "Left")
+	arm("R", "Right")
+	local neck = motorOf(m, "Head", "Neck")
+	if neck then
+		a.IK.Look = { Kind = "Look", Neck = neck, Cur = Vector3.zero, Goal = Vector3.zero, InCar = false, Rate = 3.2, BaseRate = 3.2, Fresh = true, W = 0, WGoal = 0, WSpeed = 2 }
+	end
 end
 
 -- Цель IK. key: "Look" — голова, "L"/"R" — кисти. point — в координатах машины (inCar = true) или мира.
@@ -448,7 +477,103 @@ local function ik(key, point, inCar, weight, seconds, rate)
 	k.Goal = point
 	k.Rate = rate or k.BaseRate
 	if weight then
-		TweenService:Create(k.Control, TweenInfo.new(seconds or 0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Weight = weight }):Play()
+		k.WGoal = weight
+		k.WSpeed = 1 / math.max(seconds or 0.5, 0.05)
+	end
+end
+
+-- Две кости: плечо S, длины L1 и L2, цель T, подсказка локтя P (всё в координатах UpperTorso).
+-- Возвращает Transform плеча и локтя
+local function solveArm(k, T, P)
+	local S = k.S
+	local toT = T - S
+	local dir0 = toT.Magnitude > 1e-4 and toT.Unit or Vector3.new(0, -1, 0)
+	-- запястье ставим так, чтобы точка хвата (ладонь) пришлась на цель: ладонь продолжает предплечье,
+	-- поэтому отступ уточняем по найденному направлению предплечья (3–4 шага хватает: ошибка ~0.01 stud)
+	local Wt = T - dir0 * k.Grip
+	local E, fa, perp
+	for _ = 1, 4 do
+		local toW = Wt - S
+		local dist = toW.Magnitude
+		local dir = dist > 1e-4 and toW / dist or dir0
+		dist = math.clamp(dist, math.abs(k.L1 - k.L2) + 0.05, k.L1 + k.L2 - 0.01)
+		local W = S + dir * dist
+		local cosA = math.clamp((k.L1 * k.L1 + dist * dist - k.L2 * k.L2) / (2 * k.L1 * dist), -1, 1)
+		local sinA = math.sqrt(1 - cosA * cosA)
+		local toP = P - S
+		perp = toP - dir * toP:Dot(dir)
+		if perp.Magnitude < 1e-3 then
+			perp = Vector3.new(0, -1, 0) - dir * (-dir.Y)
+		end
+		perp = perp.Unit
+		E = S + dir * (cosA * k.L1) + perp * (sinA * k.L1)
+		fa = (W - E).Unit
+		Wt = T - fa * k.Grip
+	end
+	local ua = (E - S).Unit
+	local h = ua:Cross(fa)
+	if h.Magnitude < 1e-3 then
+		h = ua:Cross(-perp)
+	end
+	h = h.Unit
+	local UA = CFrame.new(S) * (frameOf(ua, h) * k.F0u:Inverse()) * CFrame.new(-S) * k.UA0
+	local hf = (h - fa * h:Dot(fa)).Unit
+	local LA = CFrame.new(E) * (frameOf(fa, hf) * k.F0f:Inverse()) * CFrame.new(-k.E0) * k.LA0
+	return k.Sh.C0:Inverse() * UA * k.Sh.C1, k.El.C0:Inverse() * UA:Inverse() * LA * k.El.C1
+end
+
+-- Поворот шеи к точке (направление d — в координатах UpperTorso), с пределами как у человека
+local function solveLook(k, d)
+	if d.Magnitude < 1e-3 then
+		return CFrame.identity
+	end
+	d = d.Unit
+	local yaw = math.clamp(math.atan2(-d.X, -d.Z), -1.1, 1.1)
+	local pitch = math.clamp(math.asin(math.clamp(d.Y, -1, 1)), -0.75, 0.55)
+	local r = k.Neck.C0.Rotation
+	return r:Inverse() * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * r
+end
+
+-- Смешать позу анимации и позу IK. Если анимация этот сустав не трогает, в нём лежит прошлая поза IK —
+-- тогда «основа» — поза покоя
+local function setJoint(motor, k, slot, pose, w)
+	local base = motor.Transform
+	if k[slot] and base == k[slot] then
+		base = k[slot .. "Base"] or CFrame.identity
+	else
+		k[slot .. "Base"] = base
+	end
+	local out = w >= 0.999 and pose or base:Lerp(pose, w)
+	motor.Transform = out
+	k[slot] = out
+end
+
+-- После анимации (Stepped): записать позы IK в суставы
+local function applyIK()
+	local a = actor
+	if not (a and a.IK and a.UT and a.UT.Parent) then
+		return
+	end
+	local ut = a.UT.CFrame
+	for _, k in pairs(a.IK) do
+		if k.World and k.W > 0.001 then
+			if k.Kind == "Arm" then
+				local ts, te = solveArm(k, ut:PointToObjectSpace(k.World), ut:PointToObjectSpace(k.PoleWorld))
+				setJoint(k.Sh, k, "LastS", ts, k.W)
+				setJoint(k.El, k, "LastE", te, k.W)
+			else
+				local from = ut * k.Neck.C0.Position
+				setJoint(k.Neck, k, "LastN", solveLook(k, ut:VectorToObjectSpace(k.World - from)), k.W)
+			end
+		elseif k.W <= 0.001 and k.LastS then
+			-- IK выключили: сустав возвращается к анимации
+			k.LastS, k.LastE = nil, nil
+			k.Sh.Transform = k.LastSBase or CFrame.identity
+			k.El.Transform = k.LastEBase or CFrame.identity
+		elseif k.W <= 0.001 and k.LastN then
+			k.LastN = nil
+			k.Neck.Transform = k.LastNBase or CFrame.identity
+		end
 	end
 end
 
@@ -512,7 +637,7 @@ local function updateIK(dt)
 	if not (a and a.Model) then
 		return
 	end
-	local rootCF = a.Model:GetPivot()
+	local rootCF = a.Root and a.Root.CFrame or a.Model:GetPivot()
 	if a.IK then
 		local cf = car and car.BodyCF
 		local t = now()
@@ -528,18 +653,19 @@ local function updateIK(dt)
 					local up = talk * (math.noise(t * 1.5, 3.3) * 0.5 + (speech.Speaking and math.sin(t * 4.2) * 0.06 or 0)) - a.Sigh * 0.9
 					local side = talk * math.noise(t * 0.9, 8.8) * 0.6
 					p = p + rootCF.UpVector * (up * d) + rootCF.RightVector * (side * d)
-				end
-				k.Target.CFrame = CFrame.new(p)
-				if k.Pole then
+				else
 					-- локти — наружу, вниз и чуть назад
-					k.Pole.CFrame = rootCF * CFrame.new(key == "L" and -1.7 or 1.7, -1.4, 0.6)
+					k.PoleWorld = rootCF * Vector3.new(key == "L" and -2.0 or 2.0, -0.8, 0.3)
 				end
+				k.World = p
+				local step = k.WSpeed * dt
+				k.W = k.W + math.clamp(k.WGoal - k.W, -step, step)
 			end
 		end
 	end
 	local ph = a.Phone
 	if ph and ph.On then
-		local hand = (a.IK and a.IK.R) and a.IK.R.Target.Position or rootCF * Vector3.new(0.4, 0.4, -1)
+		local hand = (a.IK and a.IK.R and a.IK.R.World) or rootCF * Vector3.new(0.4, 0.4, -1)
 		local head = a.HeadPart and a.HeadPart.Position or rootCF * Vector3.new(0, 1.6, 0)
 		local cfp = CFrame.lookAt(hand, head) * CFrame.Angles(math.rad(-12), 0, 0)
 		ph.Body.CFrame = cfp
@@ -589,7 +715,12 @@ local function updateActor(dt)
 		-- сидит в машине: едет вместе с кузовом; наклон — вокруг таза
 		local cf = car and car.BodyCF
 		if cf and actor.Model then
-			actor.Model:PivotTo(cf * actor.Seat * CFrame.new(0, -0.7, 0) * CFrame.Angles(lean, 0, 0) * CFrame.new(0, 0.7, 0))
+			local seatCF = cf * actor.Seat * CFrame.new(0, -0.7, 0) * CFrame.Angles(lean, 0, 0) * CFrame.new(0, 0.7, 0)
+			if actor.Root then
+				actor.Root.CFrame = seatCF -- корень закреплён: остальные детали едут за ним по суставам
+			else
+				actor.Model:PivotTo(seatCF)
+			end
 		end
 		updateIK(dt)
 		return
@@ -1851,7 +1982,7 @@ local function timeline()
 		loopOn("CarEngine", "EngineOut", 0.8, car.Body, 8, 140)
 	end
 	setRig(0.25, 0.5)
-	dof(24, 30, 0.12, 0)
+	dof(24, 30, 0.12, 0, 0.4) -- с плавным переходом: новый переход отменяет недоигранный с прошлого плана
 	local passCam = Vector3.new(170, 2.3, 131.2)
 	local passLook = Vector3.new(232, 2.4, 123.5)
 	setShot(4.5, function(u, _, dt)
@@ -2733,6 +2864,10 @@ local function cleanup()
 	drops = {}
 	prevCam = nil
 	setRig(0, 0.4)
+	if stepConn then
+		stepConn:Disconnect()
+		stepConn = nil
+	end
 	if frameConn then
 		frameConn:Disconnect()
 		frameConn = nil
@@ -2974,6 +3109,12 @@ function Cinematic.Play(data)
 				end
 			end
 		end
+		stepConn = RunService.Stepped:Connect(function()
+			local okI, errI = pcall(applyIK)
+			if not okI then
+				warn("[Кат-сцена] IK: " .. tostring(errI))
+			end
+		end)
 		-- камера сцены ставится сразу после стандартной камеры Roblox (в тесте на сервере — Heartbeat)
 		if RunService:IsClient() then
 			RunService:BindToRenderStep("NS_Cinematic", Enum.RenderPriority.Camera.Value + 1, onFrame)

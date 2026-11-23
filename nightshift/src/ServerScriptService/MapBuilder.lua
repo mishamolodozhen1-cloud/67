@@ -12,7 +12,7 @@
 --   Холодильная камера  x -10..12,  z -64..-40
 --   Кабинет менеджера   x  12..40,  z -64..-40 (мониторы камер, записка, часы)
 --   Задний двор         x -40..10,  z -92..-64
---   Улица: парковка z 58..120, дорога z 120..132, тротуар напротив и тёмные дома
+--   Улица: парковка z 58..120, дорога z 120..132, тротуар напротив; дальше — окружение (Surroundings)
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -22,6 +22,7 @@ local Products = require(Shared:WaitForChild("Products"))
 local Texts = require(Shared:WaitForChild("Texts"))
 local Models = require(Shared:WaitForChild("Models"))
 local ModelKit = require(script.Parent:WaitForChild("ModelKit"))
+local Surroundings = require(script.Parent:WaitForChild("Surroundings"))
 
 local MapBuilder = {}
 
@@ -837,27 +838,6 @@ local function carModel(parent, assetName, x, z, heading, name)
 	return m
 end
 
-local function building(parent, x0, z0, x1, z1, h, seed)
-	local r = Random.new(seed)
-	local m = model("Building", parent)
-	local color = rgb(r:NextInteger(46, 62), r:NextInteger(46, 60), r:NextInteger(50, 66))
-	local body = B(m, "Block", x0, 0, z0, x1, h, z1, color, M.Concrete)
-	skin(body, I.ConcreteWall, 16, { N.Front, N.Back, N.Left, N.Right }, rgb(120, 120, 124))
-	-- редкие светящиеся окна (кто-то не спит)
-	local faces = { { N.Front, z0 - 0.05 }, { N.Back, z1 + 0.05 } }
-	for _, fc in ipairs(faces) do
-		for fl = 1, math.floor(h / 9) - 1 do
-			for x = x0 + 5, x1 - 5, 7 do
-				if r:NextNumber() < 0.12 then
-					local warm = r:NextNumber() < 0.7
-					B(m, "Window", x - 1.4, fl * 9, fc[2] - 0.05, x + 1.4, fl * 9 + 3.2, fc[2] + 0.05, warm and rgb(255, 214, 150) or rgb(170, 200, 255), M.Neon, { CastShadow = false })
-				end
-			end
-		end
-	end
-	return m
-end
-
 local function buildFront(root, map)
 	local f = folder("Front", root)
 	local frame = rgb(70, 74, 80)
@@ -1005,25 +985,7 @@ local function buildFront(root, map)
 			P(m, "Frame", Vector3.new(0.2, 1.6, 3), CFrame.new(-36 + i * 0.9 - 0.8, 0.8, 56), rgb(180, 180, 184), M.Metal)
 		end
 	end
-	-- Тёмные дома вокруг (видны за магазином и по сторонам)
-	local bf = folder("Buildings", f)
-	building(bf, -150, -150, -90, -100, 60, 1)
-	building(bf, -80, -170, -10, -110, 46, 2)
-	building(bf, 0, -160, 70, -105, 72, 3)
-	building(bf, 80, -140, 140, -80, 52, 4)
-	building(bf, -170, -80, -110, -10, 40, 5)
-	building(bf, 100, -60, 160, 20, 44, 6)
-	building(bf, -200, 160, -120, 210, 50, 7)
-	building(bf, -60, 160, 30, 200, 38, 8)
-	building(bf, 60, 160, 150, 220, 64, 9)
-	-- Деревья вдоль тротуара напротив
-	for x = -180, 180, 36 do
-		if math.abs(x + 18 + 52) > 14 then
-		Cyl(f, "TreeTrunk", 0.8, 8, Vector3.new(x + 18, 4, 142), rgb(50, 40, 34), M.Wood)
-		local crown = P(f, "TreeCrown", Vector3.new(9, 9, 9), CFrame.new(x + 18, 11, 142), rgb(28, 40, 30), M.Grass)
-		crown.Shape = Enum.PartType.Ball
-		end
-	end
+	-- v14: дома, лес и прочее окружение — Surroundings (строится после магазина)
 	-- Невидимые границы, чтобы не уйти в пустоту
 	for _, w in ipairs({ { -91, -1, 50, -90, 40, 133 }, { 70, -1, 50, 71, 40, 133 }, { -91, -1, 132, 71, 40, 133 } }) do
 		B(f, "Boundary", w[1], w[2], w[3], w[4], w[5], w[6], Color3.new(0, 0, 0), M.SmoothPlastic, { Transparency = 1 })
@@ -2870,6 +2832,11 @@ function MapBuilder.Build()
 	map.Points.StaffSpawn = Vector3.new(33, 3, -18)
 	map.Points.CaughtWake = Vector3.new(26, 3, -29)
 	root.Parent = workspace
+	-- v14: окружение — земля, лес, частный сектор, пятиэтажки, столбы с проводами, остановка
+	local okEnv, errEnv = pcall(Surroundings.Build)
+	if not okEnv then
+		warn("[Окружение] " .. tostring(errEnv))
+	end
 	-- Динамические объекты систем (покупатели, товары на ленте, лужи…) складываем сюда
 	local dyn = Instance.new("Folder")
 	dyn.Name = "Dynamic"

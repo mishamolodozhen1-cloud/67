@@ -51,6 +51,21 @@ Models.Credits = {
 	"«wheelie bin game asset» — BLENDERBROCPT, CC BY 4.0",
 	"«Low Poly | Plastic Garbage Bags» — Anna Denisova, CC BY 4.0",
 	"существо: «New Breaking News Rig» — NO DONT EAT ME CASEOH (Ferris wheel), CC BY 4.0",
+	-- v14: окружение
+	"«Pine Tree [Game-ready]» — Wenedi, CC BY 4.0",
+	"«Spruce», «Fir tree», «Birch tree» — evolveduk, CC BY 4.0",
+	"«Old russian house» — akiprensky, CC BY 4.0",
+	"«Old Russian House» — Vodum Games, CC BY 4.0",
+	"«Russian village house» — Ivan-Kanaev, CC BY 4.0",
+	"«Simple russia village house» — Nkz, CC BY 4.0",
+	"«Low-poly Brick House» — Vitalii.Sandula, CC BY 4.0",
+	"«5 storey residential building» — bean(alwayshasbean), CC BY 4.0",
+	"«Khrushchevka» — quizzes, CC BY 4.0",
+	"«Worn Shed PBR Game-Ready» — donnichols, CC BY 4.0",
+	"«Old House wooden» — wagnerlima07, CC BY 4.0",
+	"«Wood Wooden fence Protector of the farm» — Mehdi Shahsavan, CC BY 4.0",
+	"«Fence (Wood)» — trentspi, CC BY 4.0",
+	"«Old Soviet Bus Stop» — Coozy, CC BY 4.0",
 }
 
 -- Существо из подсобки (v10): скелетная модель (53 кости, сетка 17 000 треугольников, рост 8.6),
@@ -110,7 +125,34 @@ Models.Assets = {
 	Microwave = { Id = 137128632495880 }, -- микроволновка (дверца к LookVector, логотип закрашен)
 	Bin = { Id = 73474780575399 }, -- мусорный бак на колёсах (надпись на корпусе закрашена)
 	Bags = { Id = 94638446661345 }, -- чёрные мешки с мусором
+	-- v14: окружение магазина (Surroundings). Размеры — как в файле модели, масштаб задаёт Surroundings
+	EnvPine = { Id = 124078411463680 }, -- густая ель (высота 75)
+	EnvSpruce = { Id = 127346657724529 }, -- высокая ель (10.5)
+	EnvFir = { Id = 83527090935545 }, -- пихта (4.4)
+	EnvBirch = { Id = 106108147033559 }, -- берёза (8.2)
+	EnvHouseAki = { Id = 88025745110275 }, -- изба с резными наличниками (5.1 × 3.4 × 5.6)
+	EnvHouseVodum = { Id = 122596926624355 }, -- старый дом, вход со ступеньками сбоку (9.1 × 5.7 × 9.3)
+	EnvHouseLong = { Id = 102864424351525 }, -- длинный деревенский дом (22 × 6.1 × 13)
+	EnvHouseSmall = { Id = 100724127614950 }, -- маленький дом (9 × 8.6 × 10.4)
+	EnvHouseBrick = { Id = 95380698140771 }, -- кирпичный дом с верандой (4.8 × 3.1 × 5.6)
+	EnvPanel5 = { Id = 126052708515261 }, -- пятиэтажка (32 × 18.8 × 15.6)
+	EnvKhrush = { Id = 71980335507064 }, -- хрущёвка (5.5 × 6.6 × 13.3)
+	EnvShed = { Id = 77235282581891 }, -- сарай с крыльцом (644 × 355 × 434)
+	EnvShack = { Id = 114336275103441 }, -- заброшенная лачуга (10.3 × 7.8 × 7.8)
+	EnvFence = { Id = 122080121602864 }, -- секция деревянного забора с кирпичным столбом (длина по Z 285)
+	EnvRail = { Id = 125870193960634 }, -- жердевая изгородь (длина по Z 4)
+	EnvBusStop = { Id = 139000138218733 }, -- советская остановка (длина по Z 247; открыта в −X)
 }
+-- Листва и хвоя (v14): загрузка в Roblox не сохраняет прозрачность (SurfaceAppearance — режим Overlay),
+-- поэтому у этих деталей SurfaceAppearance снимается, а текстура с альфой ставится в MeshPart.TextureID.
+-- Ключ — начало имени детали в модели
+Models.Leaves = {
+	EnvPine = { Branches = "rbxassetid://82627531100240" },
+	EnvSpruce = { ["spruce branch"] = "rbxassetid://102145612007561", branch06 = "rbxassetid://106717516922242" },
+	EnvFir = { Tree_1 = "rbxassetid://70566649463073" },
+	EnvBirch = { ["birch leaf"] = "rbxassetid://110074246295649" },
+}
+
 Models.StaffCar = "CarMilano"
 Models.ParkedCars = { "CarFairheavenLT", "CarNegotiator", "CarFairheavenSW", "CarAce" }
 
