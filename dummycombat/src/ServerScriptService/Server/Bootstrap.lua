@@ -1,8 +1,9 @@
 -- Bootstrap: запуск сервера DUMMY COMBAT. Вызывается из Server/Main один раз (повторный вызов
 -- возвращает тот же отчёт).
 --
--- Порядок сервисов важен: ErrorService первым (ловит ошибки остальных при запуске), затем сеть,
--- затем всё, что ей пользуется. Новые сервисы следующих этапов добавляются в SERVICE_ORDER.
+-- Порядок важен: ErrorService первым (ловит ошибки остальных при запуске), затем сеть, затем всё,
+-- что ей пользуется. Сначала постоянные сервисы (Services), потом игровые системы (Systems): системы
+-- берут сервисы через context.Get. Новые модули следующих этапов добавляются в эти списки.
 -- Состояние загрузки видно в атрибутах ServerScriptService: DC_BootState (Starting / Ready / Degraded /
 -- Failed) и DC_BootFailures.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,7 +20,8 @@ local BuildInfo = require(Configs:WaitForChild("BuildInfo"))
 local Bootstrap = {}
 
 local SERVICE_ORDER = { "ErrorService", "NetService", "PlayerService" }
-local CRITICAL = { NetService = true, PlayerService = true }
+local SYSTEM_ORDER = { "CharacterSystem", "MovementSystem" }
+local CRITICAL = { NetService = true, PlayerService = true, CharacterSystem = true }
 
 local report = nil
 
@@ -40,8 +42,10 @@ function Bootstrap.Start()
 
 	report = ModuleLoader.Run({
 		Name = "Server",
-		Folder = ServerScriptService:WaitForChild("Services"),
-		Order = SERVICE_ORDER,
+		Groups = {
+			{ Folder = ServerScriptService:WaitForChild("Services"), Order = SERVICE_ORDER },
+			{ Folder = ServerScriptService:WaitForChild("Systems"), Order = SYSTEM_ORDER },
+		},
 		Critical = CRITICAL,
 	})
 	local state = "Ready"

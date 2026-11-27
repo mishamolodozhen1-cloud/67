@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "CameraMode": ["token", 1],
+    "CharacterWalkSpeed": ["float", 12],
+    "CharacterUseJumpPower": ["bool", false],
+    "CharacterJumpHeight": ["float", 4.6],
+    "AutoJumpEnabled": ["bool", false],
+    "LoadCharacterAppearance": ["bool", false],
+    "EnableMouseLockOption": ["bool", false],
+    "GameSettingsAvatar": ["token", 1]
+  }
+}

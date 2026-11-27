@@ -31,6 +31,39 @@ return deepFreeze({
 		History = 100, -- сколько последних ошибок (сервера и клиентов) держит ErrorService
 	},
 
+	-- Персонаж (Systems/CharacterSystem): манекен, появление и возрождение
+	Character = {
+		RespawnDelay = 3, -- через сколько секунд после смерти появиться снова (бой и смерть — этап 5)
+		ReadySpawnTimeout = 15, -- если клиент не сообщил о готовности, всё равно дать персонажа
+		BodyColor = Color3.fromRGB(201, 170, 98), -- цвет запасного (блочного) манекена, если модель не загрузилась
+	},
+
+	-- Передвижение (Systems/MovementSystem, Controllers/CharacterController): studs/с, studs
+	Movement = {
+		WalkSpeed = 12,
+		SprintSpeed = 19,
+		CrouchSpeed = 6.5,
+		JumpHeight = 4.6,
+		JumpCooldown = 0.3, -- пауза между прыжками (против «кроличьих» прыжков)
+		StanceTime = 0.18, -- за сколько персонаж приседает / встаёт (с)
+		SprintForwardDot = 0.6, -- бег — только если движение в пределах ~53° от взгляда
+		StandClearance = 0.15, -- запас над головой, чтобы встать из приседа
+	},
+
+	-- Камера от первого лица (Controllers/CameraController)
+	Camera = {
+		FieldOfView = 72,
+		SprintFieldOfView = 78,
+		EyeHeight = 0.2, -- над стандартной точкой камеры Roblox (HumanoidRootPart + 2): на уровне глаз манекена
+		EyeForward = 0.3, -- камера чуть впереди центра головы: видно свои ноги, не видно шею изнутри
+		HeadBob = true,
+		BobVertical = 0.07, -- покачивание при ходьбе (studs)
+		BobSide = 0.045,
+		SprintBobScale = 1.6,
+		CrouchBobScale = 0.6,
+		LandDip = 0.35, -- просадка камеры при приземлении с высоты (studs, максимум)
+	},
+
 	-- Сеть (Services/NetService, Controllers/ClientNet)
 	Net = {
 		RemotesFolder = "Remotes", -- ReplicatedStorage.Remotes

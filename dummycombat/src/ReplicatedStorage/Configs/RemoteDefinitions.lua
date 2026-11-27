@@ -43,6 +43,19 @@ local definitions = {
 		},
 		Rate = { Burst = 5, PerSecond = 0.25 },
 	},
+	-- стойка и бег своего персонажа: { Stance = "Stand" | "Crouch", Sprint = true/false }
+	-- (сервер ставит скорость и атрибуты персонажа, которые видят все клиенты)
+	MoveState = {
+		Kind = "Event",
+		Direction = "ToServer",
+		Args = {
+			Validate.Shape({
+				Stance = Validate.OneOf({ "Stand", "Crouch" }),
+				Sprint = Validate.Boolean(),
+			}),
+		},
+		Rate = { Burst = 8, PerSecond = 6 },
+	},
 }
 
 for _, def in pairs(definitions) do

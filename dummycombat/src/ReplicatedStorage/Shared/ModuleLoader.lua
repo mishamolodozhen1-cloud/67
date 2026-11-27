@@ -17,12 +17,19 @@ local ModuleLoader = {}
 local PHASES = { "Init", "Start" }
 
 -- options: { Name, Folder, Order = { ... }, Critical = { Имя = true }, WaitTimeout = 5 }
+-- или несколько папок с общим контекстом: { Name, Groups = { { Folder = ..., Order = { ... } }, ... }, Critical }
+-- (сервер: сначала Services, потом Systems — системы берут сервисы через context.Get)
 function ModuleLoader.Run(options)
 	local log = Logger.new(options.Name or "Loader")
-	local folder = options.Folder
-	local order = options.Order or {}
+	local groups = options.Groups or { { Folder = options.Folder, Order = options.Order or {} } }
 	local critical = options.Critical or {}
 	local started = os.clock()
+	local order = {}
+	for _, group in ipairs(groups) do
+		for _, name in ipairs(group.Order) do
+			table.insert(order, name)
+		end
+	end
 	local report = { Modules = {}, Status = {}, Failures = 0, CriticalFailed = false, Order = order }
 
 	local context = {}
@@ -44,28 +51,31 @@ function ModuleLoader.Run(options)
 		log:Error("%s — ошибка на этапе %s: %s", name, phase, tostring(err))
 	end
 
-	-- 1. require
-	local listed = {}
-	for _, name in ipairs(order) do
-		listed[name] = true
-		local ms = folder:FindFirstChild(name) or folder:WaitForChild(name, options.WaitTimeout or 5)
-		if not (ms and ms:IsA("ModuleScript")) then
-			fail(name, "Require", "модуль не найден в " .. folder:GetFullName())
-		else
-			local ok, result = pcall(require, ms)
-			if not ok then
-				fail(name, "Require", result)
-			elseif type(result) ~= "table" then
-				fail(name, "Require", "модуль вернул не таблицу")
+	-- 1. require (по группам, в порядке списков)
+	for _, group in ipairs(groups) do
+		local folder = group.Folder
+		local listed = {}
+		for _, name in ipairs(group.Order) do
+			listed[name] = true
+			local ms = folder:FindFirstChild(name) or folder:WaitForChild(name, options.WaitTimeout or 5)
+			if not (ms and ms:IsA("ModuleScript")) then
+				fail(name, "Require", "модуль не найден в " .. folder:GetFullName())
 			else
-				report.Modules[name] = result
-				report.Status[name] = "Loaded"
+				local ok, result = pcall(require, ms)
+				if not ok then
+					fail(name, "Require", result)
+				elseif type(result) ~= "table" then
+					fail(name, "Require", "модуль вернул не таблицу")
+				else
+					report.Modules[name] = result
+					report.Status[name] = "Loaded"
+				end
 			end
 		end
-	end
-	for _, child in ipairs(folder:GetChildren()) do
-		if child:IsA("ModuleScript") and not listed[child.Name] then
-			log:Warn("модуль %s лежит в %s, но не подключён (нет в списке запуска)", child.Name, folder.Name)
+		for _, child in ipairs(folder:GetChildren()) do
+			if child:IsA("ModuleScript") and not listed[child.Name] then
+				log:Warn("модуль %s лежит в %s, но не подключён (нет в списке запуска)", child.Name, folder.Name)
+			end
 		end
 	end
 

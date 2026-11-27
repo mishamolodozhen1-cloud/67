@@ -39,7 +39,7 @@ OUT_MANIFEST = os.path.join(OUT_DIR, "manifest.txt")
 
 # Контейнеры, у которых класс совпадает с именем папки
 NAMED_CLASSES = {"StarterPlayerScripts", "StarterCharacterScripts"}
-SERVICE_NAMES = {"Workspace", "Lighting", "ReplicatedStorage", "ServerScriptService", "ServerStorage", "StarterGui", "StarterPlayer", "SoundService"}
+SERVICE_NAMES = {"Workspace", "Lighting", "Players", "ReplicatedStorage", "ServerScriptService", "ServerStorage", "StarterGui", "StarterPlayer", "SoundService"}
 
 
 class Inst:

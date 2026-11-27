@@ -3,7 +3,9 @@
 
   python3 tools/cloud.py save build/DummyCombat.rbxl          — НЕопубликованная версия (игроки её не видят)
   python3 tools/cloud.py run tests/stage1.test.lua <версия>   — запустить скрипт на безголовом сервере Roblox
-  python3 tools/cloud.py test                                 — сборка + save + run tests/stage1.test.lua
+  python3 tools/cloud.py test [stage]                         — сборка + save + run tests/stage<N>.test.lua (по умолчанию все)
+  python3 tools/cloud.py upload <тип> <имя> <файл> [...]       — загрузить ассет (Model, Animation, Decal, Audio);
+                                                                можно несколько троек подряд; печатает JSON с id
 
 Плейс: переменные окружения DC_PLACE_ID и DC_UNIVERSE_ID. Пока у DUMMY COMBAT нет своего плейса,
 по умолчанию используется общий плейс проекта (там опубликована NIGHT SHIFT): сохраняются только
@@ -81,6 +83,29 @@ def run(script_path, version):
     return task.get("state") == "COMPLETE"
 
 
+MIME = {"Model": "model/gltf-binary", "Animation": "model/x-rbxm", "Decal": "image/png", "Audio": "audio/ogg"}
+CREATOR = os.environ.get("DC_CREATOR_USER_ID", "7945431606")  # аккаунт, от имени которого грузятся ассеты
+
+
+def upload(kind, name, path):
+    mime = MIME[kind]
+    if kind == "Model" and path.endswith(".rbxm"):
+        mime = "model/x-rbxm"
+    req = {"assetType": kind, "displayName": name, "description": "DUMMY COMBAT", "creationContext": {"creator": {"userId": CREATOR}}}
+    resp = json.loads(curl(["-X", "POST", "https://apis.roblox.com/assets/v1/assets", "--form-string", "request=" + json.dumps(req),
+                            "--form", f"fileContent=@{path};type={mime}"]))
+    op = resp.get("operationId") or (resp.get("path", "").split("/")[-1] if resp.get("path") else None)
+    if not op:
+        return {"error": resp}
+    for _ in range(60):
+        time.sleep(2)
+        r = json.loads(curl([f"https://apis.roblox.com/assets/v1/operations/{op}"]))
+        if r.get("done"):
+            res = r.get("response", {})
+            return {"assetId": res.get("assetId"), "moderation": res.get("moderationResult", {}).get("moderationState")}
+    return {"error": "timeout", "operation": op}
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -93,8 +118,24 @@ def main():
     elif cmd == "test":
         subprocess.run([sys.executable, os.path.join(ROOT, "build.py")], check=True)
         version = save(os.path.join(ROOT, "build", "DummyCombat.rbxl"))
-        ok = run(os.path.join(ROOT, "tests", "stage1.test.lua"), version)
+        tests = sorted(f for f in os.listdir(os.path.join(ROOT, "tests")) if f.endswith(".test.lua"))
+        if len(sys.argv) > 2:
+            tests = [f"stage{sys.argv[2]}.test.lua"]
+        ok = True
+        for name in tests:
+            print("==", name)
+            ok = run(os.path.join(ROOT, "tests", name), version) and ok
         sys.exit(0 if ok else 1)
+    elif cmd == "upload":
+        args = sys.argv[2:]
+        if len(args) % 3 != 0 or not args:
+            sys.exit(__doc__)
+        result = {}
+        for i in range(0, len(args), 3):
+            kind, name, path = args[i:i + 3]
+            result[name] = upload(kind, name, path)
+            print(name, result[name], flush=True)
+        print(json.dumps(result, ensure_ascii=False))
     else:
         sys.exit(__doc__)
 

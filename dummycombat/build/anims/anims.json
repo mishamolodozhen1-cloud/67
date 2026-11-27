@@ -1,0 +1,81 @@
+{
+ "Idle": {
+  "Length": 3.6,
+  "Natural": 0.0,
+  "Loop": true,
+  "Priority": 0
+ },
+ "WalkF": {
+  "Length": 0.675,
+  "Natural": 12.0,
+  "Loop": true,
+  "Priority": 1
+ },
+ "WalkL": {
+  "Length": 0.577,
+  "Natural": 12.0,
+  "Loop": true,
+  "Priority": 1
+ },
+ "WalkR": {
+  "Length": 0.577,
+  "Natural": 12.0,
+  "Loop": true,
+  "Priority": 1
+ },
+ "RunF": {
+  "Length": 0.658,
+  "Natural": 19.0,
+  "Loop": true,
+  "Priority": 1
+ },
+ "CrouchIdle": {
+  "Length": 3.2,
+  "Natural": 0.0,
+  "Loop": true,
+  "Priority": 0
+ },
+ "CrouchF": {
+  "Length": 0.5479,
+  "Natural": 6.5,
+  "Loop": true,
+  "Priority": 1
+ },
+ "CrouchL": {
+  "Length": 0.3765,
+  "Natural": 6.5,
+  "Loop": true,
+  "Priority": 1
+ },
+ "CrouchR": {
+  "Length": 0.3765,
+  "Natural": 6.5,
+  "Loop": true,
+  "Priority": 1
+ },
+ "Jump": {
+  "Length": 0.45,
+  "Natural": 0.0,
+  "Loop": false,
+  "Priority": 2
+ },
+ "Fall": {
+  "Length": 1.1,
+  "Natural": 0.0,
+  "Loop": true,
+  "Priority": 1
+ },
+ "Land": {
+  "Length": 0.42,
+  "Natural": 0.0,
+  "Loop": false,
+  "Priority": 2
+ },
+ "Climb": {
+  "Length": 1.0,
+  "Natural": 0.0,
+  "Loop": true,
+  "Priority": 1
+ },
+ "_CrouchDrop": 1.0
+}
