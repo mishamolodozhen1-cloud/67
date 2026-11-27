@@ -56,6 +56,17 @@ local definitions = {
 		},
 		Rate = { Burst = 8, PerSecond = 6 },
 	},
+	-- стенд проверки (только в Roblox Studio; в опубликованной игре сервер эти команды не принимает):
+	-- команда и, для взрыва, точка
+	DevCommand = {
+		Kind = "Event",
+		Direction = "ToServer",
+		Args = {
+			Validate.OneOf({ "Knockdown", "KillHead", "KillLegs", "Explode", "SpawnDummies", "ClearDummies", "Stats" }),
+			Validate.Optional(Validate.Vector3({ MaxMagnitude = 100000 })),
+		},
+		Rate = { Burst = 6, PerSecond = 3 },
+	},
 }
 
 for _, def in pairs(definitions) do

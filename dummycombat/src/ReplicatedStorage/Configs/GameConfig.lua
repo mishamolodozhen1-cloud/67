@@ -62,6 +62,7 @@ return deepFreeze({
 		SprintBobScale = 1.6,
 		CrouchBobScale = 0.6,
 		LandDip = 0.35, -- просадка камеры при приземлении с высоты (studs, максимум)
+		DeathCameraDistance = 14, -- после смерти камера от третьего лица на таком расстоянии от тела
 	},
 
 	-- Сеть (Services/NetService, Controllers/ClientNet)

@@ -12,7 +12,7 @@ local Logger = require(Shared:WaitForChild("Logger"))
 local ModuleLoader = require(Shared:WaitForChild("ModuleLoader"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("Configs"):WaitForChild("GameConfig"))
 
-local ORDER = { "ErrorReporter", "ClientNet", "CharacterController", "CameraController", "TouchControls" }
+local ORDER = { "ErrorReporter", "ClientNet", "CharacterController", "CameraController", "TouchControls", "DevController" }
 local CRITICAL = { ClientNet = true, CharacterController = true }
 
 local logging = GameConfig.Logging

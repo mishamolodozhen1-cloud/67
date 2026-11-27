@@ -134,8 +134,23 @@ local function targets()
 	return want, speeds
 end
 
+-- в регдолле суставы выключены: анимации ничего не двигают, их веса гасим, чтобы после подъёма
+-- персонаж плавно вернулся в стойку, а не «доиграл» шаг
+character:GetAttributeChangedSignal("Ragdolled"):Connect(function()
+	if character:GetAttribute("Ragdolled") == true then
+		for name, t in pairs(tracks) do
+			if weights[name] then
+				weights[name] = 0
+				t:AdjustWeight(0.0001, 0.1)
+			elseif t.IsPlaying then
+				t:Stop(0.1)
+			end
+		end
+	end
+end)
+
 RunService.Heartbeat:Connect(function(dt)
-	if not character.Parent then
+	if not character.Parent or character:GetAttribute("Ragdolled") == true then
 		return
 	end
 	local want, speeds = targets()

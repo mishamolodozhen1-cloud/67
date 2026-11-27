@@ -6,19 +6,19 @@
   "Priority": 0
  },
  "WalkF": {
-  "Length": 0.675,
+  "Length": 0.653,
   "Natural": 12.0,
   "Loop": true,
   "Priority": 1
  },
  "WalkL": {
-  "Length": 0.577,
+  "Length": 0.5562,
   "Natural": 12.0,
   "Loop": true,
   "Priority": 1
  },
  "WalkR": {
-  "Length": 0.577,
+  "Length": 0.5562,
   "Natural": 12.0,
   "Loop": true,
   "Priority": 1
@@ -36,19 +36,19 @@
   "Priority": 0
  },
  "CrouchF": {
-  "Length": 0.5479,
+  "Length": 0.698,
   "Natural": 6.5,
   "Loop": true,
   "Priority": 1
  },
  "CrouchL": {
-  "Length": 0.3765,
+  "Length": 0.4835,
   "Natural": 6.5,
   "Loop": true,
   "Priority": 1
  },
  "CrouchR": {
-  "Length": 0.3765,
+  "Length": 0.4835,
   "Natural": 6.5,
   "Loop": true,
   "Priority": 1

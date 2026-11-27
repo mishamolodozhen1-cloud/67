@@ -36,6 +36,7 @@ from rbxl import write_binary  # noqa: E402
 
 OUT = os.path.join(ROOT, "build", "anims")
 
+ANKLE_RANGE = (-0.42, 0.95)  # подошвенное / тыльное сгибание стопы относительно голени, рад (в пределах регдолла)
 CROUCH_DROP = 1.0  # насколько ниже персонаж в приседе (на столько клиент уменьшает HipHeight)
 SPEED = {"walk": 12.0, "run": 19.0, "crouch": 6.5}  # те же скорости, что в GameConfig.Movement
 
@@ -187,8 +188,12 @@ def gait(hip, knee, knee_stance, ankle_up, ankle_push, arm, elbow, elbow_swing, 
             kb = base_b + knee * swing ** 1.3 + knee_stance * pos_part(s) * stance
             j[name + "UpperLeg"] = ((0, 0, 0), a, 0, 0)
             j[name + "LowerLeg"] = ((0, 0, 0), -kb, 0, 0)
-            # стопа параллельна полу (kb − a), носок вверх в переносе, толчок носком в конце опоры
-            j[name + "Foot"] = ((0, 0, 0), (kb - a) + ankle_up * swing - ankle_push * pos_part(-s) * stance, 0, 0)
+            # стопа: на опоре — параллельна полу (kb − a), в переносе — идёт за голенью (носок вверх, когда нога
+            # впереди, и вниз, когда позади); толчок носком в конце опоры. Угол относительно голени — в пределах
+            # голеностопа (ANKLE_RANGE), иначе стопа «выворачивалась» бы у отведённой назад ноги на бегу
+            contact = min(1.0, stance * 2.5)
+            foot = contact * (kb - a) + (1 - contact) * ankle_up * s + ankle_up * 0.5 * swing - ankle_push * pos_part(-s) * stance
+            j[name + "Foot"] = ((0, 0, 0), max(ANKLE_RANGE[0], min(ANKLE_RANGE[1], foot)), 0, 0)
             # руки навстречу ногам, кисть запаздывает; при стрейфе махи меньше (корпус развёрнут вперёд)
             sa = math.sin(w + ph - 0.22)
             k_arm = 1.0 - 0.55 * min(1.0, abs(yaw) / 1.0)

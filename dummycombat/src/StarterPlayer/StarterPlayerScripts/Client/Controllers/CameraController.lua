@@ -8,7 +8,8 @@
 --   • просадка камеры при приземлении с высоты;
 --   • поле зрения на бегу чуть шире;
 --   • свой манекен: голова, грудь и руки скрыты (не мешают обзору; руки с оружием — этап 4), а таз и
---     ноги видно, если посмотреть вниз.
+--     ноги видно, если посмотреть вниз;
+--   • упал (регдолл) — камера держится за голову; погиб — камера от третьего лица смотрит на тело.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -51,7 +52,7 @@ end
 local function preCamera(dt)
 	local _, humanoid, root = characters.GetCharacter()
 	local camera = workspace.CurrentCamera
-	if not (humanoid and root and humanoid.Health > 0) then
+	if not (humanoid and root and humanoid.Health > 0) or characters.IsRagdolled() then
 		return
 	end
 	local st = characters.GetState()
@@ -109,14 +110,61 @@ function CameraController.Init(context)
 	characters = context.Get("CharacterController")
 end
 
+-- Первое лицо (обычная игра)
+local function firstPersonMode(humanoid)
+	local player = Players.LocalPlayer
+	player.CameraMinZoomDistance = 0.5
+	player.CameraMaxZoomDistance = 0.5
+	player.CameraMode = Enum.CameraMode.LockFirstPerson
+	if humanoid then
+		workspace.CurrentCamera.CameraSubject = humanoid
+	end
+end
+
+-- После смерти — камера от третьего лица смотрит на тело (видно, как оно падает), до возрождения
+local function deathMode(character)
+	local player = Players.LocalPlayer
+	player.CameraMode = Enum.CameraMode.Classic
+	player.CameraMaxZoomDistance = cfg.DeathCameraDistance
+	player.CameraMinZoomDistance = cfg.DeathCameraDistance * 0.6
+	local head = character:FindFirstChild("Head")
+	if head then
+		workspace.CurrentCamera.CameraSubject = head
+	end
+end
+
+-- Живой упал (регдолл): камера держится за голову — тело кувыркается, а взгляд игрок ведёт сам
+local function watchRagdoll(character, humanoid)
+	character:GetAttributeChangedSignal("Ragdolled"):Connect(function()
+		if humanoid.Health <= 0 then
+			return
+		end
+		local head = character:FindFirstChild("Head")
+		if character:GetAttribute("Ragdolled") == true and head then
+			workspace.CurrentCamera.CameraSubject = head
+		else
+			workspace.CurrentCamera.CameraSubject = humanoid
+		end
+	end)
+	humanoid.Died:Connect(function()
+		deathMode(character)
+	end)
+end
+
 function CameraController.Start()
-	Players.LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+	firstPersonMode(nil)
 	workspace.CurrentCamera.FieldOfView = cfg.FieldOfView
 	RunService:BindToRenderStep("DC_CameraOffset", Enum.RenderPriority.Camera.Value - 1, preCamera)
 	RunService:BindToRenderStep("DC_BodyVisibility", Enum.RenderPriority.Camera.Value + 1, postCamera)
-	characters.CharacterChanged:Connect(function()
+	characters.CharacterChanged:Connect(function(character, humanoid)
 		bob.Amount, dip.Offset, dip.Speed, fallSpeed = 0, 0, 0, 0
+		firstPersonMode(humanoid)
+		watchRagdoll(character, humanoid)
 	end)
+	local character, humanoid = characters.GetCharacter()
+	if character and humanoid then
+		watchRagdoll(character, humanoid)
+	end
 end
 
 return CameraController

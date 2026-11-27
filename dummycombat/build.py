@@ -9,6 +9,8 @@
   Имя.lua                           -> ModuleScript
   Имя.model.json                    -> экземпляр: {"className": ..., "properties": {...}, "children": [...]}
   init.meta.json                    -> класс и свойства самой папки: {"className": ..., "properties": {...}}
+  папка с init.lua                  -> ModuleScript (init.server.lua — Script, init.client.lua — LocalScript),
+                                       остальные файлы папки — его дочерние объекты
   файлы, начинающиеся с точки       -> пропускаются (.keep держит пустые папки в git)
 
 Свойства в JSON: "Имя": [тип, значение], типы: bool, int, float, string, token, Vector3, CFrame, Color3uint8.
@@ -97,16 +99,23 @@ def model_inst(data, name=None):
 def dir_inst(path, name, top=False):
     meta_path = os.path.join(path, "init.meta.json")
     meta = json.loads(read(meta_path)) if os.path.exists(meta_path) else {}
-    if top:
-        cls = name
+    init = None
+    for fname, scls in (("init.server.lua", "Script"), ("init.client.lua", "LocalScript"), ("init.lua", "ModuleScript")):
+        if not top and os.path.exists(os.path.join(path, fname)):
+            init = (fname, scls)
+            break
+    if init:
+        # папка с init.lua — это сам скрипт, остальные файлы в ней — его дочерние модули
+        inst = script_inst(init[1], name, os.path.join(path, init[0]))
+    elif top:
+        inst = Inst(name, name, prop_list(meta.get("properties")))
     elif name in NAMED_CLASSES:
-        cls = name
+        inst = Inst(name, name, prop_list(meta.get("properties")))
     else:
-        cls = meta.get("className", "Folder")
-    inst = Inst(cls, name, prop_list(meta.get("properties")))
+        inst = Inst(meta.get("className", "Folder"), name, prop_list(meta.get("properties")))
     for entry in sorted(os.listdir(path)):
         full = os.path.join(path, entry)
-        if entry.startswith(".") or entry == "init.meta.json":
+        if entry.startswith(".") or entry == "init.meta.json" or (init and entry == init[0]):
             continue
         if os.path.isdir(full):
             inst.add(dir_inst(full, entry))

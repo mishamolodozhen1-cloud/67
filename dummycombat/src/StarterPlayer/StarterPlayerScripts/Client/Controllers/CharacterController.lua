@@ -9,7 +9,8 @@
 --   • бег — только стоя и только вперёд (не дальше ~53° от взгляда), в воздухе скорость сохраняется;
 --   • присед плавно опускает персонажа (HipHeight) за StanceTime; встать нельзя, если над головой
 --     нет места — персонаж остаётся в приседе, пока не выйдет из-под препятствия;
---   • прыжок из приседа сначала поднимает персонажа; после приземления — пауза JumpCooldown.
+--   • прыжок из приседа сначала поднимает персонажа; после приземления — пауза JumpCooldown;
+--   • пока персонаж лежит тряпичной куклой (атрибут Ragdolled), управление ничего не делает.
 -- Скорость клиент ставит сразу (предсказание), а серверу сообщает состояние (MoveState) — сервер
 -- ставит ту же скорость и атрибуты Stance / Sprinting, которые видят все.
 local ContextActionService = game:GetService("ContextActionService")
@@ -92,6 +93,11 @@ local function alive()
 	return humanoid and humanoid.Health > 0 and root and root.Parent
 end
 
+-- Лежит ли персонаж тряпичной куклой (атрибут ставит сервер, RagdollSystem)
+function CharacterController.IsRagdolled()
+	return character ~= nil and character:GetAttribute("Ragdolled") == true
+end
+
 -- Чего хочет игрок сейчас (с учётом правил): стойка и бег
 local function desired()
 	local stance = CharacterController.WantsCrouch() and "Crouch" or "Stand"
@@ -125,7 +131,8 @@ local function send()
 end
 
 local function update(dt)
-	if not alive() then
+	if not alive() or CharacterController.IsRagdolled() then
+		-- в регдолле телом управляет физика сервера: ни скорости, ни приседа, ни сообщений серверу
 		return
 	end
 	local stance, sprint = desired()
@@ -169,6 +176,21 @@ local function onCharacter(newCharacter)
 		if new == Enum.HumanoidStateType.Landed then
 			landedAt = os.clock()
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+		end
+	end)
+	-- упал (регдолл, физику считает сервер) / встал (физика снова у клиента): состояние Humanoid у себя
+	-- тоже меняем, чтобы после подъёма персонаж не остался «ватным», а скорость и высота были как до падения
+	local myCharacter, myHumanoid = character, humanoid
+	myCharacter:GetAttributeChangedSignal("Ragdolled"):Connect(function()
+		if myHumanoid.Health <= 0 then
+			return
+		end
+		if myCharacter:GetAttribute("Ragdolled") == true then
+			myHumanoid:ChangeState(Enum.HumanoidStateType.Physics)
+		else
+			myHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			myHumanoid.WalkSpeed = MovementRules.SpeedFor(state.Stance, state.Sprint)
+			lastSent = nil -- сообщить серверу состояние заново
 		end
 	end)
 	CharacterController.CharacterChanged:Fire(character, humanoid)
