@@ -25,12 +25,19 @@ function MovementRules.Resolve(stance, sprint)
 	return stance, sprint == true and stance == "Stand"
 end
 
-function MovementRules.SpeedFor(stance, sprint)
-	stance, sprint = MovementRules.Resolve(stance, sprint)
+-- Скорость: присед / бег / шаг; с прицелом (aim) — медленнее, бег с прицелом невозможен
+function MovementRules.SpeedFor(stance, sprint, aim)
+	stance, sprint = MovementRules.Resolve(stance, sprint and not aim)
+	local speed
 	if stance == "Crouch" then
-		return cfg.CrouchSpeed
+		speed = cfg.CrouchSpeed
+	else
+		speed = sprint and cfg.SprintSpeed or cfg.WalkSpeed
 	end
-	return sprint and cfg.SprintSpeed or cfg.WalkSpeed
+	if aim then
+		speed = speed * cfg.AimSpeedFactor
+	end
+	return speed
 end
 
 function MovementRules.HipHeight(stance)

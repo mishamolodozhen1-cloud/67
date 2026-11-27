@@ -1,3 +1,5 @@
 tools/lint/node_modules/
 tools/lint/package-lock.json
 __pycache__/
+# промежуточный WAV звукового спрайта (в репозитории — только WeaponSfx.ogg)
+build/weapons/WeaponSfx.wav

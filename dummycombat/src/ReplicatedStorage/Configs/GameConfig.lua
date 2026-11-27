@@ -43,6 +43,7 @@ return deepFreeze({
 		WalkSpeed = 12,
 		SprintSpeed = 19,
 		CrouchSpeed = 6.5,
+		AimSpeedFactor = 0.62, -- с оружием у глаза (прицел) — медленнее: шаг ×0.62, в приседе тоже
 		JumpHeight = 4.6,
 		JumpCooldown = 0.3, -- пауза между прыжками (против «кроличьих» прыжков)
 		StanceTime = 0.18, -- за сколько персонаж приседает / встаёт (с)

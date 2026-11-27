@@ -39,7 +39,7 @@ def ground(size=8.0, step=1.0, y=0.0):
     return pos, np.tile([0, 1, 0], (len(pos), 1)).astype(float), np.array(col, float), np.array(idx, int)
 
 
-def render(items, eye, target, fov=35.0, W=640, H=900, bg=(26, 28, 32)):
+def render(items, eye, target, fov=35.0, W=640, H=900, bg=(26, 28, 32), near=None):
     cam, r, u, f = look_at(eye, target)
     img = np.zeros((H, W, 3), float)
     img[:] = bg
@@ -48,6 +48,7 @@ def render(items, eye, target, fov=35.0, W=640, H=900, bg=(26, 28, 32)):
     for pos, nrm, col, idx in items:
         rel = pos - cam
         x, y, z = rel @ r, rel @ u, rel @ f
+        zr = z.copy()
         z = np.maximum(z, 1e-3)
         sx = (x / (z * t)) * (H / 2) + W / 2
         sy = -(y / (z * t)) * (H / 2) + H / 2
@@ -58,6 +59,9 @@ def render(items, eye, target, fov=35.0, W=640, H=900, bg=(26, 28, 32)):
         shade = 0.28 + 0.62 * nl + 0.18 * nf + 0.12 * sky
         vcol = np.clip(col * shade[:, None], 0, 255)
         for a, b, c in idx:
+            # ближняя плоскость (как у камеры Roblox): треугольники, задевающие её, не рисуем
+            if near is not None and min(zr[a], zr[b], zr[c]) < near:
+                continue
             xs = np.array([sx[a], sx[b], sx[c]])
             ys = np.array([sy[a], sy[b], sy[c]])
             x0, x1 = int(max(0, math.floor(xs.min()))), int(min(W - 1, math.ceil(xs.max())))

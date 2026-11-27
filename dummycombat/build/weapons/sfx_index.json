@@ -1,0 +1,136 @@
+{
+ "Length": 20.304,
+ "Sounds": {
+  "Shot1": {
+   "Start": 0.05,
+   "Stop": 1.112,
+   "Group": "Shot"
+  },
+  "Shot2": {
+   "Start": 1.512,
+   "Stop": 2.574,
+   "Group": "Shot"
+  },
+  "Shot3": {
+   "Start": 2.974,
+   "Stop": 4.036,
+   "Group": "Shot"
+  },
+  "Distant": {
+   "Start": 4.436,
+   "Stop": 5.936,
+   "Group": "Distant"
+  },
+  "Dry": {
+   "Start": 6.336,
+   "Stop": 6.466,
+   "Group": "Dry"
+  },
+  "Select": {
+   "Start": 6.866,
+   "Stop": 7.066,
+   "Group": "Select"
+  },
+  "MagOut": {
+   "Start": 7.466,
+   "Stop": 7.906,
+   "Group": "MagOut"
+  },
+  "MagIn": {
+   "Start": 8.306,
+   "Stop": 8.666,
+   "Group": "MagIn"
+  },
+  "Charge": {
+   "Start": 9.066,
+   "Stop": 9.526,
+   "Group": "Charge"
+  },
+  "Casing1": {
+   "Start": 9.926,
+   "Stop": 10.246,
+   "Group": "Casing"
+  },
+  "Casing2": {
+   "Start": 10.646,
+   "Stop": 10.986,
+   "Group": "Casing"
+  },
+  "Casing3": {
+   "Start": 11.386,
+   "Stop": 11.936,
+   "Group": "Casing"
+  },
+  "Metal1": {
+   "Start": 12.336,
+   "Stop": 12.836,
+   "Group": "Metal"
+  },
+  "Metal2": {
+   "Start": 13.236,
+   "Stop": 13.736,
+   "Group": "Metal"
+  },
+  "Metal3": {
+   "Start": 14.136,
+   "Stop": 14.636,
+   "Group": "Metal"
+  },
+  "Concrete1": {
+   "Start": 15.036,
+   "Stop": 15.586,
+   "Group": "Concrete"
+  },
+  "Concrete2": {
+   "Start": 15.986,
+   "Stop": 16.366,
+   "Group": "Concrete"
+  },
+  "Concrete3": {
+   "Start": 16.766,
+   "Stop": 17.366,
+   "Group": "Concrete"
+  },
+  "Wood1": {
+   "Start": 17.766,
+   "Stop": 17.9744,
+   "Group": "Wood"
+  },
+  "Wood2": {
+   "Start": 18.3744,
+   "Stop": 18.4644,
+   "Group": "Wood"
+  },
+  "Body1": {
+   "Start": 18.8644,
+   "Stop": 19.1644,
+   "Group": "Body"
+  },
+  "Body2": {
+   "Start": 19.5644,
+   "Stop": 19.9044,
+   "Group": "Body"
+  }
+ },
+ "Sources": {
+  "shot_realistic.wav": "https://soundza.com/sound/realistic-assault-rifle-shot",
+  "shot_deep.wav": "https://soundza.com/sound/deep-rifle-shot",
+  "dist_crisp.wav": "https://soundza.com/sound/crisp-distant-gunshot",
+  "dist_ar15.wav": "https://soundza.com/sound/ar15-rifle-shot-distant",
+  "dry_click.wav": "https://soundza.com/sound/empty-gun-click",
+  "cock_slow.wav": "https://soundza.com/sound/long-slow-gun-cock",
+  "safety.wav": "https://soundza.com/sound/gun-safety-click",
+  "chamber.wav": "https://soundza.com/sound/bullet-chamber-click",
+  "case_release.wav": "https://soundza.com/sound/gun-case-release",
+  "shell_hit.wav": "https://soundza.com/sound/metallic-shell-hit",
+  "shell_bright.wav": "https://soundza.com/sound/bright-bullet-drop",
+  "imp_metal.wav": "https://soundza.com/sound/metallic-bullet-impact-1",
+  "imp_concrete.wav": "https://soundza.com/sound/concrete-smash-impact",
+  "imp_debris.wav": "https://soundza.com/sound/concrete-debris-drop",
+  "imp_dirt.wav": "https://soundza.com/sound/rock-hit-dirt-impact",
+  "imp_wood.wav": "https://soundza.com/sound/rock-on-wood-impact",
+  "imp_woodbreak.wav": "https://soundza.com/sound/wood-breaking-1",
+  "imp_meaty.wav": "https://soundza.com/sound/meaty-impact-hit",
+  "imp_flesh.wav": "https://soundza.com/sound/wet-impact-flesh-hit"
+ }
+}

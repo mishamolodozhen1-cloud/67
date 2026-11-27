@@ -1,10 +1,11 @@
 -- MovementSystem: стойка (стоя / присед) и бег на сервере.
 --
 -- Клиент управляет своим персонажем сам (физика у владельца), а серверу сообщает состояние событием
--- MoveState { Stance, Sprint }. Сервер:
+-- MoveState { Stance, Sprint, Aim }. Сервер:
 --   • ставит скорость Humanoid.WalkSpeed по общим правилам (Shared/MovementRules; клиент делает то же
 --     самое у себя сразу, без ожидания — это предсказание; сервер подтверждает);
---   • бег в приседе невозможен: Sprint при Stance = "Crouch" сервер игнорирует;
+--   • бег в приседе и с прицелом невозможен: такой Sprint сервер игнорирует; с прицелом (оружие у глаза,
+--     этап 4) персонаж идёт медленнее;
 --   • пишет атрибуты персонажа Stance и Sprinting — их видят все клиенты (интерфейс, звуки шагов,
 --     а на этапах 4–5 — разброс оружия и зоны попаданий).
 -- Высоту приседа (HipHeight) клиент меняет плавно сам: её видят все через положение персонажа.
@@ -33,13 +34,17 @@ function MovementSystem.Apply(player, state)
 	if not humanoid then
 		return nil
 	end
-	local stance, sprint = MovementRules.Resolve(state.Stance, state.Sprint)
-	humanoid.WalkSpeed = MovementRules.SpeedFor(stance, sprint)
+	local aim = state.Aim == true
+	local stance, sprint = MovementRules.Resolve(state.Stance, state.Sprint and not aim)
+	humanoid.WalkSpeed = MovementRules.SpeedFor(stance, sprint, aim)
 	if character:GetAttribute("Stance") ~= stance then
 		character:SetAttribute("Stance", stance)
 	end
 	if character:GetAttribute("Sprinting") ~= sprint then
 		character:SetAttribute("Sprinting", sprint)
+	end
+	if character:GetAttribute("Aiming") ~= aim then
+		character:SetAttribute("Aiming", aim)
 	end
 	return stance, sprint
 end
@@ -49,7 +54,11 @@ function MovementSystem.GetState(player)
 	if not character then
 		return nil
 	end
-	return { Stance = character:GetAttribute("Stance") or "Stand", Sprint = character:GetAttribute("Sprinting") == true }
+	return {
+		Stance = character:GetAttribute("Stance") or "Stand",
+		Sprint = character:GetAttribute("Sprinting") == true,
+		Aim = character:GetAttribute("Aiming") == true,
+	}
 end
 
 function MovementSystem.Start(context)

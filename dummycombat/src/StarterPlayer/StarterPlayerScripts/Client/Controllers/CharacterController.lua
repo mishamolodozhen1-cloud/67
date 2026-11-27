@@ -10,9 +10,11 @@
 --   • присед плавно опускает персонажа (HipHeight) за StanceTime; встать нельзя, если над головой
 --     нет места — персонаж остаётся в приседе, пока не выйдет из-под препятствия;
 --   • прыжок из приседа сначала поднимает персонажа; после приземления — пауза JumpCooldown;
+--   • с оружием у глаза (прицел) — медленнее и без бега; пока нажат огонь или прицел, бег не включается
+--     (это решает WeaponController: SetAim, SetSprintBlocked);
 --   • пока персонаж лежит тряпичной куклой (атрибут Ragdolled), управление ничего не делает.
 -- Скорость клиент ставит сразу (предсказание), а серверу сообщает состояние (MoveState) — сервер
--- ставит ту же скорость и атрибуты Stance / Sprinting, которые видят все.
+-- ставит ту же скорость и атрибуты Stance / Sprinting / Aiming, которые видят все.
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,8 +36,9 @@ local log = Logger.new("Character")
 local cfg = GameConfig.Movement
 
 local net = nil
-local state = { Stance = "Stand", Sprint = false }
-local wants = { CrouchToggle = false, CrouchHold = false, SprintHold = false, SprintToggle = false }
+local state = { Stance = "Stand", Sprint = false, Aim = false }
+local wants = { CrouchToggle = false, CrouchHold = false, SprintHold = false, SprintToggle = false, Aim = false }
+local sprintBlocks = {} -- причина -> true: пока есть хоть одна, бег не включается (огонь, прицел)
 local character, humanoid, root = nil, nil, nil
 local lastSent = nil
 local landedAt = -math.huge
@@ -44,7 +47,17 @@ overlap.FilterType = Enum.RaycastFilterType.Exclude
 overlap.RespectCanCollide = true
 
 function CharacterController.GetState()
-	return { Stance = state.Stance, Sprint = state.Sprint }
+	return { Stance = state.Stance, Sprint = state.Sprint, Aim = state.Aim }
+end
+
+-- Запретить (on = true) или разрешить бег по причине reason (у каждой причины — свой флаг)
+function CharacterController.SetSprintBlocked(reason, on)
+	sprintBlocks[reason] = on == true or nil
+end
+
+-- Прицел (оружие у глаза): медленнее, без бега
+function CharacterController.SetAim(on)
+	wants.Aim = on == true
 end
 
 function CharacterController.GetCharacter()
@@ -104,7 +117,7 @@ local function desired()
 	if stance == "Stand" and state.Stance == "Crouch" and not CharacterController.CanStand() then
 		stance = "Crouch" -- над головой препятствие: остаёмся в приседе
 	end
-	local wantSprint = wants.SprintHold or wants.SprintToggle
+	local wantSprint = (wants.SprintHold or wants.SprintToggle) and next(sprintBlocks) == nil and not wants.Aim
 	local sprint = false
 	if wantSprint and stance == "Stand" then
 		local airborne = humanoid.FloorMaterial == Enum.Material.Air
@@ -121,12 +134,12 @@ local function send()
 	if not net then
 		return
 	end
-	if lastSent and lastSent.Stance == state.Stance and lastSent.Sprint == state.Sprint then
+	if lastSent and lastSent.Stance == state.Stance and lastSent.Sprint == state.Sprint and lastSent.Aim == state.Aim then
 		return
 	end
 	-- если лимит не пустил — попробуем в следующем кадре (lastSent не меняется)
-	if net.Fire("MoveState", { Stance = state.Stance, Sprint = state.Sprint }) then
-		lastSent = { Stance = state.Stance, Sprint = state.Sprint }
+	if net.Fire("MoveState", { Stance = state.Stance, Sprint = state.Sprint, Aim = state.Aim }) then
+		lastSent = { Stance = state.Stance, Sprint = state.Sprint, Aim = state.Aim }
 	end
 end
 
@@ -136,9 +149,10 @@ local function update(dt)
 		return
 	end
 	local stance, sprint = desired()
-	if stance ~= state.Stance or sprint ~= state.Sprint then
-		state.Stance, state.Sprint = stance, sprint
-		humanoid.WalkSpeed = MovementRules.SpeedFor(stance, sprint)
+	local aim = wants.Aim
+	if stance ~= state.Stance or sprint ~= state.Sprint or aim ~= state.Aim then
+		state.Stance, state.Sprint, state.Aim = stance, sprint, aim
+		humanoid.WalkSpeed = MovementRules.SpeedFor(stance, sprint, aim)
 		-- в приседе прыгать нельзя (прыжок сначала поднимает); отключение снимается после подъёма
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, stance == "Stand" and os.clock() - landedAt >= cfg.JumpCooldown)
 		CharacterController.StateChanged:Fire(CharacterController.GetState())
@@ -167,9 +181,10 @@ local function onCharacter(newCharacter)
 		return
 	end
 	-- новый персонаж: стоя, шагом
-	state.Stance, state.Sprint = "Stand", false
-	wants.CrouchToggle, wants.CrouchHold, wants.SprintToggle = false, false, false
-	lastSent = { Stance = "Stand", Sprint = false }
+	state.Stance, state.Sprint, state.Aim = "Stand", false, false
+	wants.CrouchToggle, wants.CrouchHold, wants.SprintToggle, wants.Aim = false, false, false, false
+	table.clear(sprintBlocks)
+	lastSent = { Stance = "Stand", Sprint = false, Aim = false }
 	humanoid.HipHeight = MovementRules.StandHipHeight
 	humanoid.WalkSpeed = MovementRules.SpeedFor("Stand", false)
 	humanoid.StateChanged:Connect(function(_, new)
@@ -189,7 +204,7 @@ local function onCharacter(newCharacter)
 			myHumanoid:ChangeState(Enum.HumanoidStateType.Physics)
 		else
 			myHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-			myHumanoid.WalkSpeed = MovementRules.SpeedFor(state.Stance, state.Sprint)
+			myHumanoid.WalkSpeed = MovementRules.SpeedFor(state.Stance, state.Sprint, state.Aim)
 			lastSent = nil -- сообщить серверу состояние заново
 		end
 	end)

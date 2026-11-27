@@ -43,7 +43,7 @@ local definitions = {
 		},
 		Rate = { Burst = 5, PerSecond = 0.25 },
 	},
-	-- стойка и бег своего персонажа: { Stance = "Stand" | "Crouch", Sprint = true/false }
+	-- стойка, бег и прицел своего персонажа: { Stance = "Stand" | "Crouch", Sprint = true/false, Aim = true/false }
 	-- (сервер ставит скорость и атрибуты персонажа, которые видят все клиенты)
 	MoveState = {
 		Kind = "Event",
@@ -52,9 +52,63 @@ local definitions = {
 			Validate.Shape({
 				Stance = Validate.OneOf({ "Stand", "Crouch" }),
 				Sprint = Validate.Boolean(),
+				Aim = Validate.Optional(Validate.Boolean()),
 			}),
 		},
-		Rate = { Burst = 8, PerSecond = 6 },
+		Rate = { Burst = 10, PerSecond = 8 },
+	},
+	-- выстрел: номер выстрела, точка (камера), направление (единичный вектор), время выстрела по часам сервера
+	-- (workspace:GetServerTimeNow) и, если клиент попал в персонажа, — часть тела и точка попадания.
+	-- Сервер проверяет всё сам (WeaponSystem): темп, патроны, точку выстрела, попадание с учётом задержки
+	Fire = {
+		Kind = "Event",
+		Direction = "ToServer",
+		Args = {
+			Validate.Number({ Min = 0, Max = 2 ^ 31, Integer = true }),
+			Validate.Vector3({ MaxMagnitude = 100000 }),
+			Validate.Vector3({ MaxMagnitude = 1.01 }),
+			Validate.Number({ Min = 0, Max = 1e11 }),
+			Validate.Optional(Validate.Instance("BasePart")),
+			Validate.Optional(Validate.Vector3({ MaxMagnitude = 100000 })),
+		},
+		-- 600 выстрелов в минуту = 10 в секунду; запас — на неровную сеть
+		Rate = { Burst = 16, PerSecond = 14 },
+	},
+	-- перезарядить (сервер решает, можно ли)
+	Reload = {
+		Kind = "Event",
+		Direction = "ToServer",
+		Args = {},
+		Rate = { Burst = 3, PerSecond = 1 },
+	},
+	-- режим огня
+	FireMode = {
+		Kind = "Event",
+		Direction = "ToServer",
+		Args = { Validate.OneOf({ "Auto", "Semi" }) },
+		Rate = { Burst = 4, PerSecond = 2 },
+	},
+	-- наклон взгляда вверх-вниз (градусы): по нему все видят, куда персонаж целится (корпус и оружие)
+	AimPitch = {
+		Kind = "UnreliableEvent",
+		Direction = "ToServer",
+		Args = { Validate.Number({ Min = -90, Max = 90 }) },
+		Rate = { Burst = 20, PerSecond = 16 },
+	},
+	-- сервер → владелец: состояние оружия { Weapon, Ammo, Reserve, Mode, Reloading, ReloadKind, ReloadEnd, Reason }
+	WeaponState = {
+		Kind = "Event",
+		Direction = "ToClient",
+	},
+	-- сервер → остальные: чужой выстрел (стрелок, откуда, куда, нормаль поверхности, материал, что задето) — эффекты
+	ShotFired = {
+		Kind = "UnreliableEvent",
+		Direction = "ToClient",
+	},
+	-- сервер → стрелок: попадание подтверждено { Part, Headshot, Position }
+	HitConfirmed = {
+		Kind = "Event",
+		Direction = "ToClient",
 	},
 	-- стенд проверки (только в Roblox Studio; в опубликованной игре сервер эти команды не принимает):
 	-- команда и, для взрыва, точка

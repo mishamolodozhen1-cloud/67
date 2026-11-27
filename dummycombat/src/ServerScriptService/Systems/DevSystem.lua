@@ -7,9 +7,10 @@
 --   KillHead      убить себя «выстрелом в голову» спереди
 --   KillLegs      убить себя «выстрелом по ногам» сбоку
 --   Explode       взрыв в точке прицела: ближе LethalRadius — смерть, дальше — падение, тела отбрасывает
---   SpawnDummies  поставить 5 манекенов перед собой (не больше MaxDummies) — мишени и стресс-тест
+--   SpawnDummies  поставить 5 манекенов перед собой (не больше MaxDummies) — мишени для стрельбы и стресс-тест
 --   ClearDummies  убрать манекены
 --   Stats         в Output сервера: регдоллы, тела, манекены, частота физики, время шага физики
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -77,6 +78,8 @@ function DevSystem.SpawnDummies(root, count)
 		-- опора шаблона — HumanoidRootPart; манекен смотрит на игрока
 		d:PivotTo(CFrame.lookAt(pos, Vector3.new(root.Position.X, pos.Y, root.Position.Z)))
 		d.Parent = dummyFolder
+		-- мишень для оружия: её положения пишутся в историю попаданий (WeaponSystem)
+		CollectionService:AddTag(d, "DC_Target")
 		ragdoll.Track(d)
 		ragdoll.OnSpawn(d)
 		made = made + 1

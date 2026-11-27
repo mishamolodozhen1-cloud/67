@@ -1,0 +1,25 @@
+{
+ "DC_AK47": {
+  "assetId": "118166080540260",
+  "moderation": "Approved"
+ },
+ "DC_WeaponSfx": {
+  "assetId": "132502180907399",
+  "moderation": "Reviewing"
+ },
+ "DC_FxFlash": {
+  "assetId": "113724327139825",
+  "moderation": "Approved",
+  "image": "111513173813443"
+ },
+ "DC_FxFlashSide": {
+  "assetId": "133924834739789",
+  "moderation": "Approved",
+  "image": "106155004129581"
+ },
+ "DC_FxHole": {
+  "assetId": "75594019536499",
+  "moderation": "Approved",
+  "image": "94500673265895"
+ }
+}

@@ -20,8 +20,8 @@ local BuildInfo = require(Configs:WaitForChild("BuildInfo"))
 local Bootstrap = {}
 
 local SERVICE_ORDER = { "ErrorService", "NetService", "PlayerService" }
-local SYSTEM_ORDER = { "RagdollSystem", "CharacterSystem", "MovementSystem", "DevSystem" }
-local CRITICAL = { NetService = true, PlayerService = true, CharacterSystem = true, RagdollSystem = true }
+local SYSTEM_ORDER = { "RagdollSystem", "CharacterSystem", "MovementSystem", "WeaponSystem", "DevSystem" }
+local CRITICAL = { NetService = true, PlayerService = true, CharacterSystem = true, RagdollSystem = true, WeaponSystem = true }
 
 local report = nil
 

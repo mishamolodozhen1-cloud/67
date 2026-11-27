@@ -1,8 +1,8 @@
 -- Точка входа клиента DUMMY COMBAT. Запускает контроллеры из Client/Controllers тем же загрузчиком,
 -- что и сервер (Shared/ModuleLoader): сначала Init у всех, потом Start.
 -- ErrorReporter — первым, чтобы ловить ошибки остальных при запуске; ClientNet — до всего, что
--- пользуется сетью; затем персонаж, камера и кнопки для телефона. Контроллеры следующих этапов
--- (оружие, интерфейс…) добавляются в ORDER.
+-- пользуется сетью; затем персонаж и камера, оружие (эффекты, вид от первого лица, стрельба, интерфейс,
+-- оружие других игроков) и кнопки для телефона. Контроллеры следующих этапов добавляются в ORDER.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -12,7 +12,19 @@ local Logger = require(Shared:WaitForChild("Logger"))
 local ModuleLoader = require(Shared:WaitForChild("ModuleLoader"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("Configs"):WaitForChild("GameConfig"))
 
-local ORDER = { "ErrorReporter", "ClientNet", "CharacterController", "CameraController", "TouchControls", "DevController" }
+local ORDER = {
+	"ErrorReporter",
+	"ClientNet",
+	"CharacterController",
+	"CameraController",
+	"WeaponEffects",
+	"Viewmodel",
+	"WeaponController",
+	"WeaponHUD",
+	"ThirdPersonWeapons",
+	"TouchControls",
+	"DevController",
+}
 local CRITICAL = { ClientNet = true, CharacterController = true }
 
 local logging = GameConfig.Logging

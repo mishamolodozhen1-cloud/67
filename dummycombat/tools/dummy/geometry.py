@@ -50,6 +50,12 @@ def palette_png(colors=None):
     return buf.getvalue()
 
 
+def signed_volume(mesh):
+    """Объём замкнутого меша со знаком: > 0 — треугольники смотрят наружу (Roblox рисует только лицевую сторону)."""
+    a, b, c = (mesh.pos[mesh.idx[:, k]] for k in range(3))
+    return float(np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6)
+
+
 class Mesh:
     def __init__(self, pos=None, idx=None, color=None, nrm=None):
         self.pos = np.zeros((0, 3)) if pos is None else np.asarray(pos, float)
@@ -188,7 +194,7 @@ def superellipsoid(center, radii, e=1.0, seg_u=28, seg_v=18, color="body"):
             b = j * seg_u + (i + 1) % seg_u
             c = (j + 1) * seg_u + i
             d = (j + 1) * seg_u + (i + 1) % seg_u
-            idx += [(a, b, c), (b, d, c)]
+            idx += [(a, c, b), (b, c, d)]  # лицевая сторона — наружу (против часовой, если смотреть снаружи)
     m = Mesh(pos, idx, color)
     return m
 

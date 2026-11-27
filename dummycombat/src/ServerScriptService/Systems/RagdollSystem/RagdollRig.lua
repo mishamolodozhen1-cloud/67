@@ -122,7 +122,9 @@ end
 function RagdollRig.SetEnabled(model, on, group)
 	for _, d in ipairs(model:GetDescendants()) do
 		if d:IsA("Motor6D") then
-			if d.Name ~= "Root" then
+			-- только суставы тела (они лежат в частях тела — прямых детях модели); суставы оружия в руках
+			-- (этап 4: крепление к корпусу, магазин, затвор) не трогаем
+			if d.Name ~= "Root" and d.Parent and d.Parent.Parent == model then
 				d.Enabled = not on
 			end
 		elseif d:IsA("BallSocketConstraint") or d:IsA("HingeConstraint") then

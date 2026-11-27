@@ -83,15 +83,23 @@ local function loadMeshes()
 end
 
 -- Копия части тела с одной выпуклой оболочкой столкновений (Hull) вместо точной формы: регдолл
--- стабильнее и дешевле для физики, лучи попаданий — по той же оболочке. Если не вышло — обычная копия
+-- стабильнее и дешевле для физики, лучи попаданий — по той же оболочке. Сервис ассетов Roblox иногда
+-- отвечает с ошибкой — до трёх попыток; если не вышло — обычная копия (и предупреждение)
+local HULL_ATTEMPTS = 3
 function CharacterSystem.HullPart(source)
-	local ok, part = pcall(AssetService.CreateMeshPartAsync, AssetService, source.MeshId, {
-		CollisionFidelity = Enum.CollisionFidelity.Hull,
-		RenderFidelity = Enum.RenderFidelity.Automatic,
-	})
-	if ok and part then
-		part.TextureID = source.TextureID
-		return part
+	local ok, part
+	for attempt = 1, HULL_ATTEMPTS do
+		ok, part = pcall(AssetService.CreateMeshPartAsync, AssetService, source.MeshId, {
+			CollisionFidelity = Enum.CollisionFidelity.Hull,
+			RenderFidelity = Enum.RenderFidelity.Automatic,
+		})
+		if ok and part then
+			part.TextureID = source.TextureID
+			return part
+		end
+		if attempt < HULL_ATTEMPTS then
+			task.wait(0.5 * attempt)
+		end
 	end
 	log:Warn("оболочка для %s не создана (%s) — точная форма", source.Name, tostring(part))
 	return source:Clone()

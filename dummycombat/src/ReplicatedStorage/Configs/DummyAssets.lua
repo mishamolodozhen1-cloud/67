@@ -7,7 +7,7 @@ local function anim(id, length, natural, loop)
 end
 
 return table.freeze({
-	BodyModel = 135090062587013,
+	BodyModel = 116248885567298,
 	CrouchDrop = 1,
 	Animations = table.freeze({
 		Idle = anim(114918988154584, 3.6, 0, true),
