@@ -1,0 +1,14 @@
+{
+  "className": "SpawnLocation",
+  "properties": {
+    "Anchored": ["bool", true],
+    "Locked": ["bool", true],
+    "CanCollide": ["bool", true],
+    "size": ["Vector3", [12, 1, 12]],
+    "CFrame": ["CFrame", [0, 0.5, 0]],
+    "Color3uint8": ["Color3uint8", "#6B6D70"],
+    "Material": ["token", 816],
+    "Duration": ["int", 0],
+    "Neutral": ["bool", true]
+  }
+}

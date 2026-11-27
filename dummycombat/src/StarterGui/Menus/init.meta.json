@@ -1,0 +1,10 @@
+{
+  "className": "ScreenGui",
+  "properties": {
+    "ResetOnSpawn": ["bool", false],
+    "IgnoreGuiInset": ["bool", true],
+    "ZIndexBehavior": ["token", 1],
+    "Enabled": ["bool", true],
+    "DisplayOrder": ["int", 30]
+  }
+}

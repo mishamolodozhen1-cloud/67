@@ -1,0 +1,8 @@
+{
+  "name": "dummycombat-lint",
+  "private": true,
+  "description": "Проверка Luau-кода DUMMY COMBAT: синтаксис, глобальные переменные, устаревшие API Roblox",
+  "dependencies": {
+    "luaparse": "0.3.1"
+  }
+}
