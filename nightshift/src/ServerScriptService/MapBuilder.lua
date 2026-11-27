@@ -838,6 +838,52 @@ local function carModel(parent, assetName, x, z, heading, name)
 	return m
 end
 
+-- v15: машина команды. Модель уже в осях игры (перёд +Z, водитель +X); ставим её передом к магазину (−Z).
+-- Стёкла — стекло (сквозь них снимают салон), двери/колёса/руль остаются отдельными деталями:
+-- кат-сцена копирует машину и двигает их сама
+local function teamCarModel(parent, x, z)
+	local def = Models.Assets.TeamCar
+	local placed = CFrame.new(x, 0, z) * CFrame.Angles(0, math.pi, 0)
+	local m = def and ModelKit.MakeAsset("TeamCar", parent, placed, def.Scale)
+	if not m then
+		return nil
+	end
+	m.Name = "TeamCar"
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.CanCollide = false
+			p.CanQuery = false
+			if string.find(p.Name, "Glass", 1, true) then
+				p.Material = Enum.Material.Glass
+				p.Color = Color3.fromRGB(40, 46, 52)
+				p.Transparency = 0.55
+				p.Reflectance = 0.12
+				p.CastShadow = false
+				if p:IsA("MeshPart") then
+					p.TextureID = ""
+				end
+			end
+		end
+	end
+	local body = m:FindFirstChild("Body_Paint", true)
+	local _, size = m:GetBoundingBox()
+	local hit = Instance.new("Part")
+	hit.Name = "Collision"
+	hit.Size = Vector3.new(size.X * 0.9, size.Y * 0.62, size.Z * 0.94)
+	hit.CFrame = placed * CFrame.new(0, size.Y * 0.36, 0)
+	hit.Transparency = 1
+	hit.Anchored = true
+	hit.CanTouch = false
+	hit.CastShadow = false
+	hit.Parent = m
+	m:SetAttribute("Scale", def.Scale)
+	if body then
+		body.PivotOffset = body.CFrame:ToObjectSpace(placed)
+		m.PrimaryPart = body
+	end
+	return m
+end
+
 local function buildFront(root, map)
 	local f = folder("Front", root)
 	local frame = rgb(70, 74, 80)
@@ -976,6 +1022,10 @@ local function buildFront(root, map)
 		map.StaffCar = car(f, -39.5, 68, rgb(72, 80, 66), 0, "StaffCar")
 		map.StaffCarSpot = Vector3.new(-39.5, 0, 68)
 	end
+	-- v15: «семёрка» команды (на ней приезжают 2–4 игрока в командной кат-сцене): соседнее место справа
+	-- (слева путь героя одиночной сцены ко входу, а у места −61.5 на въезде стоит фонарь)
+	map.TeamCar = teamCarModel(f, -28.5, 70)
+	map.TeamCarSpot = Vector3.new(-28.5, 0, 70)
 	local staff = map.StaffCar
 	-- Тележки у входа под навесом (модели; если не загрузились — простые)
 	for i = 0, 3 do
@@ -1824,6 +1874,26 @@ local function buildGuardPost(root, map)
 	end
 	map.Stations.GuardDesk = mon
 	map.Points.GuardPost = Vector3.new(-41.5, 0, 44.2)
+	-- v15: инструкции охраны на стойке (первое задание после командной кат-сцены): листы в прозрачной папке
+	local sheet = P(f, "Instructions", Vector3.new(0.9, 0.04, 1.2), CFrame.new(-40.1, 2.6, 46.2) * CFrame.Angles(0, math.rad(-8), 0), rgb(236, 234, 226), M.SmoothPlastic, { CastShadow = false })
+	local sheetGui = Instance.new("SurfaceGui")
+	sheetGui.Face = N.Top
+	sheetGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	sheetGui.PixelsPerStud = 120
+	sheetGui.LightInfluence = 1
+	sheetGui.Parent = sheet
+	local sheetText = Instance.new("TextLabel")
+	sheetText.BackgroundTransparency = 1
+	sheetText.Size = UDim2.fromScale(1, 1)
+	sheetText.Font = Enum.Font.GothamBold
+	sheetText.TextColor3 = rgb(40, 40, 46)
+	sheetText.TextSize = 13
+	sheetText.TextYAlignment = Enum.TextYAlignment.Top
+	sheetText.Text = "\nИНСТРУКЦИЯ\nОХРАНЫ\n\n— — — — —\n— — — —\n— — — — —"
+	sheetText.Parent = sheetGui
+	local folderPart = P(f, "InstructionsFolder", Vector3.new(1.0, 0.03, 1.3), sheet.CFrame * CFrame.new(0, 0.035, 0), rgb(200, 214, 230), M.Glass, { Transparency = 0.7, CastShadow = false, CanCollide = false })
+	folderPart.CanQuery = false
+	map.Stations.Instructions = sheet
 	-- табличка «ОХРАНА»
 	local plate = B(f, "GuardSign", -44, 7.6, 49.4, -39, 8.6, 49.6, rgb(30, 50, 90), M.SmoothPlastic)
 	sign(plate, N.Front, "ОХРАНА", { color = Color3.new(1, 1, 1), light = 0, brightness = 1.3, ppS = 40, font = Enum.Font.GothamBlack })

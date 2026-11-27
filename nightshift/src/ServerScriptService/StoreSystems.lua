@@ -464,6 +464,14 @@ function StoreSystems.Init(m, services)
 			S.Net.Effect(player, "OpenCameras")
 		end)
 	end
+	-- v15: инструкции охраны на стойке (первое задание после командной кат-сцены; читать можно всегда)
+	if map.Stations.Instructions then
+		station("Instructions", map.Stations.Instructions, "Прочитать инструкции", "Стойка охраны", 0, 8).Triggered:Connect(function(player)
+			S.Net.Sound("BoxPick", map.Stations.Instructions.Position, 0.25)
+			S.Net.Effect(player, "Read", { Title = Texts.TeamInstructionsTitle, Body = Texts.IntroNote })
+			S.Tasks.ProgressKind("instructions", 1)
+		end)
+	end
 	-- Мониторы камер в кабинете менеджера
 	if map.Stations.OfficeCams then
 		station("OfficeCams", map.Stations.OfficeCams, "Открыть камеры", "Мониторы", 0, 9).Triggered:Connect(function(player)

@@ -1,6 +1,8 @@
 -- VoiceLines: озвученные реплики. Сгенерировано из tools/voice_lines.py.
 -- v11: голоса ElevenLabs (модель eleven_v4, эмоции — теги в квадратных скобках):
 --   M1 — Kup, M2 — Andrii (мужчины-покупатели), F1 — Liubava (женщины), P — Dzmitry (охранник).
+-- v15: H — герой одиночной кат-сцены (Dzmitry); командная кат-сцена: TD — водитель (Egor),
+--   TP — пассажир спереди (Said), TL — сзади слева (EscobarRKZ), TR — сзади справа (Max).
 -- Все реплики одного голоса озвучены одной записью и нарезаны tools/voice_split.py,
 -- каждая проверена распознаванием речи (средняя похожесть на текст 0.994).
 --   Clips[<голос>_<ключ>] = { File, Start, Stop, Text } — где в спрайте лежит реплика.
@@ -9,6 +11,7 @@ local VoiceLines = {}
 VoiceLines.Files = {
 	Voice2 = "rbxassetid://117924069833026", -- M1, M2
 	Voice3 = "rbxassetid://109137936253789", -- F1, P
+	Voice4 = "rbxassetid://82753635503749", -- v15: H (герой одиночной кат-сцены), TD, TP, TL, TR (командная кат-сцена)
 }
 
 VoiceLines.Clips = {
@@ -256,6 +259,67 @@ VoiceLines.Player = {
 	Noise = { "Noise1", "Noise2" },
 	Thief = { "Thief1" },
 	Late = { "Late1" },
+	-- v15: кат-сцены (tools/voice_sprite.py)
+	H_Ride1 = { File = "Voice4", Start = 0.020, Stop = 5.015, Text = "Ну что... Первая смена. Надеюсь, всё пройдёт спокойно." },
+	H_Ride2 = { File = "Voice4", Start = 5.615, Stop = 8.497, Text = "Главное, чтобы народу ночью было поменьше..." },
+	H_Road1 = { File = "Voice4", Start = 9.097, Stop = 11.390, Text = "Чёрт, ну и погода сегодня..." },
+	H_Road2 = { File = "Voice4", Start = 11.990, Stop = 16.710, Text = "Интересно, почему они вообще поставили меня именно на ночную смену?" },
+	H_Radio1 = { File = "Voice4", Start = 17.310, Stop = 19.923, Text = "Алло? Ну давай, только не сейчас..." },
+	H_Radio2 = { File = "Voice4", Start = 20.523, Stop = 23.335, Text = "Ладно, тишина так тишина." },
+	H_Store1 = { File = "Voice4", Start = 23.935, Stop = 27.483, Text = "Ага, вот и он. Март двадцать четыре..." },
+	H_Store2 = { File = "Voice4", Start = 28.083, Stop = 30.534, Text = "Выглядит не особо уютно, конечно." },
+	H_Stop1 = { File = "Voice4", Start = 31.134, Stop = 33.280, Text = "Так, приехали." },
+	H_Msg1 = { File = "Voice4", Start = 33.880, Stop = 39.860, Text = "Ключи у входа... Инструкции на стойке... Ну, вроде ничего сложного." },
+	H_Msg2 = { File = "Voice4", Start = 40.460, Stop = 42.138, Text = "Ладно, пошли работать." },
+	H_Odd1 = { File = "Voice4", Start = 42.738, Stop = 44.976, Text = "...Так. Это ещё что было?" },
+	H_Odd2 = { File = "Voice4", Start = 45.576, Stop = 46.860, Text = "Показалось, наверное." },
+	H_Odd3 = { File = "Voice4", Start = 47.460, Stop = 50.539, Text = "Да уж. Надо было дома поспать." },
+	TD_Ready = { File = "Voice4", Start = 51.139, Stop = 53.512, Text = "Ну что, мужики, готовы к первой смене?" },
+	TD_Ready2 = { File = "Voice4", Start = 54.112, Stop = 56.060, Text = "Ну что, готов к первой смене?" },
+	TD_Relax = { File = "Voice4", Start = 56.660, Stop = 61.021, Text = "Да ладно вам. Посидим, зарплату получим и домой." },
+	TD_Relax2 = { File = "Voice4", Start = 61.621, Stop = 65.221, Text = "Да ладно тебе. Посидим, зарплату получим и домой." },
+	TD_Popular = { File = "Voice4", Start = 65.821, Stop = 69.462, Text = "Может, магазин настолько популярный, что одного охранника не хватает?" },
+	TD_Hope = { File = "Voice4", Start = 70.062, Stop = 71.918, Text = "Надеюсь, ничего интересного." },
+	TD_Radio = { File = "Voice4", Start = 72.518, Stop = 74.301, Text = "Да что за радио сегодня..." },
+	TD_What = { File = "Voice4", Start = 74.901, Stop = 75.476, Text = "Что?" },
+	TD_Arrived = { File = "Voice4", Start = 76.076, Stop = 78.180, Text = "Ну вот, приехали." },
+	TD_Peculiar = { File = "Voice4", Start = 78.780, Stop = 81.035, Text = "Выглядит... своеобразно." },
+	TD_LetsGo = { File = "Voice4", Start = 81.635, Stop = 83.635, Text = "Ладно, пошли. Не будем опаздывать." },
+	TD_Jacket = { File = "Voice4", Start = 84.235, Stop = 85.574, Text = "Ты куртку дома забыл?" },
+	TD_Doors = { File = "Voice4", Start = 86.174, Stop = 87.779, Text = "О, хоть двери нормальные." },
+	TD_Stop = { File = "Voice4", Start = 88.379, Stop = 90.250, Text = "Да перестань. Мы только пришли." },
+	TP_Calm = { File = "Voice4", Start = 90.850, Stop = 93.879, Text = "Ага. Главное, чтобы ночь спокойно прошла." },
+	TP_Why2 = { File = "Voice4", Start = 94.479, Stop = 97.682, Text = "Я вообще не понимаю, зачем нас двоих сюда поставили." },
+	TP_Popular = { File = "Voice4", Start = 98.282, Stop = 101.721, Text = "Может, магазин настолько популярный, что одного охранника не хватает?" },
+	TP_Know2 = { File = "Voice4", Start = 102.321, Stop = 105.503, Text = "Кстати, а ты вообще знаешь, что здесь ночью происходит?" },
+	TP_Hope = { File = "Voice4", Start = 106.103, Stop = 108.008, Text = "Надеюсь, ничего интересного." },
+	TP_Off = { File = "Voice4", Start = 108.608, Stop = 110.052, Text = "Выключи его уже." },
+	TP_Saw2 = { File = "Voice4", Start = 110.652, Stop = 112.340, Text = "Эй... Ты это видел?" },
+	TP_Nothing = { File = "Voice4", Start = 112.940, Stop = 114.586, Text = "Да ничего. Забей." },
+	TP_Store = { File = "Voice4", Start = 115.186, Stop = 116.822, Text = "Это и есть наш магазин?" },
+	TP_LetsGo = { File = "Voice4", Start = 117.422, Stop = 119.674, Text = "Ладно, пошли. Не будем опаздывать." },
+	TP_Cold = { File = "Voice4", Start = 120.274, Stop = 121.674, Text = "Ну и холодина..." },
+	TP_Jacket = { File = "Voice4", Start = 122.274, Stop = 123.588, Text = "Ты куртку дома забыл?" },
+	TP_Funny = { File = "Voice4", Start = 124.188, Stop = 125.281, Text = "Очень смешно." },
+	TP_Come = { File = "Voice4", Start = 125.881, Stop = 126.733, Text = "Пойдём уже." },
+	TP_Feel2 = { File = "Voice4", Start = 127.333, Stop = 130.448, Text = "Слушай... А тебе не кажется, что здесь кто-то есть?" },
+	TP_Instr = { File = "Voice4", Start = 131.048, Stop = 133.511, Text = "Ладно, давайте сначала найдём инструкции." },
+	TP_Instr2 = { File = "Voice4", Start = 134.111, Stop = 136.428, Text = "Ладно, давай сначала найдём инструкции." },
+	TL_Why3 = { File = "Voice4", Start = 137.028, Stop = 140.160, Text = "Я вообще не понимаю, зачем нас троих сюда поставили." },
+	TL_Why4 = { File = "Voice4", Start = 140.760, Stop = 143.963, Text = "Я вообще не понимаю, зачем нас четверых сюда поставили." },
+	TL_Know = { File = "Voice4", Start = 144.563, Stop = 148.271, Text = "Кстати, а кто-нибудь вообще знает, что здесь ночью происходит?" },
+	TL_Saw = { File = "Voice4", Start = 148.871, Stop = 150.816, Text = "Эй... Вы это видели?" },
+	TL_Nothing = { File = "Voice4", Start = 151.416, Stop = 153.001, Text = "Да ничего. Забей." },
+	TL_Peculiar = { File = "Voice4", Start = 153.601, Stop = 155.770, Text = "Выглядит... своеобразно." },
+	TL_Cold = { File = "Voice4", Start = 156.370, Stop = 157.886, Text = "Ну и холодина..." },
+	TL_Funny = { File = "Voice4", Start = 158.486, Stop = 159.550, Text = "Очень смешно." },
+	TL_Feel = { File = "Voice4", Start = 160.150, Stop = 163.265, Text = "Ребят... А вам не кажется, что здесь кто-то есть?" },
+	TR_Popular = { File = "Voice4", Start = 163.865, Stop = 167.718, Text = "Может, магазин настолько популярный, что одного охранника не хватает?" },
+	TR_Know = { File = "Voice4", Start = 168.318, Stop = 172.138, Text = "Кстати, а кто-нибудь вообще знает, что здесь ночью происходит?" },
+	TR_LetsGo = { File = "Voice4", Start = 172.738, Stop = 175.091, Text = "Ладно, пошли. Не будем опаздывать." },
+	TR_Cold = { File = "Voice4", Start = 175.691, Stop = 177.246, Text = "Ну и холодина..." },
+	TR_Funny = { File = "Voice4", Start = 177.846, Stop = 178.877, Text = "Очень смешно." },
+	TR_Come = { File = "Voice4", Start = 179.477, Stop = 180.268, Text = "Пойдём уже." },
 }
 
 return VoiceLines

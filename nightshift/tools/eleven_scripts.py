@@ -31,8 +31,13 @@ def main():
     # v12: герой кат-сцены (тот же голос, что у охранника, — Dzmitry)
     lines = [(k, t, tag) for k, (t, tag) in VL.HERO.items()]
     plans["H"] = {"order": [k for k, _, _ in lines], "texts": {k: t for k, t, _ in lines}, "script": script(lines)}
+    # v15: командная кат-сцена — по голосу на роль
+    for v, lines_d in VL.TEAM.items():
+        lines = [(k, t, tag) for k, (t, tag) in lines_d.items()]
+        plans[v] = {"order": [k for k, _, _ in lines], "texts": {k: t for k, t, _ in lines}, "script": script(lines)}
     voices = dict(VL.ELEVEN_VOICES)
     voices["H"] = VL.ELEVEN_VOICES["P"]
+    voices.update(VL.TEAM_VOICES)
     json.dump({"plans": plans, "voices": voices}, sys.stdout, ensure_ascii=False, indent=1)
 
 

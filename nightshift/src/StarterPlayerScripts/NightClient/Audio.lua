@@ -31,7 +31,7 @@ local cinematic = false
 local inCar = false -- v12: камера кат-сцены в салоне машины — улица слышна глухо, эхо маленького салона
 local stepState = setmetatable({}, { __mode = "k" })
 
-local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Sfx7 = "Sfx", Sfx8 = "Sfx", Voice = "Voice", Voice2 = "Voice", Voice3 = "Voice", Voice4 = "Voice", Music = "Music" }
+local FILE_GROUP = { Ambience = "Ambience", Sfx = "Sfx", Sfx2 = "Sfx", Sfx3 = "Sfx", Sfx4 = "Sfx", Sfx5 = "Sfx", Sfx6 = "Sfx", Sfx7 = "Sfx", Sfx8 = "Sfx", Sfx9 = "Sfx", Voice = "Voice", Voice2 = "Voice", Voice3 = "Voice", Voice4 = "Voice", Music = "Music" }
 
 local function makeGroup(name)
 	local g = Instance.new("SoundGroup")

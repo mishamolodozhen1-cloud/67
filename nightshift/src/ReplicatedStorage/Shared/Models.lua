@@ -66,6 +66,8 @@ Models.Credits = {
 	"«Wood Wooden fence Protector of the farm» — Mehdi Shahsavan, CC BY 4.0",
 	"«Fence (Wood)» — trentspi, CC BY 4.0",
 	"«Old Soviet Bus Stop» — Coozy, CC BY 4.0",
+	-- v15: машина командной кат-сцены
+	"«[FREE] VAZ 2107» — Mcflower's Creations, CC BY 4.0",
 }
 
 -- Существо из подсобки (v10): скелетная модель (53 кости, сетка 17 000 треугольников, рост 8.6),
@@ -142,6 +144,9 @@ Models.Assets = {
 	EnvFence = { Id = 122080121602864 }, -- секция деревянного забора с кирпичным столбом (длина по Z 285)
 	EnvRail = { Id = 125870193960634 }, -- жердевая изгородь (длина по Z 4)
 	EnvBusStop = { Id = 139000138218733 }, -- советская остановка (длина по Z 247; открыта в −X)
+	-- v15: «семёрка» командной кат-сцены (tools/models/prep_car.py): двери, колёса и руль — отдельные детали;
+	-- в игре перёд машины +Z, водитель (левый руль) +X; опора — центр низа
+	TeamCar = { Id = 116238015565300, Scale = 3.5 },
 }
 -- Листва и хвоя (v14): загрузка в Roblox не сохраняет прозрачность (SurfaceAppearance — режим Overlay),
 -- поэтому у этих деталей SurfaceAppearance снимается, а текстура с альфой ставится в MeshPart.TextureID.

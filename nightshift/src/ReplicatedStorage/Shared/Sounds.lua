@@ -4,7 +4,7 @@
 --           с какой по какую секунду звучит каждый (Sound.PlaybackRegion).
 -- Источники: Soundza (soundza.com, реальные записи), голос диктора — ElevenLabs.
 -- v10: существо, скример, отключение света, испуг покупателей — Soundza (Sfx7); голоса покупателей
--- и охранника — ElevenLabs (v11; VoiceLines: Voice2, Voice3). v12: звуки кат-сцены — Soundza (Sfx8).
+-- и охранника — ElevenLabs (v11; VoiceLines: Voice2, Voice3). v12: звуки кат-сцены — Soundza (Sfx8). v15: командная кат-сцена — Soundza (Sfx9).
 -- Сгенерированы ИИ: PAChime, Stinger, StoreMusic, Cart, Mop, MenuMusic, Receipt, Whisper, GlassKnock, ShelfCrash.
 local Sounds = {}
 
@@ -20,6 +20,7 @@ Sounds.Files = {
 	Sfx6 = "rbxassetid://117732591615305", -- гроза (v8): дальний гром, близкий удар, треск неоновой вывески
 	Sfx7 = "rbxassetid://107569587775126", -- v10: существо, скример, отключение света, испуг покупателей
 	Sfx8 = "rbxassetid://138294877512619", -- v12 (кат-сцена): салон машины, радио, датчик дверей, телефон
+	Sfx9 = "rbxassetid://102195483457303", -- v15 (командная кат-сцена): дворники, смех компании, ручник
 }
 
 -- Короткие звуки: файл, начало, конец, зациклен ли, громкость
@@ -141,6 +142,11 @@ Sounds.List = {
 	DoorSensor = { File = "Sfx8", Start = 33.48, Stop = 34.03, Loop = false, Volume = 0.5 }, -- датчик дверей заметил человека
 	PhoneBuzz = { File = "Sfx8", Start = 34.63, Stop = 35.573, Loop = false, Volume = 0.7 }, -- вибрация телефона
 	TurnSignal = { File = "Sfx8", Start = 36.173, Stop = 40.923, Loop = true, Volume = 0.4 }, -- поворотник
+	-- v15: командная кат-сцена (Sfx9, tools/sfx9.py)
+	Wipers = { File = "Sfx9", Start = 0.02, Stop = 15.02, Loop = true, Volume = 0.32 }, -- дворники по мокрому стеклу
+	Chuckle = { File = "Sfx9", Start = 15.62, Stop = 17.04, Loop = false, Volume = 0.55 }, -- смешок компании
+	Chuckle2 = { File = "Sfx9", Start = 17.64, Stop = 19.08, Loop = false, Volume = 0.55 }, -- смешок компании (второй)
+	Handbrake = { File = "Sfx9", Start = 19.68, Stop = 20.25, Loop = false, Volume = 0.6 }, -- ручник
 }
 
 -- Озвученные реплики покупателей и охранника (v10): спрайты Voice2/Voice3, ключ «<голос>_<реплика>»

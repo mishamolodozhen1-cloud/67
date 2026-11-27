@@ -13,6 +13,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Util = require(Shared:WaitForChild("Util"))
 local Texts = require(Shared:WaitForChild("Texts"))
+local TeamLines = require(Shared:WaitForChild("TeamLines"))
+local Sounds = require(Shared:WaitForChild("Sounds"))
+local VoiceLines = require(Shared:WaitForChild("VoiceLines"))
 
 local ShiftManager = {}
 
@@ -26,6 +29,42 @@ local userPicked = false -- игроки выбрали ночь сами (ин�
 local startRequested = false
 local finishKind = nil
 local introPlayers, introDone = {}, {}
+local introSpots = {} -- v15: UserId -> где игрок стоит после командной сцены
+local teamIntro = false -- v15: смену открыла командная кат-сцена (2–4 игрока) — первое задание у стойки охраны
+-- v15: порядок входа на сервер — по нему раздаются роли в командной кат-сцене (первый — за рулём)
+local joinOrder, joinCounter = {}, 0
+local function noteJoin(p)
+	if not joinOrder[p] then
+		joinCounter = joinCounter + 1
+		joinOrder[p] = joinCounter
+	end
+end
+for _, p in ipairs(Players:GetPlayers()) do
+	noteJoin(p)
+end
+Players.PlayerAdded:Connect(noteJoin)
+Players.PlayerRemoving:Connect(function(p)
+	joinOrder[p] = nil
+end)
+
+-- Состав командной кат-сцены: до четырёх игроков по порядку входа, у каждого своя роль
+local function teamRoster()
+	local list = Players:GetPlayers()
+	for _, p in ipairs(list) do
+		noteJoin(p)
+	end
+	table.sort(list, function(a, b)
+		return (joinOrder[a] or 0) < (joinOrder[b] or 0)
+	end)
+	local roster = {}
+	for i, p in ipairs(list) do
+		if i > #TeamLines.Roles then
+			break
+		end
+		table.insert(roster, { UserId = p.UserId, Name = p.DisplayName, Role = TeamLines.Roles[i] })
+	end
+	return roster
+end
 
 local function setPhase(p)
 	phase = p
@@ -104,7 +143,28 @@ end
 
 -- Клиент досмотрел (или пропустил) вступительную кат-сцену
 function ShiftManager.IntroDone(player)
+	if phase ~= "Intro" or introDone[player] then
+		return
+	end
 	introDone[player] = true
+	local done, total = 0, 0
+	for p in pairs(introPlayers) do
+		if p.Parent then
+			total = total + 1
+			if introDone[p] then
+				done = done + 1
+			end
+		end
+	end
+	S.Net.Set("IntroDone", done)
+	S.Net.Set("IntroTotal", total)
+	-- v15: кто пропустил командную сцену, сразу встаёт на общую точку старта у входа (управление — когда
+	-- досмотрят все: до этого фаза остаётся "Intro")
+	local spot = teamIntro and introSpots[player.UserId]
+	local ch = player.Character
+	if spot and ch then
+		ch:PivotTo(CFrame.lookAt(spot + Vector3.new(0, 3, 0), spot + Vector3.new(0, 3, -10)))
+	end
 end
 
 -- Счётчики для итогов смены: Caught, Escaped, Orders, FalseChecks, LeftAngry
@@ -166,6 +226,10 @@ local function startShift()
 	local info = Texts.Nights[night]
 	S.Net.Notify(nil, string.format("Ночь %d — «%s». Смена до 06:00", night, info and info.Title or ""), "info")
 	S.Events.OnMinute(0)
+	-- v15: после командной кат-сцены первое задание — прочитать инструкции на стойке охраны
+	if teamIntro then
+		S.Tasks.Add({ Id = "instructions", Kind = "instructions", Text = Texts.TeamFirstTask, Room = "Пост охраны у входа", Count = 1 })
+	end
 end
 
 local function endShift(kind)
@@ -287,10 +351,33 @@ function ShiftManager.Start()
 			-- полная кат-сцена — перед первой ночью, перед остальными — короткий титр «НОЧЬ N»
 			refreshNights()
 			local short = selected > 1
+			-- v15: 2–4 игрока перед первой ночью — командная кат-сцена (едут вместе в одной машине).
+			-- Старт у всех в один момент серверного времени; роли — по порядку входа
+			local roster = (not short and Config.TeamIntro) and teamRoster() or {}
+			teamIntro = #roster >= 2
 			setPhase("Intro")
-			S.Net.Effect(nil, "Intro", { Seconds = Config.IntroSeconds, Night = selected, Short = short })
-			local introStart = os.clock()
 			local introLimit = short and 18 or Config.IntroSeconds + 8
+			introSpots = {}
+			S.Net.Set("IntroDone", 0)
+			S.Net.Set("IntroTotal", #Players:GetPlayers())
+			if teamIntro then
+				for _, r in ipairs(roster) do
+					introSpots[r.UserId] = TeamLines.EndSpots[r.Role]
+				end
+				local seconds = TeamLines.Duration(#roster, Sounds.List, VoiceLines.Clips)
+				S.Net.Effect(nil, "Intro", {
+					Team = true,
+					Roster = roster,
+					StartAt = workspace:GetServerTimeNow() + TeamLines.StartDelay,
+					Seconds = seconds,
+					Night = selected,
+					Short = false,
+				})
+				introLimit = seconds + TeamLines.StartDelay + 10
+			else
+				S.Net.Effect(nil, "Intro", { Seconds = Config.IntroSeconds, Night = selected, Short = short })
+			end
+			local introStart = os.clock()
 			while os.clock() - introStart < introLimit do
 				task.wait(0.5)
 				local waiting = false
@@ -304,10 +391,21 @@ function ShiftManager.Start()
 				end
 			end
 			-- все стоят в кабинете менеджера, смена начинается в 00:00
+			-- (v15: после командной сцены — у входа в магазин, там, где команда стоит в конце сцены)
+			local spots = introSpots
 			for i, p in ipairs(Players:GetPlayers()) do
 				local ch = p.Character
 				if ch then
-					ch:PivotTo(map.Points.IntroEnd * CFrame.new((i - 2.5) * 2.4, 0, 0))
+					local spot = spots[p.UserId]
+					if spot then
+						ch:PivotTo(CFrame.lookAt(spot + Vector3.new(0, 3, 0), spot + Vector3.new(0, 3, -10)))
+					elseif teamIntro then
+						-- пятый и дальше (в машине мест нет): рядом с командой
+						local x = -50.5 + (i - 5) * 2.4
+						ch:PivotTo(CFrame.lookAt(Vector3.new(x, 3, 37.6), Vector3.new(x, 3, 27)))
+					else
+						ch:PivotTo(map.Points.IntroEnd * CFrame.new((i - 2.5) * 2.4, 0, 0))
+					end
 				end
 			end
 			-- СМЕНА
