@@ -33,9 +33,38 @@ return deepFreeze({
 
 	-- Персонаж (Systems/CharacterSystem): манекен, появление и возрождение
 	Character = {
-		RespawnDelay = 3, -- через сколько секунд после смерти появиться снова (бой и смерть — этап 5)
+		RespawnDelay = 4, -- через сколько секунд после смерти появиться снова
 		ReadySpawnTimeout = 15, -- если клиент не сообщил о готовности, всё равно дать персонажа
 		BodyColor = Color3.fromRGB(201, 170, 98), -- цвет запасного (блочного) манекена, если модель не загрузилась
+	},
+
+	-- Бой (Systems/CombatSystem): здоровье, восстановление, защита после появления, кто убил и кто помог
+	Combat = {
+		MaxHealth = 100,
+		RegenDelay = 6, -- столько секунд без урона — и здоровье начинает восстанавливаться
+		RegenRate = 14, -- единиц в секунду
+		SpawnProtection = 2.5, -- после появления урон не проходит (пока игрок сам не выстрелит)
+		KillCredit = 15, -- убийство засчитывается тому, кто ранил последним, если прошло не больше (с)
+		AssistDamage = 25, -- помощь в убийстве: нанёс не меньше столько урона за последние AssistWindow с
+		AssistWindow = 15,
+		-- зона тела по имени части
+		Zones = {
+			Head = "Head",
+			UpperTorso = "Torso",
+			LowerTorso = "Torso",
+			LeftUpperArm = "Arm",
+			LeftLowerArm = "Arm",
+			LeftHand = "Arm",
+			RightUpperArm = "Arm",
+			RightLowerArm = "Arm",
+			RightHand = "Arm",
+			LeftUpperLeg = "Leg",
+			LeftLowerLeg = "Leg",
+			LeftFoot = "Leg",
+			RightUpperLeg = "Leg",
+			RightLowerLeg = "Leg",
+			RightFoot = "Leg",
+		},
 	},
 
 	-- Передвижение (Systems/MovementSystem, Controllers/CharacterController): studs/с, studs

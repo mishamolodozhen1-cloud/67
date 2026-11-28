@@ -38,6 +38,7 @@ CameraController.HiddenParts = {
 }
 
 local characters = nil
+local profileCtl = nil
 local bob = { Phase = 0, Amount = 0 }
 local dip = { Offset = 0, Speed = 0 }
 local fallSpeed = 0
@@ -160,7 +161,8 @@ local function preCamera(dt)
 	dip.Offset = math.clamp(dip.Offset + dip.Speed * dt, -cfg.LandDip, cfg.LandDip)
 	humanoid.CameraOffset = Vector3.new(bx, cfg.EyeHeight + by + dip.Offset, -cfg.EyeForward)
 	-- поле зрения
-	local target = st.Sprint and speed > move.WalkSpeed and cfg.SprintFieldOfView or cfg.FieldOfView
+	local baseFov = profileCtl and profileCtl.Settings().Fov or cfg.FieldOfView
+	local target = st.Sprint and speed > move.WalkSpeed and (baseFov + cfg.SprintFieldOfView - cfg.FieldOfView) or baseFov
 	fov = fov + (target - fov) * math.min(1, dt * 6)
 	-- прицел сужает поле зрения (плавность — у самого прицела: alpha меняется за Aim.Time)
 	camera.FieldOfView = fov + (aim.Fov - fov) * aim.Alpha
@@ -198,6 +200,8 @@ end
 
 function CameraController.Init(context)
 	characters = context.Get("CharacterController")
+	local ok, p = pcall(context.Get, "ProfileController")
+	profileCtl = ok and p or nil
 end
 
 -- Первое лицо (обычная игра)

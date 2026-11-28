@@ -60,6 +60,16 @@ local DUST = {
 -------------------------------------------------------------------------------
 -- Звуки
 -------------------------------------------------------------------------------
+local SoundService = game:GetService("SoundService")
+local function sfxGroup()
+	local g = SoundService:FindFirstChild("DC_SFX")
+	if not g then
+		g = Instance.new("SoundGroup")
+		g.Name = "DC_SFX"
+		g.Parent = SoundService
+	end
+	return g
+end
 -- Сыграть звук из группы (случайный вариант). at: Vector3 (звук в мире) или nil (без позиции, «в голове»).
 -- opts: Volume, Pitch (разброс ±), MaxDistance
 function WeaponEffects.PlaySound(group, at, opts)
@@ -77,6 +87,7 @@ function WeaponEffects.PlaySound(group, at, opts)
 	s.Volume = opts.Volume or 0.6
 	local pitch = opts.Pitch or 0.04
 	s.PlaybackSpeed = 1 + rng:NextNumber(-pitch, pitch)
+	s.SoundGroup = sfxGroup()
 	s.RollOffMode = Enum.RollOffMode.InverseTapered
 	s.RollOffMinDistance = opts.MinDistance or 8
 	s.RollOffMaxDistance = opts.MaxDistance or 220
@@ -338,7 +349,11 @@ function WeaponEffects.LocalShot(muzzle, eject, endPos, result, inherit)
 end
 
 local function remoteWeapon(shooter)
-	local character = shooter and shooter.Character
+	-- стрелок — игрок или модель бота
+	local character = nil
+	if typeof(shooter) == "Instance" then
+		character = shooter:IsA("Player") and shooter.Character or (shooter:IsA("Model") and shooter or nil)
+	end
 	local gun = character and character:FindFirstChild("Weapon")
 	return gun, character
 end

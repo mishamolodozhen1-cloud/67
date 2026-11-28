@@ -40,7 +40,7 @@ WeaponController.HitConfirmed = Signal.new() -- (info) — сервер засч
 local log = Logger.new("Weapon")
 local rng = Random.new()
 
-local net, characters, cameraCtl, viewmodel, effects = nil, nil, nil, nil, nil
+local net, characters, cameraCtl, viewmodel, effects, profileCtl = nil, nil, nil, nil, nil, nil
 local weaponName = WeaponConfig.Default
 local def = WeaponConfig.Weapons[weaponName]
 local poses = WeaponPoses[weaponName]
@@ -373,7 +373,10 @@ local function update(dt)
 	characters.SetSprintBlocked("Fire", st.Trigger and hasWeapon and st.Ammo > 0 and not st.Reload)
 	characters.SetAim(canAim)
 	cameraCtl.SetAim(st.AimAlpha, poses.Viewmodel.AimFov)
-	UserInputService.MouseDeltaSensitivity = 1 + (def.Aim.SensitivityFactor - 1) * st.AimAlpha
+	local settings = profileCtl and profileCtl.Settings()
+	local base = settings and settings.Sensitivity or 1
+	local aimFactor = settings and settings.AimSensitivity or def.Aim.SensitivityFactor
+	UserInputService.MouseDeltaSensitivity = base * (1 + (aimFactor - 1) * st.AimAlpha)
 	-- раскачка очередью затухает
 	if now - st.LastShot > 60 / def.Rpm * 1.6 then
 		st.Bloom = math.max(0, st.Bloom - def.Spread.Recovery * dt)
@@ -399,6 +402,8 @@ end
 -------------------------------------------------------------------------------
 -- Сервер
 -------------------------------------------------------------------------------
+local setWeapon -- объявлена ниже (смена оружия)
+
 local function onServerState(s)
 	if type(s) ~= "table" or type(s.Ammo) ~= "number" or type(s.Reserve) ~= "number" then
 		return
@@ -406,6 +411,10 @@ local function onServerState(s)
 	st.Known = true
 	local reason = s.Reason
 	if reason == "Equip" then
+		local character = characters.GetCharacter()
+		if s.Weapon ~= weaponName and character and WeaponConfig.Weapons[s.Weapon] then
+			setWeapon(character, s.Weapon)
+		end
 		st.Ammo, st.Reserve, st.Mode = s.Ammo, s.Reserve, s.Mode or st.Mode
 		st.Reload = nil
 	elseif reason == "Reloaded" then
@@ -468,19 +477,45 @@ local function onMode(_, inputState)
 	return Enum.ContextActionResult.Sink
 end
 
+-- Сменить оружие в руках (выдал сервер: атрибут Weapon персонажа — при появлении и в GUN GAME)
+setWeapon = function(character, name)
+	if not (name and WeaponConfig.Weapons[name] and WeaponPoses[name]) then
+		return false
+	end
+	weaponName, def, poses = name, WeaponConfig.Weapons[name], WeaponPoses[name]
+	st.Reload = nil
+	st.EquipStart = os.clock()
+	st.Ammo, st.Reserve, st.Mode = def.Magazine, def.Reserve, def.DefaultMode -- до ответа сервера — полный комплект
+	st.Bloom, st.Burst, st.NextShot = 0, 0, 0
+	task.spawn(function()
+		if not viewmodel.Build(character, name) then
+			log:Error("вид от первого лица без оружия %s", name)
+		end
+	end)
+	changed()
+	return true
+end
+
+local weaponConn = nil
 local function onCharacter(character)
 	st.Reload = nil
 	st.Trigger, st.SemiFired, st.DryClicked = false, false, false
 	st.AimWanted, st.AimToggle, st.AimAlpha, st.SprintAlpha = false, false, 0, 0
 	st.Bloom, st.Burst = 0, 0
 	st.EquipStart = os.clock()
-	st.Ammo, st.Reserve = def.Magazine, def.Reserve -- до ответа сервера (WeaponState) — полный комплект
 	cameraCtl.ResetRecoil()
-	task.spawn(function()
-		if not viewmodel.Build(character, weaponName) then
-			log:Error("вид от первого лица без оружия")
+	if weaponConn then
+		weaponConn:Disconnect()
+	end
+	weaponConn = character:GetAttributeChangedSignal("Weapon"):Connect(function()
+		local name = character:GetAttribute("Weapon")
+		if name ~= weaponName or not viewmodel.Exists() then
+			setWeapon(character, name)
 		end
 	end)
+	if not setWeapon(character, character:GetAttribute("Weapon")) then
+		viewmodel.Destroy() -- без оружия (лобби); модель соберётся, когда сервер выдаст оружие
+	end
 	changed()
 end
 
@@ -495,6 +530,8 @@ function WeaponController.Init(context)
 	cameraCtl = context.Get("CameraController")
 	viewmodel = context.Get("Viewmodel")
 	effects = context.Get("WeaponEffects")
+	local ok, p = pcall(context.Get, "ProfileController")
+	profileCtl = ok and p or nil
 end
 
 function WeaponController.Start()

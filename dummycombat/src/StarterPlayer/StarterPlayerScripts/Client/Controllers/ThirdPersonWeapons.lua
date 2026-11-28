@@ -160,8 +160,21 @@ local function step(dt)
 	local camPos = camera.CFrame.Position
 	local serverTime = workspace:GetServerTimeNow()
 	local localPlayer = Players.LocalPlayer
+	-- персонажи игроков и боты-манекены (Workspace.Bots)
+	local list = {}
 	for _, player in ipairs(Players:GetPlayers()) do
-		local character = player.Character
+		if player.Character then
+			table.insert(list, { player, player.Character })
+		end
+	end
+	local botFolder = workspace:FindFirstChild("Bots")
+	if botFolder then
+		for _, m in ipairs(botFolder:GetChildren()) do
+			table.insert(list, { nil, m })
+		end
+	end
+	for _, item in ipairs(list) do
+		local player, character = item[1], item[2]
 		if character and character.Parent and (character:GetAttribute("Weapon") or "") ~= "" then
 			local skip = character:GetAttribute("Ragdolled") == true
 			if player == localPlayer and cameraCtl.IsFirstPerson() then

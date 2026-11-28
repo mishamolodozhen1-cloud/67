@@ -283,11 +283,26 @@ function CharacterSystem.Spawn(player)
 	return ok
 end
 
+-- Где появляться: функция(player) → CFrame корня (HumanoidRootPart) или nil (тогда — точка Roblox).
+-- Задаёт MatchSystem: в матче — точка карты, в лобби — лобби
+local spawnResolver = nil
+function CharacterSystem.SetSpawnResolver(fn)
+	spawnResolver = fn
+end
+
 local function onCharacter(player, character)
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	if not humanoid then
 		log:Error("у персонажа %s нет Humanoid", player.Name)
 		return
+	end
+	if spawnResolver then
+		local ok, cf = pcall(spawnResolver, player, character)
+		if ok and typeof(cf) == "CFrame" then
+			character:PivotTo(cf)
+		elseif not ok then
+			log:Error("точка появления %s: %s", player.Name, tostring(cf))
+		end
 	end
 	character:SetAttribute("Stance", "Stand")
 	character:SetAttribute("Sprinting", false)

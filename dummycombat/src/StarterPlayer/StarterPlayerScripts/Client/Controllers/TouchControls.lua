@@ -141,7 +141,8 @@ local function refresh()
 	end
 	local _, humanoid = characters.GetCharacter()
 	local touch = UserInputService.TouchEnabled and UserInputService:GetLastInputType() == Enum.UserInputType.Touch
-	frame.Visible = touch and humanoid ~= nil and humanoid.Health > 0
+	-- в лобби открыто меню: кнопок нет
+	frame.Visible = touch and humanoid ~= nil and humanoid.Health > 0 and Players.LocalPlayer:GetAttribute("InMatch") == true
 	setActive(buttons.Run, characters.SprintToggled())
 	setActive(buttons.Crouch, characters.WantsCrouch())
 	if weapons and buttons.Fire then
@@ -224,6 +225,7 @@ local function build()
 	relayout()
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
 	UserInputService.LastInputTypeChanged:Connect(refresh)
+	Players.LocalPlayer:GetAttributeChangedSignal("InMatch"):Connect(refresh)
 	characters.StateChanged:Connect(refresh)
 	characters.CharacterChanged:Connect(function(_, humanoid)
 		humanoid.Died:Connect(refresh)

@@ -275,6 +275,23 @@ function WeaponSystem.Equip(player, character, weaponName)
 	return gun
 end
 
+-- Какое оружие давать появившемуся: функция(player) → имя оружия или nil (без оружия: лобби).
+-- Задаёт MatchSystem; без неё — оружие по умолчанию
+local loadoutResolver = nil
+function WeaponSystem.SetLoadoutResolver(fn)
+	loadoutResolver = fn
+end
+
+-- Без оружия (лобби)
+function WeaponSystem.Unequip(player, character)
+	local old = character:FindFirstChild("Weapon")
+	if old then
+		old:Destroy()
+	end
+	character:SetAttribute("Weapon", "")
+	states[player] = nil
+end
+
 -- Погиб: оружие выпадает из рук и падает рядом с телом (лежит вместе с ним)
 function WeaponSystem.Drop(character)
 	local gun = character:FindFirstChild("Weapon")
@@ -521,10 +538,78 @@ function WeaponSystem.HandleFire(player, shotId, origin, direction, clientTime, 
 		end
 		WeaponSystem.HitConfirmed:Fire(player, hit)
 		if net and isPlayer(player) then
-			net.Fire(player, "HitConfirmed", { Part = hit.Part.Name, Headshot = hit.Headshot, Position = hit.Position })
+			-- урон и убийство посчитал CombatSystem (обработчик сигнала выше выполняется сразу)
+			net.Fire(player, "HitConfirmed", {
+				Part = hit.Part.Name,
+				Headshot = hit.Headshot,
+				Position = hit.Position,
+				Damage = hit.Damage and math.floor(hit.Damage + 0.5) or 0,
+				Kill = hit.Killed == true,
+			})
 		end
 	end
 	return true, out
+end
+
+-- Выстрел, который считает сам сервер (боты): луч с учётом персонажей, без компенсации задержки.
+-- shooterKey — ключ состояния (таблица бота), model — его модель. Патроны ведёт вызывающий (BotSystem).
+-- pellets/spread — для дробовика: несколько дробин с разбросом (градусы). Возвращает список попаданий
+function WeaponSystem.ServerShot(shooterKey, model, origin, direction, pellets, spread)
+	local st = states[shooterKey]
+	if not st or not model then
+		return {}
+	end
+	local range = math.min(st.Def.Range, cfg.Range)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = { model }
+	local corpses = workspace:FindFirstChild("Corpses")
+	if corpses then
+		table.insert(exclude, corpses)
+	end
+	params.FilterDescendantsInstances = exclude
+	params.IgnoreWater = true
+	local hits = {}
+	local first = nil
+	for i = 1, pellets or 1 do
+		local dir = direction
+		if spread and spread > 0 and i > 1 then
+			local r = math.rad(spread) * math.sqrt(math.random())
+			local theta = math.random() * math.pi * 2
+			dir = (CFrame.lookAt(Vector3.zero, direction) * CFrame.Angles(0, 0, theta) * CFrame.Angles(r, 0, 0)).LookVector
+		end
+		local result = workspace:Raycast(origin, dir * range, params)
+		local out = { End = origin + dir * range, Kind = "None" }
+		if result then
+			out.End, out.Normal, out.Material, out.Kind = result.Position, result.Normal, result.Material.Name, "World"
+			local target = result.Instance.Parent
+			local humanoid = target and target:FindFirstChildOfClass("Humanoid")
+			if target and CollectionService:HasTag(target, WeaponSystem.TargetTag) and humanoid and humanoid.Health > 0 then
+				local hit = {
+					Target = target,
+					Humanoid = humanoid,
+					Part = result.Instance,
+					Position = result.Position,
+					Direction = dir,
+					Distance = (result.Position - origin).Magnitude,
+					Headshot = result.Instance.Name == "Head",
+					Weapon = st.Weapon,
+				}
+				out.Kind, out.Material = "Body", "Body"
+				table.insert(hits, hit)
+				if ragdoll then
+					ragdoll.RecordHit(target, hit.Part.Name, dir, 1, hit.Position)
+				end
+				WeaponSystem.HitConfirmed:Fire(shooterKey, hit)
+			end
+		end
+		first = first or out
+		if net and (i == 1 or i % 3 == 0) then
+			net.FireAll("ShotFired", model, origin, out.End, out.Normal, out.Material, out.Kind)
+		end
+	end
+	WeaponSystem.ShotFired:Fire(shooterKey, { Weapon = st.Weapon, Origin = origin, Direction = direction, End = first and first.End, Hit = hits[1] })
+	return hits
 end
 
 -------------------------------------------------------------------------------
@@ -589,7 +674,16 @@ function WeaponSystem.Start(context)
 	net = context.Get("NetService")
 	local characters = context.Get("CharacterSystem")
 	characters.CharacterSpawned:Connect(function(player, character)
-		WeaponSystem.Equip(player, character)
+		if loadoutResolver then
+			local weapon = loadoutResolver(player)
+			if weapon then
+				WeaponSystem.Equip(player, character, weapon)
+			else
+				WeaponSystem.Unequip(player, character)
+			end
+		else
+			WeaponSystem.Equip(player, character)
+		end
 	end)
 	characters.CharacterDied:Connect(function(player, character)
 		local st = states[player]

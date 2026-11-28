@@ -15,13 +15,18 @@ local GameConfig = require(ReplicatedStorage:WaitForChild("Configs"):WaitForChil
 local ORDER = {
 	"ErrorReporter",
 	"ClientNet",
+	"ProfileController",
 	"CharacterController",
 	"CameraController",
 	"WeaponEffects",
 	"Viewmodel",
 	"WeaponController",
 	"WeaponHUD",
+	"CombatHUD",
+	"MatchHUD",
 	"ThirdPersonWeapons",
+	"LobbyController",
+	"MainMenu",
 	"TouchControls",
 	"DevController",
 }

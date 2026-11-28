@@ -307,7 +307,7 @@ local function targets()
 	for _, p in ipairs(Players:GetPlayers()) do
 		add(p.Character)
 	end
-	for _, folderName in ipairs({ "Corpses", "DevDummies", "ActiveMap" }) do
+	for _, folderName in ipairs({ "Corpses", "DevDummies", "ActiveMap", "Bots" }) do
 		local f = workspace:FindFirstChild(folderName)
 		if f then
 			for _, d in ipairs(f:GetDescendants()) do

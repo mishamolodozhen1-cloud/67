@@ -19,7 +19,7 @@ local WeaponHUD = { Name = "WeaponHUD" }
 local log = Logger.new("HUD")
 local weapons, characters, cameraCtl = nil, nil, nil
 local ui = nil
-local hitAt, hitHead = -math.huge, false
+local hitAt, hitHead, hitKill = -math.huge, false, false
 
 local WHITE = Color3.fromRGB(240, 240, 236)
 local DIM = Color3.fromRGB(170, 170, 166)
@@ -175,15 +175,15 @@ local function update()
 	end
 	-- отметка попадания
 	local age = os.clock() - hitAt
-	ui.Hit.Visible = age < 0.22
+	ui.Hit.Visible = age < (hitKill and 0.4 or 0.22)
 	if ui.Hit.Visible then
-		local grow = hitHead and 1.35 or 1
+		local grow = hitKill and 1.6 or (hitHead and 1.35 or 1)
 		for _, m in ipairs(ui.Marks) do
 			local r = (7 + age * 22) * grow
 			m.Frame.Position = UDim2.fromOffset(math.sin(m.Angle) * r, -math.cos(m.Angle) * r)
 			m.Frame.Size = UDim2.fromOffset(2, 8 * grow)
-			m.Frame.BackgroundColor3 = hitHead and RED or WHITE
-			m.Frame.BackgroundTransparency = age / 0.22
+			m.Frame.BackgroundColor3 = (hitHead or hitKill) and RED or WHITE
+			m.Frame.BackgroundTransparency = age / (hitKill and 0.4 or 0.22)
 		end
 	end
 	-- патроны
@@ -228,6 +228,7 @@ function WeaponHUD.Start()
 		weapons.HitConfirmed:Connect(function(info)
 			hitAt = os.clock()
 			hitHead = info.Headshot == true
+			hitKill = info.Kill == true
 		end)
 		RunService.RenderStepped:Connect(update)
 	end)
