@@ -287,7 +287,11 @@ local function weaponInfo(id)
 	if not w then
 		return ""
 	end
-	return string.format("%d RPM · MAG %d · DMG %d/%d", w.Rpm, w.Magazine, w.Damage and w.Damage.Torso or 0, w.Damage and w.Damage.Head or 0)
+	local torso, head = w.Damage and w.Damage.Torso or 0, w.Damage and w.Damage.Head or 0
+	if w.Pellets and w.Pellets > 1 then
+		return string.format("%d RPM · MAG %d · DMG %d×%d", w.Rpm, w.Magazine, torso, w.Pellets)
+	end
+	return string.format("%d RPM · MAG %d · DMG %d/%d", w.Rpm, w.Magazine, torso, head)
 end
 
 local function renderLoadout()

@@ -431,7 +431,9 @@ local function update(dt)
 	cameraCtl.SetAim(st.AimAlpha, poses.Viewmodel.AimFov)
 	local settings = profileCtl and profileCtl.Settings()
 	local base = settings and settings.Sensitivity or 1
-	local aimFactor = settings and settings.AimSensitivity or def.Aim.SensitivityFactor
+	-- чувствительность в прицеле: своя у каждого оружия (у снайперской — сильно ниже), настройка игрока — множитель
+	-- относительно стандартных 0.72
+	local aimFactor = def.Aim.SensitivityFactor * ((settings and settings.AimSensitivity or 0.72) / 0.72)
 	UserInputService.MouseDeltaSensitivity = base * (1 + (aimFactor - 1) * st.AimAlpha)
 	-- раскачка очередью затухает
 	if now - st.LastShot > 60 / def.Rpm * 1.6 then
