@@ -121,6 +121,16 @@ local function poseShowcase()
 	if not (showcase and a) then
 		return
 	end
+	-- модели оружия сервер загружает при запуске: если к сборке витрины их ещё не было — собрать заново
+	if not showcase.Gun and os.clock() - (showcase.Retry or 0) > 1 then
+		showcase.Retry = os.clock()
+		local assets = ReplicatedStorage:FindFirstChild("Assets")
+		local weapons = assets and assets:FindFirstChild("Weapons")
+		if weapons and weapons:FindFirstChild(showcase.Weapon) then
+			buildShowcase(showcase.Weapon, showcase.Skin)
+			return
+		end
+	end
 	local poses = WeaponPoses[showcase.Weapon]
 	local geo = WeaponModels[showcase.Weapon]
 	local t = os.clock() - t0

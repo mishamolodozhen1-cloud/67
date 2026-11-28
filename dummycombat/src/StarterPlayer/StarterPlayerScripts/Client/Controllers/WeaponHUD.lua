@@ -13,6 +13,7 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Logger = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Logger"))
+local Kit = require(script.Parent.Parent:WaitForChild("Ui"):WaitForChild("Kit"))
 
 local WeaponHUD = { Name = "WeaponHUD" }
 
@@ -164,12 +165,14 @@ local function build()
 		m.Rotation = a
 		marks[i] = { Frame = m, Angle = math.rad(a) }
 	end
-	-- патроны
+	-- патроны — на холсте безопасной области (ниже кнопок Roblox), масштаб под экран
+	local safe = Kit.SafeCanvas(hud, 900, 400, 0.6, 1.25)
+	safe.Parent.Name = "WeaponPanels"
 	local ammo = Instance.new("Frame")
 	ammo.Name = "Ammo"
 	ammo.BackgroundTransparency = 1
 	ammo.Size = UDim2.fromOffset(220, 86)
-	ammo.Parent = root
+	ammo.Parent = safe
 	local count = label(ammo, Enum.Font.GothamBold, 44, WHITE)
 	count.Size = UDim2.new(1, -78, 0, 46)
 	count.Position = UDim2.fromOffset(0, 10)
@@ -199,11 +202,12 @@ end
 local function layoutAmmo()
 	local touch = UserInputService.TouchEnabled and UserInputService:GetLastInputType() == Enum.UserInputType.Touch
 	if touch then
+		-- справа вверху, под кнопками паузы и таблицы
 		ui.Ammo.AnchorPoint = Vector2.new(1, 0)
-		ui.Ammo.Position = UDim2.new(1, -18, 0, 58)
+		ui.Ammo.Position = UDim2.new(1, -14, 0, 44)
 	else
 		ui.Ammo.AnchorPoint = Vector2.new(1, 1)
-		ui.Ammo.Position = UDim2.new(1, -28, 1, -22)
+		ui.Ammo.Position = UDim2.new(1, -20, 1, -16)
 	end
 end
 

@@ -77,17 +77,15 @@ local function build()
 	if not hud then
 		return
 	end
-	local root = Instance.new("Frame")
-	root.Name = "Match"
-	root.BackgroundTransparency = 1
-	root.Size = UDim2.fromScale(1, 1)
-	root.Parent = hud
+	-- всё — на холсте безопасной области (ниже кнопок Roblox), масштаб под экран
+	local root = Kit.SafeCanvas(hud, 900, 400, 0.6, 1.25)
+	root.Parent.Name = "Match"
 	-- верх: время и счёт
 	local top = Instance.new("Frame")
 	top.Name = "Top"
 	top.BackgroundTransparency = 1
 	top.AnchorPoint = Vector2.new(0.5, 0)
-	top.Position = UDim2.new(0.5, 0, 0, 10)
+	top.Position = UDim2.new(0.5, 0, 0, 4)
 	top.Size = UDim2.fromOffset(420, 70)
 	top.Parent = root
 	local timer = Kit.Label(top, "0:00", 26, F.Bold, C.Text, { Size = UDim2.new(1, 0, 0, 30), TextXAlignment = Enum.TextXAlignment.Center })
@@ -101,18 +99,29 @@ local function build()
 	Kit.Outline(count, 0.3)
 	local countSub = Kit.Label(root, "", 18, F.Bold, C.Accent, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.4, 70), Size = UDim2.fromOffset(600, 24), TextXAlignment = Enum.TextXAlignment.Center, Visible = false })
 	Kit.Outline(countSub, 0.4)
-	-- таблица
-	local board = Kit.Frame(root, {
+	-- таблица и итоги — в своём ScreenGui поверх HUD и кнопок телефона (но под меню паузы)
+	local overlayGui = Instance.new("ScreenGui")
+	overlayGui.Name = "MatchOverlay"
+	overlayGui.IgnoreGuiInset = true
+	overlayGui.ResetOnSpawn = false
+	overlayGui.DisplayOrder = 25
+	overlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	overlayGui.Parent = hud.Parent
+	local over = Kit.SafeCanvas(overlayGui, 900, 400, 0.6, 1.25)
+	local board = Kit.Frame(over, {
 		Name = "Scoreboard",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(640, 440),
+		Size = UDim2.new(0, 600, 1, -40),
 		BackgroundColor3 = C.Bg,
 		BackgroundTransparency = 0.12,
 		Visible = false,
 	})
 	Kit.Corner(board, 10)
 	Kit.Padding(board, 16)
+	local boardMax = Instance.new("UISizeConstraint")
+	boardMax.MaxSize = Vector2.new(600, 420)
+	boardMax.Parent = board
 	local boardTitle = Kit.Label(board, "", 18, F.Bold, C.Text, { Size = UDim2.new(1, 0, 0, 24) })
 	local rows = Instance.new("Frame")
 	rows.BackgroundTransparency = 1
@@ -121,17 +130,20 @@ local function build()
 	rows.Parent = board
 	Kit.List(rows, 3)
 	-- итоги
-	local res = Kit.Frame(root, {
+	local res = Kit.Frame(over, {
 		Name = "Results",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(700, 500),
+		Size = UDim2.new(0, 680, 1, -24),
 		BackgroundColor3 = C.Bg,
 		BackgroundTransparency = 0.06,
 		Visible = false,
 	})
 	Kit.Corner(res, 12)
 	Kit.Padding(res, 20)
+	local resMax = Instance.new("UISizeConstraint")
+	resMax.MaxSize = Vector2.new(680, 460)
+	resMax.Parent = res
 	local resTitle = Kit.Label(res, "", 44, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 50), TextXAlignment = Enum.TextXAlignment.Center })
 	local resSub = Kit.Label(res, "", 16, F.Medium, C.Dim, { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.fromOffset(0, 52), TextXAlignment = Enum.TextXAlignment.Center })
 	local resRows = Instance.new("Frame")
@@ -153,24 +165,23 @@ local function build()
 	local toastFrame = Instance.new("Frame")
 	toastFrame.BackgroundTransparency = 1
 	toastFrame.AnchorPoint = Vector2.new(0.5, 1)
-	toastFrame.Position = UDim2.new(0.5, 0, 1, -210)
+	toastFrame.Position = UDim2.new(0.5, 0, 1, -120)
 	toastFrame.Size = UDim2.fromOffset(400, 120)
 	toastFrame.Parent = root
 	local tl = Kit.List(toastFrame, 4, false, Enum.HorizontalAlignment.Center)
 	tl.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	-- кнопка таблицы на телефоне
-	local boardButton = Kit.Button(root, "≡", "Secondary", {
+	local boardButton = Kit.Button(root, "SCORES", "Secondary", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(44, 36),
-		TextSize = 22,
+		Position = UDim2.new(1, -66, 0, 6),
+		Size = UDim2.fromOffset(64, 34),
+		TextSize = 11,
+		BackgroundTransparency = 0.35,
 		Visible = false,
 	})
 	boardButton.Activated:Connect(function()
 		scoreOpen = not scoreOpen
 	end)
-	local scale = Instance.new("UIScale")
-	scale.Parent = root
 	ui = {
 		Root = root,
 		Top = top,
@@ -190,7 +201,6 @@ local function build()
 		ResFoot = resFoot,
 		Toasts = toastFrame,
 		BoardButton = boardButton,
-		Scale = scale,
 	}
 end
 
@@ -225,10 +235,11 @@ local function fillBoard()
 	local myId = me().UserId
 	for i, p in ipairs(list) do
 		local name = (p.IsBot and "" or "") .. p.Name
-		local color = p.Team ~= "" and teamColor(p.Team) or C.Text
-		local bg = p.UserId == myId and C.AccentDark or nil
+		local mine = p.UserId == myId
+		local color = mine and C.Accent or (p.Team ~= "" and teamColor(p.Team) or C.Text)
+		local bg = mine and Color3.fromRGB(58, 52, 38) or nil
 		row(ui.Rows, {
-			{ i .. ".  " .. name, 0, color, W = 0.5 },
+			{ i .. ".  " .. name .. (mine and "  (YOU)" or ""), 0, color, W = 0.5 },
 			{ p.Kills, 0.55 },
 			{ p.Deaths, 0.67 },
 			{ p.Assists, 0.79 },
@@ -347,17 +358,18 @@ local function showResults(r)
 			c:Destroy()
 		end
 	end
-	row(ui.ResRows, { { "PLAYER", 0, C.Dim, W = 0.55 }, { "K", 0.6, C.Dim }, { "D", 0.72, C.Dim }, { "SCORE", 0.84, C.Dim } }, C.Dim, C.Bg, true)
+	row(ui.ResRows, { { "PLAYER", 0, C.Dim, W = 0.55 }, { "K", 0.6, C.Dim }, { "D", 0.72, C.Dim }, { "PTS", 0.84, C.Dim } }, C.Dim, C.Bg, true)
 	for i, p in ipairs(r.Players or {}) do
 		if i > 10 then
 			break
 		end
+		local mine = p.UserId == myId
 		row(ui.ResRows, {
-			{ i .. ".  " .. p.Name, 0, p.Team ~= "" and teamColor(p.Team) or C.Text, W = 0.55 },
+			{ i .. ".  " .. p.Name, 0, mine and C.Accent or (p.Team ~= "" and teamColor(p.Team) or C.Text), W = 0.55 },
 			{ p.Kills, 0.6 },
 			{ p.Deaths, 0.72 },
 			{ p.Score, 0.84 },
-		}, C.Text, p.UserId == myId and C.AccentDark or nil)
+		}, C.Text, mine and Color3.fromRGB(58, 52, 38) or nil)
 	end
 	for _, c in ipairs(ui.RewardsList:GetChildren()) do
 		if c:IsA("TextLabel") then
@@ -416,8 +428,6 @@ local function update()
 	if not ui or not match then
 		return
 	end
-	local vp = workspace.CurrentCamera.ViewportSize
-	ui.Scale.Scale = math.clamp(math.min(vp.X / 1280, vp.Y / 720), 0.62, 1.15)
 	local inMatch = me():GetAttribute("InMatch") == true
 	local phase = match:GetAttribute("Phase")
 	local active = inMatch and (phase == "Starting" or phase == "Running" or phase == "Results")
@@ -532,6 +542,14 @@ function MatchHUD.Start()
 		end, false, Enum.KeyCode.ButtonSelect)
 		RunService.RenderStepped:Connect(update)
 	end)
+end
+
+-- Для проверки (tools/uisim): открыть таблицу, показать итоги
+function MatchHUD.SetBoardOpen(on)
+	scoreOpen = on == true
+end
+MatchHUD.ShowResults = function(r)
+	showResults(r)
 end
 
 return MatchHUD

@@ -23,7 +23,7 @@ return deepFreeze({
 		FFA = {
 			DisplayName = "FREE FOR ALL",
 			Short = "FFA",
-			Description = "Каждый сам за себя. Первый до 25 убийств",
+			Description = "Every dummy for itself · first to 25 kills",
 			ScoreLimit = 25,
 			TimeLimit = 480,
 			Teams = false,
@@ -31,7 +31,7 @@ return deepFreeze({
 		TDM = {
 			DisplayName = "TEAM DEATHMATCH",
 			Short = "TDM",
-			Description = "Две команды. Первая до 50 убийств",
+			Description = "Red vs Blue · first team to 50 kills",
 			ScoreLimit = 50,
 			TimeLimit = 540,
 			Teams = true,
@@ -39,7 +39,7 @@ return deepFreeze({
 		GunGame = {
 			DisplayName = "GUN GAME",
 			Short = "GUN",
-			Description = "Каждое убийство — новое оружие. Победа — убийство с последним",
+			Description = "New weapon every 2 kills · win with the last one",
 			TimeLimit = 540,
 			Teams = false,
 			KillsPerWeapon = 2,
@@ -48,7 +48,7 @@ return deepFreeze({
 		Chaos = {
 			DisplayName = "CHAOS",
 			Short = "CHAOS",
-			Description = "Каждый сам за себя под обстрелом: взрывы раскидывают манекены. До 20 убийств",
+			Description = "Free for all under airstrikes · first to 20 kills",
 			ScoreLimit = 20,
 			TimeLimit = 420,
 			Teams = false,

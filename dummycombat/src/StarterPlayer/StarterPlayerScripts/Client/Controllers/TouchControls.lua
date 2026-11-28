@@ -13,6 +13,8 @@ local UserInputService = game:GetService("UserInputService")
 
 local Logger = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Logger"))
 
+local WeaponConfig = require(game:GetService("ReplicatedStorage"):WaitForChild("Configs"):WaitForChild("WeaponConfig"))
+
 local TouchControls = { Name = "TouchControls" }
 
 local log = Logger.new("Touch")
@@ -142,7 +144,10 @@ local function refresh()
 	local _, humanoid = characters.GetCharacter()
 	local touch = UserInputService.TouchEnabled and UserInputService:GetLastInputType() == Enum.UserInputType.Touch
 	-- в лобби открыто меню: кнопок нет
-	frame.Visible = touch and humanoid ~= nil and humanoid.Health > 0 and Players.LocalPlayer:GetAttribute("InMatch") == true
+	-- и не на итогах матча (стрелять уже нельзя, итоги не закрываем кнопками)
+	local match = game:GetService("ReplicatedStorage"):FindFirstChild("Match")
+	local results = match ~= nil and match:GetAttribute("Phase") == "Results"
+	frame.Visible = touch and humanoid ~= nil and humanoid.Health > 0 and Players.LocalPlayer:GetAttribute("InMatch") == true and not results
 	setActive(buttons.Run, characters.SprintToggled())
 	setActive(buttons.Crouch, characters.WantsCrouch())
 	if weapons and buttons.Fire then
@@ -150,6 +155,9 @@ local function refresh()
 		for _, name in ipairs({ "Fire", "Aim", "Reload", "Mode" }) do
 			buttons[name].Visible = s.Equipped
 		end
+		-- режим огня переключается только у оружия с двумя режимами (AK-47, ПП)
+		local def = WeaponConfig.Weapons[s.Weapon or ""]
+		buttons.Mode.Visible = s.Equipped and def ~= nil and #def.Modes > 1
 		setActive(buttons.Fire, fireTouch ~= nil)
 		setActive(buttons.Aim, s.Aiming)
 		buttons.Mode.Text = s.Mode == "Auto" and "AUTO" or "SEMI"
@@ -226,6 +234,12 @@ local function build()
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
 	UserInputService.LastInputTypeChanged:Connect(refresh)
 	Players.LocalPlayer:GetAttributeChangedSignal("InMatch"):Connect(refresh)
+	task.spawn(function()
+		local match = game:GetService("ReplicatedStorage"):WaitForChild("Match", 30)
+		if match then
+			match:GetAttributeChangedSignal("Phase"):Connect(refresh)
+		end
+	end)
 	characters.StateChanged:Connect(refresh)
 	characters.CharacterChanged:Connect(function(_, humanoid)
 		humanoid.Died:Connect(refresh)

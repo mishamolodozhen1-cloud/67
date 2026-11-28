@@ -67,14 +67,17 @@ local function build()
 		{ edge(vignette, 0, Vector2.new(0, 0), UDim2.fromScale(0, 0), UDim2.new(0.16, 0, 1, 0)) },
 		{ edge(vignette, 180, Vector2.new(1, 0), UDim2.fromScale(1, 0), UDim2.new(0.16, 0, 1, 0)) },
 	}
-	-- здоровье
+	-- панели — на холсте безопасной области (ниже кнопок Roblox), масштаб под экран
+	local safe = Kit.SafeCanvas(hud, 900, 400, 0.6, 1.25)
+	safe.Parent.Name = "CombatPanels"
+	-- здоровье (на ПК — слева внизу; на телефоне — слева вверху: внизу слева стик движения)
 	local health = Instance.new("Frame")
 	health.Name = "Health"
 	health.BackgroundTransparency = 1
 	health.AnchorPoint = Vector2.new(0, 1)
-	health.Position = UDim2.new(0, 28, 1, -24)
+	health.Position = UDim2.new(0, 20, 1, -16)
 	health.Size = UDim2.fromOffset(240, 60)
-	health.Parent = root
+	health.Parent = safe
 	local hpText = Kit.Label(health, "100", 40, F.Bold, C.Text, { Size = UDim2.fromOffset(90, 44), Position = UDim2.fromOffset(0, 0) })
 	Kit.Outline(hpText)
 	local hpCaption = Kit.Label(health, "HP", 14, F.Medium, C.Dim, { Size = UDim2.fromOffset(40, 20), Position = UDim2.fromOffset(84, 18) })
@@ -95,9 +98,9 @@ local function build()
 	feedFrame.Name = "KillFeed"
 	feedFrame.BackgroundTransparency = 1
 	feedFrame.AnchorPoint = Vector2.new(1, 0)
-	feedFrame.Position = UDim2.new(1, -20, 0, 70)
-	feedFrame.Size = UDim2.fromOffset(420, 200)
-	feedFrame.Parent = root
+	feedFrame.Position = UDim2.new(1, -16, 0, 10)
+	feedFrame.Size = UDim2.fromOffset(400, 170)
+	feedFrame.Parent = safe
 	local list = Kit.List(feedFrame, 4, false, Enum.HorizontalAlignment.Right)
 	list.VerticalAlignment = Enum.VerticalAlignment.Top
 	-- свои убийства
@@ -105,19 +108,19 @@ local function build()
 	banner.Name = "Eliminated"
 	banner.BackgroundTransparency = 1
 	banner.AnchorPoint = Vector2.new(0.5, 1)
-	banner.Position = UDim2.new(0.5, 0, 1, -150)
+	banner.Position = UDim2.new(0.5, 0, 1, -110)
 	banner.Size = UDim2.fromOffset(420, 64)
 	banner.Visible = false
-	banner.Parent = root
+	banner.Parent = safe
 	local bTitle = Kit.Label(banner, "ELIMINATED", 15, F.Bold, C.Danger, { Size = UDim2.new(1, 0, 0, 20), TextXAlignment = Enum.TextXAlignment.Center })
 	Kit.Outline(bTitle)
 	local bName = Kit.Label(banner, "", 26, F.Bold, C.Text, { Size = UDim2.new(1, 0, 0, 32), Position = UDim2.fromOffset(0, 22), TextXAlignment = Enum.TextXAlignment.Center })
 	Kit.Outline(bName)
 	-- своя гибель
-	local deathFrame = Kit.Frame(root, {
+	local deathFrame = Kit.Frame(safe, {
 		Name = "Death",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -70),
+		Position = UDim2.new(0.5, 0, 1, -40),
 		Size = UDim2.fromOffset(460, 92),
 		BackgroundColor3 = C.Bg,
 		BackgroundTransparency = 0.25,
@@ -183,10 +186,13 @@ local function feedRow(info)
 	local row = Kit.Frame(ui.Feed, {
 		Size = UDim2.fromOffset(0, 26),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = mine and C.AccentDark or C.Bg,
-		BackgroundTransparency = mine and 0.25 or 0.45,
+		BackgroundColor3 = C.Bg,
+		BackgroundTransparency = mine and 0.2 or 0.45,
 	})
 	Kit.Corner(row, 4)
+	if mine then
+		Kit.Stroke(row, C.Accent, 1, 0.2)
+	end
 	local pad = Instance.new("UIPadding")
 	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10)
 	pad.Parent = row
@@ -346,12 +352,29 @@ function CombatHUD.Start()
 			hurt = 0
 		end)
 		RunService.RenderStepped:Connect(update)
-		UserInputService.LastInputTypeChanged:Connect(function()
-			local touch = UserInputService:GetLastInputType() == Enum.UserInputType.Touch
-			ui.Health.Position = touch and UDim2.new(0, 24, 0, 58) or UDim2.new(0, 28, 1, -24)
+		-- телефон: здоровье слева вверху, лента убийств — под ним (справа вверху — патроны и кнопки)
+		local function placeForInput()
+			local touch = UserInputService.TouchEnabled and UserInputService:GetLastInputType() == Enum.UserInputType.Touch
+			ui.Health.Position = touch and UDim2.new(0, 16, 0, 6) or UDim2.new(0, 20, 1, -16)
 			ui.Health.AnchorPoint = touch and Vector2.new(0, 0) or Vector2.new(0, 1)
-		end)
+			ui.Feed.AnchorPoint = touch and Vector2.new(0, 0) or Vector2.new(1, 0)
+			ui.Feed.Position = touch and UDim2.new(0, 16, 0, 74) or UDim2.new(1, -16, 0, 10)
+			local layout = ui.Feed:FindFirstChildOfClass("UIListLayout")
+			if layout then
+				layout.HorizontalAlignment = touch and Enum.HorizontalAlignment.Left or Enum.HorizontalAlignment.Right
+			end
+		end
+		placeForInput()
+		UserInputService.LastInputTypeChanged:Connect(placeForInput)
 	end)
+end
+
+-- Для проверки (tools/uisim): строка ленты убийств, своя гибель
+CombatHUD.PushFeed = function(info)
+	feedRow(info)
+end
+CombatHUD.ShowEliminated = function(info)
+	onEliminated(info)
 end
 
 return CombatHUD

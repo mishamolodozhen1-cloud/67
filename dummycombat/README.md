@@ -344,6 +344,22 @@ Tab — таблица, M — меню паузы. Геймпад: RT/LT, X, D-p
 Проверка: `python3 tools/cloud.py test 5` — стволы, дробь, затвор, все карты и их точки появления, режимы с ботами,
 конфиг магазина. Звуки: Soundza (soundza.com); музыка лобби создана ИИ (Soundza, генерация).
 
+## Проверка интерфейса без Roblox
+
+`tools/uisim` запускает настоящий клиентский код интерфейса (меню, HUD, кнопки телефона) на моках Roblox
+(Python + Lua через `lupa`), раскладывает ScreenGui по правилам Roblox (UDim2, UIScale, списки, отступы,
+безопасная зона под кнопками Roblox) и рисует PNG в любом разрешении:
+
+```
+pip install lupa
+python3 tools/uisim/uisim.py tools/uisim/scenarios/lobby.lua lobby.png 844 390     # телефон
+UISIM_TOUCH=0 python3 tools/uisim/uisim.py tools/uisim/scenarios/match.lua hud.png 1920 1080
+UISIM_SET_SHOW=results python3 tools/uisim/uisim.py tools/uisim/scenarios/match.lua results.png 844 390
+```
+
+Сценарии: `lobby` (меню; `UISIM_SET_TAB=Shop` и т. д.), `match` (HUD; `UISIM_SET_SHOW=board|results|dead`), `pause`.
+Шрифт — Inter вместо Gotham, картинки не рисуются: это проверка раскладки, а не точная копия экрана.
+
 ## Плейс
 
 Игра опубликована в плейсе 126350560275847 (вселенная 7168539009) — вместо NIGHT SHIFT, по решению владельца;

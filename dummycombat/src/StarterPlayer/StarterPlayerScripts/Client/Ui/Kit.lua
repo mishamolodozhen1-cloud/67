@@ -208,6 +208,74 @@ function Kit.Bar(parent, color, props)
 	end, fill
 end
 
+-- Холст интерфейса в «единицах дизайна»: рамка на всю область ScreenGui с UIScale. Масштаб s подбирается так,
+-- чтобы в экран помещались designW × designH единиц (s = min(высота/designH, ширина/designW) в пределах
+-- minS..maxS), а размер рамки — область / s: после UIScale рамка ровно закрывает экран (UIScale уменьшает и саму
+-- рамку, поэтому без деления на s она заняла бы только часть экрана). Возвращает рамку и функцию «текущий масштаб».
+function Kit.Canvas(gui, designW, designH, minS, maxS)
+	local canvas = Instance.new("Frame")
+	canvas.Name = "Canvas"
+	canvas.BackgroundTransparency = 1
+	canvas.BorderSizePixel = 0
+	local sc = Instance.new("UIScale")
+	sc.Parent = canvas
+	local function fit()
+		local a = gui.AbsoluteSize
+		if not a or a.X < 2 or a.Y < 2 then
+			a = workspace.CurrentCamera.ViewportSize
+		end
+		local s = math.clamp(math.min(a.Y / designH, a.X / designW), minS or 0.6, maxS or 1.5)
+		sc.Scale = s
+		canvas.Size = UDim2.fromScale(1 / s, 1 / s)
+	end
+	fit()
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	canvas.Parent = gui
+	return canvas, function()
+		return sc.Scale
+	end
+end
+
+-- Холст в безопасной области ScreenGui, который сам занимает весь экран (IgnoreGuiInset = true: там же прицел
+-- и метки по центру экрана): рамка ниже полосы кнопок Roblox, внутри — Kit.Canvas по её размеру
+function Kit.SafeCanvas(gui, designW, designH, minS, maxS)
+	local GuiService = game:GetService("GuiService")
+	local holder = Instance.new("Frame")
+	holder.Name = "Safe"
+	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	local canvas = Instance.new("Frame")
+	canvas.Name = "Canvas"
+	canvas.BackgroundTransparency = 1
+	canvas.BorderSizePixel = 0
+	local sc = Instance.new("UIScale")
+	sc.Parent = canvas
+	local function fit()
+		local vp = workspace.CurrentCamera.ViewportSize
+		local top = GuiService:GetGuiInset().Y
+		local own = gui.IgnoreGuiInset and top or 0
+		holder.Position = UDim2.fromOffset(0, own)
+		holder.Size = UDim2.new(1, 0, 1, -own)
+		local s = math.clamp(math.min((vp.Y - top) / designH, vp.X / designW), minS or 0.6, maxS or 1.5)
+		sc.Scale = s
+		canvas.Size = UDim2.fromScale(1 / s, 1 / s)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+	canvas.Parent = holder
+	holder.Parent = gui
+	return canvas, function()
+		return sc.Scale
+	end
+end
+
+-- ScreenGui: не залезать под кнопки Roblox и вырез экрана
+function Kit.SafeGui(gui)
+	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+	gui.IgnoreGuiInset = false
+	return gui
+end
+
 function Kit.Tween(obj, time, props, style)
 	local tw = TweenService:Create(obj, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props)
 	tw:Play()

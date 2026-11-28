@@ -18,9 +18,9 @@ local LobbySystem = { Name = "LobbySystem" }
 LobbySystem.Center = Vector3.new(2400, 0, 0)
 LobbySystem.Lighting = {
 	ClockTime = 14.5,
-	Brightness = 2,
-	Ambient = Color3.fromRGB(58, 58, 64),
-	OutdoorAmbient = Color3.fromRGB(110, 110, 116),
+	Brightness = 1.6,
+	Ambient = Color3.fromRGB(96, 96, 102),
+	OutdoorAmbient = Color3.fromRGB(118, 118, 124),
 	EnvironmentDiffuseScale = 0.7,
 	EnvironmentSpecularScale = 0.6,
 	Atmosphere = { Density = 0.25, Offset = 0, Haze = 1, Glare = 0, Color = Color3.fromRGB(196, 196, 200), Decay = Color3.fromRGB(100, 100, 106) },
@@ -68,53 +68,88 @@ function LobbySystem.Build()
 		return CFrame.new(L + Vector3.new(x, y, z))
 	end
 	local W, D, H = 140, 100, 34
-	-- пол
-	b:Box(Vector3.new(W, 2, D), at(0, -1, 0), M.SmoothPlastic, Color3.fromRGB(70, 71, 74), { Reflectance = 0.06 })
+	-- пол: шлифованный бетон, швы, жёлтая линия у места появления
+	b:Box(Vector3.new(W, 2, D), at(0, -1, 0), M.Concrete, Color3.fromRGB(128, 128, 126), { Reflectance = 0.02 })
 	for x = -60, 60, 20 do
-		b:Box(Vector3.new(0.15, 0.04, D - 4), at(x, 0.02, 0), M.SmoothPlastic, Color3.fromRGB(52, 53, 56), { CastShadow = false })
+		b:Box(Vector3.new(0.15, 0.04, D - 4), at(x, 0.02, 0), M.SmoothPlastic, Color3.fromRGB(100, 100, 98), { CastShadow = false })
+	end
+	for z = -40, 40, 20 do
+		b:Box(Vector3.new(W - 4, 0.04, 0.15), at(0, 0.02, z), M.SmoothPlastic, Color3.fromRGB(100, 100, 98), { CastShadow = false })
 	end
 	b:Box(Vector3.new(W - 8, 0.05, 0.6), at(0, 0.03, 30), M.SmoothPlastic, C.Yellow, { CastShadow = false })
-	-- стены из профлиста
-	local wallColor = Color3.fromRGB(88, 92, 96)
-	b:Box(Vector3.new(W, H, 1), at(0, H / 2, -D / 2), M.CorrodedMetal, wallColor)
-	b:Box(Vector3.new(W, H, 1), at(0, H / 2, D / 2), M.CorrodedMetal, wallColor)
-	b:Box(Vector3.new(1, H, D), at(-W / 2, H / 2, 0), M.CorrodedMetal, wallColor)
-	b:Box(Vector3.new(1, H, D), at(W / 2, H / 2, 0), M.CorrodedMetal, wallColor)
-	for x = -W / 2 + 4, W / 2 - 4, 4 do
-		b:Box(Vector3.new(0.5, H - 2, 0.3), at(x, H / 2, D / 2 - 0.6), M.Metal, wallColor, { CastShadow = false })
+	-- стены: светлый профлист (рёбра), снизу — бетонный цоколь
+	local wallColor = Color3.fromRGB(150, 153, 156)
+	local plinth = Color3.fromRGB(96, 96, 96)
+	for _, w in ipairs({
+		{ Vector3.new(W, H, 1), at(0, H / 2, -D / 2) },
+		{ Vector3.new(W, H, 1), at(0, H / 2, D / 2) },
+		{ Vector3.new(1, H, D), at(-W / 2, H / 2, 0) },
+		{ Vector3.new(1, H, D), at(W / 2, H / 2, 0) },
+	}) do
+		b:Box(w[1], w[2], M.Metal, wallColor)
+	end
+	b:Box(Vector3.new(W - 1, 3, 1.4), at(0, 1.5, D / 2 - 0.6), M.Concrete, plinth)
+	b:Box(Vector3.new(1.4, 3, D - 1), at(-W / 2 + 0.6, 1.5, 0), M.Concrete, plinth)
+	b:Box(Vector3.new(1.4, 3, D - 1), at(W / 2 - 0.6, 1.5, 0), M.Concrete, plinth)
+	for x = -W / 2 + 4, W / 2 - 4, 3 do
+		b:Box(Vector3.new(0.6, H - 4, 0.35), at(x, H / 2 + 1, D / 2 - 0.65), M.Metal, Color3.fromRGB(136, 139, 142), { CastShadow = false })
+	end
+	for z = -D / 2 + 4, D / 2 - 4, 3 do
+		b:Box(Vector3.new(0.35, H - 4, 0.6), at(-W / 2 + 0.65, H / 2 + 1, z), M.Metal, Color3.fromRGB(136, 139, 142), { CastShadow = false })
+		b:Box(Vector3.new(0.35, H - 4, 0.6), at(W / 2 - 0.65, H / 2 + 1, z), M.Metal, Color3.fromRGB(136, 139, 142), { CastShadow = false })
 	end
 	-- крыша, фермы, световые полосы
-	b:Box(Vector3.new(W + 2, 1, D + 2), at(0, H + 0.5, 0), M.Metal, Color3.fromRGB(50, 52, 56))
+	b:Box(Vector3.new(W + 2, 1, D + 2), at(0, H + 0.5, 0), M.Metal, Color3.fromRGB(70, 72, 76))
 	for x = -60, 60, 15 do
-		b:Box(Vector3.new(1, 2.4, D - 2), at(x, H - 1.2, 0), M.Metal, Color3.fromRGB(42, 44, 48), { CastShadow = false })
-		b:Box(Vector3.new(4, 0.2, D - 10), at(x + 7.5, H - 0.2, 0), M.SmoothPlastic, Color3.fromRGB(248, 246, 238), { CastShadow = false, Transparency = 0.05 })
-		local stripe = b:Box(Vector3.new(4, 0.2, 2), at(x + 7.5, H - 0.4, 0), M.SmoothPlastic, Color3.fromRGB(248, 246, 238), { Transparency = 1, CastShadow = false })
+		b:Box(Vector3.new(1, 2.4, D - 2), at(x, H - 1.2, 0), M.Metal, Color3.fromRGB(58, 60, 64), { CastShadow = false })
+		b:Box(Vector3.new(3, 0.2, D - 10), at(x + 7.5, H - 0.2, 0), M.SmoothPlastic, Color3.fromRGB(248, 246, 238), { CastShadow = false, Transparency = 0.05 })
+		local stripe = b:Box(Vector3.new(3, 0.2, 2), at(x + 7.5, H - 0.4, 0), M.SmoothPlastic, Color3.fromRGB(248, 246, 238), { Transparency = 1, CastShadow = false })
 		local light = Instance.new("SurfaceLight")
 		light.Face = Enum.NormalId.Bottom
-		light.Range = 40
+		light.Range = 44
 		light.Angle = 120
-		light.Brightness = 1.2
+		light.Brightness = 1.1
 		light.Color = Color3.fromRGB(255, 248, 236)
 		light.Parent = stripe
 	end
-	-- подиум и стена с названием (север)
-	b:Cylinder(1.2, 16, at(0, 0.6, -24), M.SmoothPlastic, Color3.fromRGB(34, 35, 38), { Reflectance = 0.08 })
-	b:Cylinder(0.2, 16.6, at(0, 1.22, -24), M.SmoothPlastic, C.Yellow, { CastShadow = false })
-	local back = b:Box(Vector3.new(70, 22, 1.5), at(0, 13, -48.5), M.SmoothPlastic, Color3.fromRGB(26, 27, 30))
-	signText(back, Enum.NormalId.Back, "DUMMY COMBAT", 230, Color3.fromRGB(232, 228, 216))
-	local stripe = b:Box(Vector3.new(64, 0.6, 0.2), at(0, 7.4, -47.6), M.SmoothPlastic, C.Yellow, { CastShadow = false })
-	stripe.Name = "SignStripe"
-	for _, x in ipairs({ -16, 16 }) do
-		local lamp = b:Box(Vector3.new(1.4, 1.4, 2), at(x, 22, -14) * CFrame.Angles(math.rad(-50), 0, 0), M.Metal, Color3.fromRGB(30, 30, 32))
+	-- испытательный бокс (север): подиум, тёмная задняя стена с вертикальными светильниками и полосой
+	local podiumTop = 1.2
+	b:Cylinder(1.0, 16.4, at(0, 0.5, -24), M.Metal, C.Yellow, { CastShadow = false })
+	b:Cylinder(podiumTop, 16, at(0, podiumTop / 2, -24), M.Concrete, Color3.fromRGB(58, 60, 64))
+	b:Cylinder(0.05, 12, at(0, podiumTop + 0.02, -24), M.SmoothPlastic, Color3.fromRGB(46, 48, 52), { CastShadow = false })
+	b:Box(Vector3.new(70, 22, 1.5), at(0, 11, -48.6), M.SmoothPlastic, Color3.fromRGB(34, 35, 38))
+	for _, x in ipairs({ -30, -18, 18, 30 }) do
+		local strip = b:Box(Vector3.new(1.2, 16, 0.3), at(x, 11, -47.7), M.SmoothPlastic, Color3.fromRGB(236, 238, 240), { CastShadow = false })
+		local glow = Instance.new("SurfaceLight")
+		glow.Face = Enum.NormalId.Back
+		glow.Range = 14
+		glow.Angle = 90
+		glow.Brightness = 0.8
+		glow.Color = Color3.fromRGB(240, 244, 255)
+		glow.Parent = strip
+	end
+	for i = 0, 15 do
+		b:Box(Vector3.new(4.3, 1.2, 0.2), at(-32.25 + i * 4.3, 2.2, -47.75), M.SmoothPlastic, i % 2 == 0 and C.Yellow or Color3.fromRGB(28, 28, 30), { CastShadow = false })
+	end
+	local plate = b:Box(Vector3.new(16, 3, 0.2), at(-22, 19.4, -47.75), M.SmoothPlastic, Color3.fromRGB(34, 35, 38), { CastShadow = false })
+	signText(plate, Enum.NormalId.Back, "TEST BAY 01", 150, Color3.fromRGB(190, 190, 184))
+	-- свет на подиум: сверху, ключевой спереди-слева, контровой сзади
+	local podium = L + Vector3.new(0, podiumTop + 3, -24)
+	local function spotAt(pos, brightness, angle, color, shadows)
+		local lamp = b:Box(Vector3.new(1.2, 1.2, 1.8), CFrame.lookAt(L + pos, podium), M.Metal, Color3.fromRGB(30, 30, 32))
 		local spot = Instance.new("SpotLight")
 		spot.Face = Enum.NormalId.Front
-		spot.Range = 40
-		spot.Angle = 40
-		spot.Brightness = 4
-		spot.Color = Color3.fromRGB(255, 240, 214)
-		spot.Shadows = true
+		spot.Range = 48
+		spot.Angle = angle
+		spot.Brightness = brightness
+		spot.Color = color
+		spot.Shadows = shadows
 		spot.Parent = lamp
 	end
+	spotAt(Vector3.new(0, H - 3, -22), 2.2, 45, Color3.fromRGB(255, 246, 232), true)
+	spotAt(Vector3.new(-14, 16, -6), 3, 35, Color3.fromRGB(255, 240, 216), true)
+	spotAt(Vector3.new(16, 14, -10), 1.4, 35, Color3.fromRGB(220, 232, 255), false)
+	spotAt(Vector3.new(6, 18, -44), 2.4, 30, Color3.fromRGB(255, 236, 200), false)
 	local showcase = Instance.new("Part")
 	showcase.Name = "Showcase"
 	showcase.Anchored = true
@@ -122,7 +157,7 @@ function LobbySystem.Build()
 	showcase.CanQuery = false
 	showcase.Transparency = 1
 	showcase.Size = Vector3.new(1, 1, 1)
-	showcase.CFrame = at(0, 1.2, -24) * CFrame.Angles(0, math.rad(200), 0)
+	showcase.CFrame = at(0, podiumTop, -24) * CFrame.Angles(0, math.rad(200), 0)
 	showcase.Parent = root
 	-- стенд с оружием (запад)
 	b:Box(Vector3.new(1, 14, 40), at(-W / 2 + 1.5, 9, -6), M.SmoothPlastic, Color3.fromRGB(30, 31, 34))
