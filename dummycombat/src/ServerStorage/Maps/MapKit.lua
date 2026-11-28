@@ -5,7 +5,8 @@
 -- b:Group("Имя") / b:EndGroup()     — вложенная модель для порядка
 -- b:Box(размер, CFrame, материал, цвет, свойства)  — деталь
 -- готовые вещи: Container, Crate, Barrel, Pallet, Barrier, Stairs, Catwalk, Rail, Lamp, Pipe, Tank, Truck,
--- Building (коробка со стенами, проёмами, крышей), Fence; Spawn — точка появления (на полу, лицом по look).
+-- Building (коробка со стенами, проёмами, крышей), Wall; Ramp, Glass, Tree, Car, Sandbags, Bench, Planter,
+-- Dumpster, Slab, Column; Spawn — точка появления (на полу, лицом по look).
 -- Координаты: Y вверх, пол карты — y = 0 (Floor), 1 stud ≈ 0,3 м (манекен — 5,6).
 local MapKit = {}
 MapKit.__index = MapKit
@@ -424,6 +425,122 @@ function MapKit:Bounds(center, size, h)
 	self:Invisible(Vector3.new(2, h, size.Z + 4), CFrame.new(center + Vector3.new(hx + 1, h / 2, 0)))
 	self:Invisible(Vector3.new(size.X + 4, 2, size.Z + 4), CFrame.new(center + Vector3.new(0, h + 1, 0)))
 	self:EndGroup()
+end
+
+-- Пандус от a (низ, центр нижнего края на полу a.Y) до b (верх, центр верхнего края на высоте b.Y), шириной width
+function MapKit:Ramp(a, b, width, material, color)
+	local d = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	local h = b.Y - a.Y
+	local mid = Vector3.new((a.X + b.X) / 2, a.Y + h / 2, (a.Z + b.Z) / 2)
+	-- у WedgePart высокая сторона — локальная +Z: разворачиваем её к b
+	return self:Wedge(Vector3.new(width, h, d.Magnitude), CFrame.lookAt(mid, mid - d), material, color)
+end
+
+-- Стекло окна: прозрачное, пули пролетают (CanQuery = false), персонажи упираются
+function MapKit:Glass(size, cf)
+	return self:Box(size, cf, M.Glass, Color3.fromRGB(150, 172, 184), { Transparency = 0.62, CanQuery = false, CastShadow = false, Reflectance = 0.08 })
+end
+
+-- Дерево: ствол и крона из нескольких шаров листвы, pos — на земле, h — высота
+function MapKit:Tree(pos, h, seed)
+	local rng = Random.new(seed or 1)
+	self:Group("Tree")
+	local trunkH = h * 0.55
+	self:Cylinder(trunkH, 0.9, CFrame.new(pos + Vector3.new(0, trunkH / 2, 0)), M.Wood, C.WoodDark)
+	local leaf = Color3.fromRGB(70 + rng:NextInteger(-8, 8), 94 + rng:NextInteger(-10, 10), 52)
+	for i = 1, 5 do
+		local r = h * rng:NextNumber(0.2, 0.28)
+		local off = Vector3.new(rng:NextNumber(-1, 1) * h * 0.16, trunkH + rng:NextNumber(0.05, 0.35) * h, rng:NextNumber(-1, 1) * h * 0.16)
+		local ball = self:Box(Vector3.new(r * 2, r * 1.7, r * 2), CFrame.new(pos + off), M.Grass, leaf, { CanQuery = i > 2 })
+		ball.Shape = Enum.PartType.Ball
+	end
+	self:EndGroup()
+end
+
+-- Легковая машина: cf — центр на земле, длина вдоль −Z
+function MapKit:Car(cf, color)
+	self:Group("Car")
+	self:Box(Vector3.new(6.2, 2.2, 14), cf * CFrame.new(0, 2.0, 0), M.SmoothPlastic, color, { Reflectance = 0.05 })
+	self:Box(Vector3.new(5.6, 2.0, 7), cf * CFrame.new(0, 4.0, 0.8), M.SmoothPlastic, color)
+	self:Glass(Vector3.new(5.7, 1.6, 0.2), cf * CFrame.new(0, 4.0, -2.75) * CFrame.Angles(-0.35, 0, 0))
+	self:Glass(Vector3.new(5.7, 1.5, 0.2), cf * CFrame.new(0, 4.0, 4.35) * CFrame.Angles(0.3, 0, 0))
+	self:Glass(Vector3.new(5.7, 1.3, 5.8), cf * CFrame.new(0, 4.1, 0.8))
+	self:Box(Vector3.new(6.3, 0.6, 1.0), cf * CFrame.new(0, 1.3, -7.1), M.SmoothPlastic, C.Black)
+	self:Box(Vector3.new(6.3, 0.6, 1.0), cf * CFrame.new(0, 1.3, 7.1), M.SmoothPlastic, C.Black)
+	for _, w in ipairs({ { -2.9, -4.5 }, { 2.9, -4.5 }, { -2.9, 4.5 }, { 2.9, 4.5 } }) do
+		local wheel = self:Box(Vector3.new(0.9, 2.4, 2.4), cf * CFrame.new(w[1], 1.2, w[2]), M.SmoothPlastic, C.Black)
+		wheel.Shape = Enum.PartType.Cylinder
+	end
+	self:Box(Vector3.new(1.2, 0.4, 0.2), cf * CFrame.new(-2.2, 2.4, -7.05), M.Glass, Color3.fromRGB(236, 232, 214), { CastShadow = false })
+	self:Box(Vector3.new(1.2, 0.4, 0.2), cf * CFrame.new(2.2, 2.4, -7.05), M.Glass, Color3.fromRGB(236, 232, 214), { CastShadow = false })
+	self:Box(Vector3.new(1.0, 0.35, 0.2), cf * CFrame.new(-2.3, 2.4, 7.05), M.SmoothPlastic, Color3.fromRGB(120, 24, 20), { CastShadow = false })
+	self:Box(Vector3.new(1.0, 0.35, 0.2), cf * CFrame.new(2.3, 2.4, 7.05), M.SmoothPlastic, Color3.fromRGB(120, 24, 20), { CastShadow = false })
+	self:EndGroup()
+end
+
+-- Стенка из мешков с песком от a до b, рядов rows (ряд — 0.9 высотой), мешки вразбежку
+function MapKit:Sandbags(a, b, rows)
+	local d = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	local len = d.Magnitude
+	local cf = CFrame.lookAt(Vector3.new(a.X, a.Y, a.Z), Vector3.new(b.X, a.Y, b.Z))
+	local color = Color3.fromRGB(150, 136, 104)
+	self:Group("Sandbags")
+	for r = 0, (rows or 3) - 1 do
+		local n = math.max(1, math.floor(len / 2.1))
+		local shift = (r % 2) * 1.05
+		for i = 0, n - 1 do
+			local z = -(shift + i * 2.1 + 1.05)
+			if -z <= len then
+				local bag = self:Box(Vector3.new(1.6, 0.95, 2.15), cf * CFrame.new(0, 0.48 + r * 0.9, z) * CFrame.Angles(0, (i % 3 - 1) * 0.04, 0), M.Fabric, color)
+				bag.Shape = Enum.PartType.Block
+			end
+		end
+	end
+	self:EndGroup()
+end
+
+-- Скамейка: cf — центр на земле, длина вдоль X
+function MapKit:Bench(cf)
+	self:Group("Bench")
+	self:Box(Vector3.new(6, 0.3, 1.6), cf * CFrame.new(0, 1.6, 0), M.Wood, C.Wood)
+	self:Box(Vector3.new(6, 1.2, 0.25), cf * CFrame.new(0, 2.5, 0.75) * CFrame.Angles(-0.2, 0, 0), M.Wood, C.Wood)
+	for _, x in ipairs({ -2.5, 2.5 }) do
+		self:Box(Vector3.new(0.3, 1.6, 1.4), cf * CFrame.new(x, 0.8, 0), M.Metal, C.SteelDark)
+	end
+	self:EndGroup()
+end
+
+-- Клумба из бетона с землёй и кустом
+function MapKit:Planter(cf, size)
+	self:Group("Planter")
+	self:Box(Vector3.new(size.X, 2.2, size.Z), cf * CFrame.new(0, 1.1, 0), M.Concrete, C.Concrete)
+	self:Box(Vector3.new(size.X - 0.8, 0.2, size.Z - 0.8), cf * CFrame.new(0, 2.25, 0), M.Ground, Color3.fromRGB(84, 64, 44))
+	local bush = self:Box(Vector3.new(size.X - 1.2, 2.4, size.Z - 1.2), cf * CFrame.new(0, 3.2, 0), M.Grass, Color3.fromRGB(74, 100, 56))
+	bush.Shape = Enum.PartType.Ball
+	self:EndGroup()
+end
+
+-- Мусорный контейнер: cf — центр на земле, длина вдоль X
+function MapKit:Dumpster(cf, color)
+	self:Group("Dumpster")
+	self:Box(Vector3.new(7, 4.4, 4), cf * CFrame.new(0, 2.6, 0), M.Metal, color or C.ContainerGreen)
+	self:Box(Vector3.new(7.2, 0.3, 4.3), cf * CFrame.new(0, 4.95, 0.1) * CFrame.Angles(0.08, 0, 0), M.Plastic, C.Black)
+	for _, x in ipairs({ -3, 3 }) do
+		for _, z in ipairs({ -1.5, 1.5 }) do
+			self:Box(Vector3.new(0.5, 0.5, 0.5), cf * CFrame.new(x, 0.25, z), M.Metal, C.Black)
+		end
+	end
+	self:EndGroup()
+end
+
+-- Плита перекрытия: верх — на высоте top, центр (x, z), размер size (X, толщина, Z)
+function MapKit:Slab(center, size, top, material, color)
+	return self:Box(size, CFrame.new(center.X, top - size.Y / 2, center.Z), material or M.Concrete, color or C.Concrete)
+end
+
+-- Колонна от y0 до y1 сечением w
+function MapKit:Column(pos, y0, y1, w, material, color)
+	return self:Box(Vector3.new(w, y1 - y0, w), CFrame.new(pos.X, (y0 + y1) / 2, pos.Z), material or M.Concrete, color or C.Concrete)
 end
 
 function MapKit:Result(extra)

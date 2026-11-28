@@ -417,6 +417,13 @@ local function think(b, dt)
 	end
 	animate(b, dt)
 	local t = now()
+	-- оружие сменилось (GUN GAME: новый уровень) — свежий магазин нового оружия
+	local held = b.Model:GetAttribute("Weapon")
+	if held and held ~= "" and held ~= b.Weapon and WeaponConfig.Weapons[held] then
+		b.Weapon, b.Def = held, WeaponConfig.Weapons[held]
+		b.Ammo, b.ReloadEnd = b.Def.Magazine, nil
+		b.Model:SetAttribute("Reloading", 0)
+	end
 	if b.ReloadEnd and t >= b.ReloadEnd then
 		b.ReloadEnd = nil
 		b.Ammo = b.Def.Magazine

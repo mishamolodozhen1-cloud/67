@@ -187,7 +187,8 @@ local function update(dt)
 		pose = pose:Lerp(P.Sprint, ease(input.Sprint))
 	end
 	local rl = nil
-	if input.Reload then
+	-- при смене оружия модель пересобирается не сразу: ключи чужого оружия не применяем
+	if input.Reload and vm.Poses.Reloads[input.Reload.Kind] then
 		rl = WeaponAnim.Reload(vm.Poses, input.Reload.Kind, input.Reload.T)
 		pose = pose:Lerp(P.Reload, rl.Gun)
 	end

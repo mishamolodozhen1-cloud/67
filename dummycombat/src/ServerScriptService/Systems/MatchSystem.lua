@@ -248,15 +248,15 @@ end
 
 -- Можно ли наносить урон: только в бою, только участникам матча, не своим в командном режиме
 local function canDamage(attacker, victimModel)
+	local v = MatchSystem.ParticipantOfModel(victimModel)
+	if not v then
+		-- манекены стенда в Studio — можно всегда (и в лобби)
+		return victimModel.Parent ~= nil and victimModel.Parent.Name == "DevDummies"
+	end
 	if state.Phase ~= "Running" then
 		return false
 	end
 	local a = participants[attacker]
-	local v = MatchSystem.ParticipantOfModel(victimModel)
-	if not v then
-		-- манекены стенда в Studio — можно
-		return victimModel.Parent ~= nil and victimModel.Parent.Name == "DevDummies"
-	end
 	if not (a and a.InMatch and v.InMatch) then
 		return false
 	end
@@ -689,7 +689,7 @@ local function chaosStrike()
 	end
 end
 
--- Взрыв: урон со спадом к краю, живых роняет, тела отбрасывает
+-- Взрыв: урон со спадом к краю (линейно), живых роняет, тела отбрасывает
 function MatchSystem.Explode(center, radius, damage, attacker)
 	local victims = {}
 	for _, p in pairs(participants) do
@@ -703,8 +703,9 @@ function MatchSystem.Explode(center, radius, damage, attacker)
 		end
 	end
 	for _, v in ipairs(victims) do
+		-- спад к краю линейный: у самых ног — смертельно, на краю радиуса — царапина
 		local k = 1 - v.D / radius
-		combat.Damage(v.Model, damage * k * k, { Attacker = attacker, Cause = "Explosion", Origin = center, Position = center })
+		combat.Damage(v.Model, damage * k, { Attacker = attacker, Cause = "Explosion", Origin = center, Position = center })
 	end
 	if ragdoll then
 		ragdoll.Explode(center, radius, 70, { LethalRadius = 0 })
