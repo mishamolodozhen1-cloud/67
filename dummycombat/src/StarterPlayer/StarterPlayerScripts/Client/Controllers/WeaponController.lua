@@ -27,6 +27,7 @@ local Configs = ReplicatedStorage:WaitForChild("Configs")
 local Logger = require(Shared:WaitForChild("Logger"))
 local Signal = require(Shared:WaitForChild("Signal"))
 local WeaponAnim = require(Shared:WaitForChild("WeaponAnim"))
+local Pellets = require(Shared:WaitForChild("Pellets"))
 local GameConfig = require(Configs:WaitForChild("GameConfig"))
 local WeaponConfig = require(Configs:WaitForChild("WeaponConfig"))
 local WeaponPoses = require(Configs:WaitForChild("WeaponPoses"))
@@ -233,15 +234,30 @@ local function fireOne(now)
 	local spread = WeaponController.CurrentSpread()
 	local dir = WeaponController.ConeDirection(cf, spread)
 	local range = def.Range
-	local result = workspace:Raycast(origin, dir * range, rayParams(character))
+	local id = st.ShotId + 1
+	-- лучи: один или дробь (направления дробин — по номеру выстрела, как на сервере)
+	local params = rayParams(character)
+	local dirs = Pellets.Directions(dir, def.Pellets or 1, def.Spread.Pellet or 0, id)
+	local shots = {}
+	local counts, best = {}, nil
 	local hitPart, hitPos = nil, nil
-	if result then
-		local model = result.Instance.Parent
-		if model and model ~= character and model:FindFirstChildOfClass("Humanoid") then
-			hitPart, hitPos = result.Instance, result.Position
+	for i, d in ipairs(dirs) do
+		local result = workspace:Raycast(origin, d * range, params)
+		shots[i] = { End = result and result.Position or origin + d * range, Result = result }
+		if result then
+			local model = result.Instance.Parent
+			if model and model ~= character and model:FindFirstChildOfClass("Humanoid") then
+				-- у дроби о попадании сообщаем по той части, в которую попало больше всего дробин
+				counts[result.Instance] = (counts[result.Instance] or 0) + 1
+				if not best or counts[result.Instance] > counts[best] then
+					best = result.Instance
+					hitPos = result.Position
+				end
+			end
 		end
 	end
-	local id = st.ShotId + 1
+	hitPart = best
+	local result = shots[1].Result
 	if not net.Fire("Fire", id, origin, dir, workspace:GetServerTimeNow(), hitPart, hitPos) then
 		return false -- лимит отправки: выстрел в следующем кадре
 	end
@@ -259,9 +275,13 @@ local function fireOne(now)
 	local horizontal = (rng:NextNumber(-1, 1) * r.Horizontal + r.Drift) * k
 	cameraCtl.AddRecoil(vertical, horizontal, r.KickTime, r.ReturnFraction, r.ReturnSpeed)
 	viewmodel.Kick(def, st.AimAlpha)
-	local endPos = result and result.Position or origin + dir * range
-	effects.LocalShot(viewmodel.Muzzle(), viewmodel.Eject(), endPos, result, root and root.AssemblyLinearVelocity)
-	WeaponController.Fired:Fire({ Origin = origin, Direction = dir, End = endPos, Hit = hitPart })
+	local endPos = shots[1].End
+	effects.LocalShot(viewmodel.Muzzle(), viewmodel.Eject(), shots, root and root.AssemblyLinearVelocity, weaponName, not def.BoltAction)
+	if def.BoltAction and st.Ammo > 0 then
+		-- затвор передёргивают после выстрела (гильза вылетает при этом)
+		st.Cycle = { Start = now, Played = {}, Ejected = false }
+	end
+	WeaponController.Fired:Fire({ Origin = origin, Direction = dir, End = endPos, Hit = hitPart, Pellets = #dirs })
 	return true
 end
 
@@ -340,6 +360,41 @@ local function updateReload(now)
 	return { Kind = r.Kind, T = math.min(t, r.Length) }
 end
 
+-- Передёргивание затвора снайперской после выстрела: звуки и гильза по ключам Cycle
+local function updateCycle(now)
+	local c = st.Cycle
+	if not c or not poses.Reloads.Cycle then
+		return nil
+	end
+	local t = now - c.Start
+	for i, ev in ipairs(WeaponAnim.Sounds(poses, "Cycle")) do
+		if t >= ev[1] and not c.Played[i] then
+			c.Played[i] = true
+			effects.PlaySound(ev[2], nil, { Volume = 0.45, Pitch = 0.03 })
+		end
+	end
+	local charge = poses.Reloads.Cycle.Charge
+	if not c.Ejected and charge and t >= charge[2] then
+		c.Ejected = true
+		local _, _, root = characters.GetCharacter()
+		effects.Casing(viewmodel.Eject(), root and root.AssemblyLinearVelocity, weaponName)
+	end
+	if t >= WeaponAnim.Length(poses, "Cycle") or st.Reload then
+		st.Cycle = nil
+		return nil
+	end
+	return { Kind = "Cycle", T = t }
+end
+
+function WeaponController.IsCycling()
+	return st.Cycle ~= nil
+end
+
+-- Смотрит в оптический прицел (снайперская): оружия в руках не видно, на экране — сетка прицела
+function WeaponController.IsScoped()
+	return def.Scope == true and st.AimAlpha > 0.9
+end
+
 local function sendPitch(now)
 	if now - st.PitchSentAt < 0.1 then
 		return
@@ -364,10 +419,11 @@ local function update(dt)
 	end
 	st.SprintAlpha = approach(st.SprintAlpha, moveState.Sprint and 1 or 0, 1 / 0.2, dt)
 	local reloadView = updateReload(now)
+	local cycleView = updateCycle(now)
 	local equip = math.clamp((now - st.EquipStart) / def.EquipTime, 0, 1)
-	-- прицел
+	-- прицел (у снайперской на время передёргивания затвора оружие отходит от глаза)
 	local wantAim = (st.AimWanted or st.AimToggle) and hasWeapon and not ragdolled
-	local canAim = wantAim and not st.Reload and equip >= 1 and not moveState.Sprint
+	local canAim = wantAim and not st.Reload and equip >= 1 and not moveState.Sprint and not cycleView
 	st.AimAlpha = approach(st.AimAlpha, canAim and 1 or 0, 1 / def.Aim.Time, dt)
 	characters.SetSprintBlocked("Aim", wantAim)
 	characters.SetSprintBlocked("Fire", st.Trigger and hasWeapon and st.Ammo > 0 and not st.Reload)
@@ -392,10 +448,10 @@ local function update(dt)
 		Aim = st.AimAlpha,
 		Sprint = st.SprintAlpha,
 		Equip = equip,
-		Reload = reloadView,
+		Reload = reloadView or cycleView,
 		Speed = horizontalSpeed(),
 		Grounded = grounded(),
-		Visible = hasWeapon and not ragdolled and cameraCtl.IsFirstPerson(),
+		Visible = hasWeapon and not ragdolled and cameraCtl.IsFirstPerson() and not WeaponController.IsScoped(),
 	})
 end
 
@@ -487,6 +543,7 @@ setWeapon = function(character, name)
 	st.EquipStart = os.clock()
 	st.Ammo, st.Reserve, st.Mode = def.Magazine, def.Reserve, def.DefaultMode -- до ответа сервера — полный комплект
 	st.Bloom, st.Burst, st.NextShot = 0, 0, 0
+	st.Cycle = nil
 	task.spawn(function()
 		if not viewmodel.Build(character, name) then
 			log:Error("вид от первого лица без оружия %s", name)

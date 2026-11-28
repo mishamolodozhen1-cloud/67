@@ -233,6 +233,14 @@ end
 function CombatSystem.OnHit(player, hit)
 	local zone = CombatSystem.Zone(hit.Part.Name)
 	local amount = CombatSystem.WeaponDamage(hit.Weapon, zone, hit.Distance)
+	if hit.PelletHits then
+		-- дробовик: урон каждой попавшей дробины по своей зоне и расстоянию
+		amount = 0
+		for _, p in ipairs(hit.PelletHits) do
+			amount = amount + CombatSystem.WeaponDamage(hit.Weapon, CombatSystem.Zone(p.Part.Name), p.Distance)
+		end
+		zone = hit.Headshot and "Head" or zone
+	end
 	local origin = hit.Position - hit.Direction * hit.Distance
 	local dealt, lethal = CombatSystem.Damage(hit.Target, amount, {
 		Attacker = player,

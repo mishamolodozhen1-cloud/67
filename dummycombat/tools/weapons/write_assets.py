@@ -13,15 +13,34 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 assets = json.load(open(os.path.join(HERE, "assets.json")))
 sfx = json.load(open(os.path.join(ROOT, "build", "weapons", "sfx_index.json")))
+sfx2 = json.load(open(os.path.join(ROOT, "build", "weapons", "sfx2_index.json")))
 
-groups = {}
-for name, s in sfx["Sounds"].items():
-    groups.setdefault(s["Group"], []).append((name, s["Start"], s["Stop"]))
+
+def grouped(index):
+    out = {}
+    for name, s in index["Sounds"].items():
+        out.setdefault(s["Group"], []).append((name, s["Start"], s["Stop"]))
+    return out
+
+
+def sprite(key, index, asset):
+    out = [
+        "\t%s = table.freeze({" % key,
+        "\t\tId = \"rbxassetid://%s\"," % asset,
+        "\t\tLength = %g," % index["Length"],
+        "\t\tGroups = table.freeze({",
+    ]
+    for g, items in grouped(index).items():
+        body = ", ".join("region(%g, %g)" % (a, b) for _, a, b in items)
+        out.append("\t\t\t%s = table.freeze({ %s })," % (g, body))
+    out += ["\t\t}),", "\t}),"]
+    return out
 
 lines = [
     "-- WeaponAssets: ассеты оружия в Roblox (создаётся tools/weapons/write_assets.py — не править вручную).",
     "-- Models: модели (MeshPart-ы внутри узлов *_Node); Sfx: один звуковой файл-спрайт, Groups — варианты звука",
-    "-- (отрезки [Start, Stop] в секундах, играются через Sound.PlaybackRegion); Images: текстуры эффектов.",
+    "-- (отрезки [Start, Stop] в секундах, играются через Sound.PlaybackRegion); Sfx2 — второй спрайт (выстрелы",
+    "-- пистолета, ПП, дробовика, снайперской винтовки, затворы); Images: текстуры эффектов.",
     "local function region(a, b)",
     "\treturn table.freeze({ Start = a, Stop = b })",
     "end",
@@ -29,18 +48,15 @@ lines = [
     "return table.freeze({",
     "\tModels = table.freeze({",
     "\t\tAK47 = %s," % assets["DC_AK47"]["assetId"],
+    "\t\tPistol = %s," % assets["DC_Pistol"]["assetId"],
+    "\t\tSMG = %s," % assets["DC_SMG"]["assetId"],
+    "\t\tShotgun = %s," % assets["DC_Shotgun"]["assetId"],
+    "\t\tSniper = %s," % assets["DC_Sniper"]["assetId"],
     "\t}),",
-    "\tSfx = table.freeze({",
-    "\t\tId = \"rbxassetid://%s\"," % assets["DC_WeaponSfx"]["assetId"],
-    "\t\tLength = %g," % sfx["Length"],
-    "\t\tGroups = table.freeze({",
 ]
-for g, items in groups.items():
-    body = ", ".join("region(%g, %g)" % (a, b) for _, a, b in items)
-    lines.append("\t\t\t%s = table.freeze({ %s })," % (g, body))
+lines += sprite("Sfx", sfx, assets["DC_WeaponSfx"]["assetId"])
+lines += sprite("Sfx2", sfx2, assets["DC_WeaponSfx2"]["assetId"])
 lines += [
-    "\t\t}),",
-    "\t}),",
     "\tImages = table.freeze({",
     "\t\tMuzzleFlash = \"rbxassetid://%s\"," % assets["DC_FxFlash"]["image"],
     "\t\tMuzzleFlashSide = \"rbxassetid://%s\"," % assets["DC_FxFlashSide"]["image"],

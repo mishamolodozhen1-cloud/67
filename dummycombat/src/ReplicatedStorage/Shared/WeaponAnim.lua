@@ -1,7 +1,8 @@
 -- WeaponAnim: процедурная анимация оружия по ключам из Configs/WeaponPoses (их же рисует превью
 -- tools/weapons/viewmodel.py). Общая для вида от первого лица (Viewmodel) и от третьего (ThirdPersonWeapons).
 --
--- Reload(poses, kind, t) — состояние перезарядки kind ("Tactical" / "Empty") через t секунд после начала:
+-- Reload(poses, kind, t) — состояние перезарядки kind ("Tactical" / "Empty", у снайперской ещё "Cycle" —
+-- передёргивание затвора после выстрела) через t секунд после начала:
 --   Gun       0..1 — насколько оружие повёрнуто в позу перезарядки (к левой руке);
 --   Left/Right — CFrame кистей в осях оружия; MagInHand — магазин сейчас в левой руке (отстёгнут);
 --   Charge    0..1 — насколько оттянута рукоять затвора.
@@ -51,12 +52,13 @@ function WeaponAnim.Reload(poses, kind, t)
 	local charge = 0
 	if r.Charge then
 		local c0, c1, c2 = r.Charge[1], r.Charge[2], r.Charge[3]
+		local back = r.Charge[4] or 0.05 -- сколько затвор идёт вперёд (у снайперской его досылают рукой)
 		if t >= c0 and t < c1 then
 			charge = smooth((t - c0) / (c1 - c0))
 		elseif t >= c1 and t < c2 then
 			charge = 1 -- держат в крайнем заднем
-		elseif t >= c2 and t < c2 + 0.05 then
-			charge = 1 - (t - c2) / 0.05 -- отпустили: рама влетает вперёд пружиной
+		elseif t >= c2 and t < c2 + back then
+			charge = 1 - (t - c2) / back -- отпустили: рама влетает вперёд пружиной
 		end
 	end
 	return {

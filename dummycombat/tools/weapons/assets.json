@@ -21,5 +21,25 @@
   "assetId": "75594019536499",
   "moderation": "Approved",
   "image": "94500673265895"
+ },
+ "DC_Pistol": {
+  "assetId": "136059752873710",
+  "moderation": "Approved"
+ },
+ "DC_SMG": {
+  "assetId": "102231552419727",
+  "moderation": "Approved"
+ },
+ "DC_Shotgun": {
+  "assetId": "84918257714080",
+  "moderation": "Approved"
+ },
+ "DC_Sniper": {
+  "assetId": "113040766411589",
+  "moderation": "Approved"
+ },
+ "DC_WeaponSfx2": {
+  "assetId": "103914768434184",
+  "moderation": "Reviewing"
  }
 }

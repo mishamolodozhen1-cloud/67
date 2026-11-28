@@ -29,6 +29,8 @@ local Configs = ReplicatedStorage:WaitForChild("Configs")
 local Logger = require(Shared:WaitForChild("Logger"))
 local Signal = require(Shared:WaitForChild("Signal"))
 local WeaponAnim = require(Shared:WaitForChild("WeaponAnim"))
+local Pellets = require(Shared:WaitForChild("Pellets"))
+local GameConfig = require(Configs:WaitForChild("GameConfig"))
 local WeaponConfig = require(Configs:WaitForChild("WeaponConfig"))
 local WeaponModels = require(Configs:WaitForChild("WeaponModels"))
 local WeaponAssets = require(Configs:WaitForChild("WeaponAssets"))
@@ -459,6 +461,59 @@ function WeaponSystem.CheckHit(shooterCharacter, origin, dir, clientTime, server
 	}
 end
 
+-- Дробовик: какие из дробин dirs попали в цель, о которой сообщил клиент (с компенсацией задержки).
+-- walls[i] — расстояние до стены по лучу i. Возвращает попадание с PelletHits = { { Part, Distance } } или nil
+function WeaponSystem.CheckPellets(shooterCharacter, origin, dirs, walls, clientTime, serverTime, part, range)
+	if not (part and part:IsDescendantOf(workspace)) then
+		return nil, "часть не в мире"
+	end
+	local model, humanoid, root = targetOf(part, shooterCharacter)
+	if not model then
+		return nil, "не цель"
+	end
+	local t = HitCheck.RewindTime(clientTime, serverTime, cfg.InterpDelay, cfg.MaxRewind)
+	local rootThen = history:At(model, t) or root.CFrame
+	local body = {}
+	for _, p in ipairs(model:GetChildren()) do
+		if p:IsA("BasePart") and GameConfig.Combat.Zones[p.Name] then
+			table.insert(body, { Part = p, Then = HitCheck.Rewind(p.CFrame, root.CFrame, rootThen), Now = p.CFrame })
+		end
+	end
+	local tolerance = cfg.HitTolerance * 0.5
+	local hits, first, head = {}, nil, false
+	for i, dir in ipairs(dirs) do
+		local best, bestPart = nil, nil
+		local limit = math.min(range, walls[i] + cfg.WallTolerance)
+		for _, b in ipairs(body) do
+			for _, cf in ipairs({ b.Then, b.Now }) do
+				local d = HitCheck.RayHitsPart(origin, dir, cf, b.Part.Size, tolerance)
+				if d and d <= limit and (not best or d < best) then
+					best, bestPart = d, b.Part
+				end
+			end
+		end
+		if best then
+			table.insert(hits, { Part = bestPart, Distance = best, Direction = dir })
+			first = first or hits[#hits]
+			head = head or bestPart.Name == "Head"
+		end
+	end
+	if not first then
+		return nil, "дробь прошла мимо"
+	end
+	return {
+		Target = model,
+		Humanoid = humanoid,
+		Part = first.Part,
+		Position = origin + first.Direction * first.Distance,
+		Direction = first.Direction,
+		Distance = first.Distance,
+		Headshot = head,
+		PelletHits = hits,
+		Rewind = serverTime - t,
+	}
+end
+
 -- Обработать выстрел. Возвращает true и результат { Hit, End, Normal, Material, Kind } или false и причину
 function WeaponSystem.HandleFire(player, shotId, origin, direction, clientTime, hitPart, hitPos)
 	local st = states[player]
@@ -508,18 +563,35 @@ function WeaponSystem.HandleFire(player, shotId, origin, direction, clientTime, 
 	st.LastShotId = shotId
 	st.Ammo = st.Ammo - 1
 	st.Shots = st.Shots + 1
+	if st.Def.BoltAction and st.Ammo > 0 then
+		character:SetAttribute("Cycling", t) -- другие игроки видят, как передёргивают затвор
+	end
 	local range = math.min(st.Def.Range, cfg.Range)
-	local result = workspace:Raycast(origin, direction * range, worldParams())
+	local params = worldParams()
+	local result = workspace:Raycast(origin, direction * range, params)
 	local wallDist = result and (result.Position - origin).Magnitude or range
 	local hit, why = nil, nil
-	if hitPart then
-		hit, why = WeaponSystem.CheckHit(character, origin, direction, clientTime, t, hitPart, hitPos, wallDist, range)
-		if not hit then
-			log:Debug("%s: попадание не засчитано (%s)", player.Name, tostring(why))
+	local extra = nil -- концы остальных дробин (для эффектов у других игроков)
+	if (st.Def.Pellets or 1) > 1 then
+		local dirs = Pellets.Directions(direction, st.Def.Pellets, st.Def.Spread.Pellet, shotId)
+		local walls, ends = { wallDist }, {}
+		for i = 2, #dirs do
+			local r = workspace:Raycast(origin, dirs[i] * range, params)
+			walls[i] = r and (r.Position - origin).Magnitude or range
+			ends[i - 1] = origin + dirs[i] * walls[i]
 		end
+		extra = ends
+		if hitPart then
+			hit, why = WeaponSystem.CheckPellets(character, origin, dirs, walls, clientTime, t, hitPart, range)
+		end
+	elseif hitPart then
+		hit, why = WeaponSystem.CheckHit(character, origin, direction, clientTime, t, hitPart, hitPos, wallDist, range)
+	end
+	if hitPart and not hit then
+		log:Debug("%s: попадание не засчитано (%s)", player.Name, tostring(why))
 	end
 	local out = { Hit = hit }
-	if hit then
+	if hit and not hit.PelletHits then
 		out.End, out.Normal, out.Material, out.Kind = hit.Position, nil, "Body", "Body"
 	elseif result then
 		out.End, out.Normal, out.Material, out.Kind = result.Position, result.Normal, result.Material.Name, "World"
@@ -527,19 +599,20 @@ function WeaponSystem.HandleFire(player, shotId, origin, direction, clientTime, 
 		out.End, out.Kind = origin + direction * range, "None"
 	end
 	if net then
-		net.FireExcept(player, "ShotFired", player, origin, out.End, out.Normal, out.Material, out.Kind)
+		net.FireExcept(player, "ShotFired", player, origin, out.End, out.Normal, out.Material, out.Kind, extra)
 	end
 	WeaponSystem.ShotFired:Fire(player, { Weapon = st.Weapon, Origin = origin, Direction = direction, End = out.End, Hit = hit })
 	if hit then
 		st.Hits = st.Hits + 1
 		hit.Weapon = st.Weapon
 		if ragdoll then
-			ragdoll.RecordHit(hit.Target, hit.Part.Name, direction, 1, hit.Position)
+			ragdoll.RecordHit(hit.Target, hit.Part.Name, direction, hit.PelletHits and math.min(#hit.PelletHits * 0.4, 2.5) or (st.Def.Impulse or 1), hit.Position)
 		end
 		WeaponSystem.HitConfirmed:Fire(player, hit)
 		if net and isPlayer(player) then
 			-- урон и убийство посчитал CombatSystem (обработчик сигнала выше выполняется сразу)
 			net.Fire(player, "HitConfirmed", {
+				Pellets = hit.PelletHits and #hit.PelletHits or nil,
 				Part = hit.Part.Name,
 				Headshot = hit.Headshot,
 				Position = hit.Position,
@@ -553,7 +626,8 @@ end
 
 -- Выстрел, который считает сам сервер (боты): луч с учётом персонажей, без компенсации задержки.
 -- shooterKey — ключ состояния (таблица бота), model — его модель. Патроны ведёт вызывающий (BotSystem).
--- pellets/spread — для дробовика: несколько дробин с разбросом (градусы). Возвращает список попаданий
+-- pellets/spread — для дробовика: несколько дробин (Shared/Pellets, угол spread). Попадания дробин по одной цели
+-- складываются в одно попадание (PelletHits). Возвращает список попаданий
 function WeaponSystem.ServerShot(shooterKey, model, origin, direction, pellets, spread)
 	local st = states[shooterKey]
 	if not st or not model then
@@ -569,15 +643,13 @@ function WeaponSystem.ServerShot(shooterKey, model, origin, direction, pellets, 
 	end
 	params.FilterDescendantsInstances = exclude
 	params.IgnoreWater = true
-	local hits = {}
-	local first = nil
-	for i = 1, pellets or 1 do
-		local dir = direction
-		if spread and spread > 0 and i > 1 then
-			local r = math.rad(spread) * math.sqrt(math.random())
-			local theta = math.random() * math.pi * 2
-			dir = (CFrame.lookAt(Vector3.zero, direction) * CFrame.Angles(0, 0, theta) * CFrame.Angles(r, 0, 0)).LookVector
-		end
+	local dirs = { direction }
+	if pellets and pellets > 1 then
+		dirs = Pellets.Directions(direction, pellets, spread or 4, math.random(1, 2 ^ 30))
+	end
+	local byTarget, order = {}, {}
+	local first, extra = nil, {}
+	for i, dir in ipairs(dirs) do
 		local result = workspace:Raycast(origin, dir * range, params)
 		local out = { End = origin + dir * range, Kind = "None" }
 		if result then
@@ -585,31 +657,48 @@ function WeaponSystem.ServerShot(shooterKey, model, origin, direction, pellets, 
 			local target = result.Instance.Parent
 			local humanoid = target and target:FindFirstChildOfClass("Humanoid")
 			if target and CollectionService:HasTag(target, WeaponSystem.TargetTag) and humanoid and humanoid.Health > 0 then
-				local hit = {
-					Target = target,
-					Humanoid = humanoid,
-					Part = result.Instance,
-					Position = result.Position,
-					Direction = dir,
-					Distance = (result.Position - origin).Magnitude,
-					Headshot = result.Instance.Name == "Head",
-					Weapon = st.Weapon,
-				}
 				out.Kind, out.Material = "Body", "Body"
-				table.insert(hits, hit)
-				if ragdoll then
-					ragdoll.RecordHit(target, hit.Part.Name, dir, 1, hit.Position)
+				local d = (result.Position - origin).Magnitude
+				local entry = byTarget[target]
+				if not entry then
+					entry = {
+						Target = target,
+						Humanoid = humanoid,
+						Part = result.Instance,
+						Position = result.Position,
+						Direction = dir,
+						Distance = d,
+						Headshot = false,
+						Weapon = st.Weapon,
+						PelletHits = #dirs > 1 and {} or nil,
+					}
+					byTarget[target] = entry
+					table.insert(order, entry)
 				end
-				WeaponSystem.HitConfirmed:Fire(shooterKey, hit)
+				entry.Headshot = entry.Headshot or result.Instance.Name == "Head"
+				if entry.PelletHits then
+					table.insert(entry.PelletHits, { Part = result.Instance, Distance = d, Direction = dir })
+				end
 			end
 		end
-		first = first or out
-		if net and (i == 1 or i % 3 == 0) then
-			net.FireAll("ShotFired", model, origin, out.End, out.Normal, out.Material, out.Kind)
+		if i == 1 then
+			first = out
+		else
+			table.insert(extra, out.End)
 		end
 	end
-	WeaponSystem.ShotFired:Fire(shooterKey, { Weapon = st.Weapon, Origin = origin, Direction = direction, End = first and first.End, Hit = hits[1] })
-	return hits
+	for _, hit in ipairs(order) do
+		if ragdoll then
+			local strength = hit.PelletHits and math.min(#hit.PelletHits * 0.4, 2.5) or (st.Def.Impulse or 1)
+			ragdoll.RecordHit(hit.Target, hit.Part.Name, hit.Direction, strength, hit.Position)
+		end
+		WeaponSystem.HitConfirmed:Fire(shooterKey, hit)
+	end
+	if net then
+		net.FireAll("ShotFired", model, origin, first.End, first.Normal, first.Material, first.Kind, #extra > 0 and extra or nil)
+	end
+	WeaponSystem.ShotFired:Fire(shooterKey, { Weapon = st.Weapon, Origin = origin, Direction = direction, End = first.End, Hit = order[1] })
+	return order
 end
 
 -------------------------------------------------------------------------------

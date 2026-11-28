@@ -76,6 +76,69 @@ local function build()
 	root.Size = UDim2.fromScale(1, 1)
 	root.BackgroundTransparency = 1
 	root.Parent = hud
+	-- оптический прицел снайперской: круглое поле зрения (вокруг — чёрное: обводка UIStroke круглой рамки),
+	-- тонкая сетка с утолщениями к краям и делениями
+	local scope = Instance.new("Frame")
+	scope.Name = "Scope"
+	scope.Size = UDim2.fromScale(1, 1)
+	scope.BackgroundTransparency = 1
+	scope.Visible = false
+	scope.Parent = root
+	local lens = Instance.new("Frame")
+	lens.Name = "Lens"
+	lens.AnchorPoint = Vector2.new(0.5, 0.5)
+	lens.Position = UDim2.fromScale(0.5, 0.5)
+	lens.SizeConstraint = Enum.SizeConstraint.RelativeYY
+	lens.Size = UDim2.fromScale(0.92, 0.92)
+	lens.BackgroundTransparency = 1
+	lens.Parent = scope
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = lens
+	local mask = Instance.new("UIStroke")
+	mask.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	mask.Color = Color3.new(0, 0, 0)
+	mask.Thickness = 2400
+	mask.Parent = lens
+	local rim = Instance.new("Frame")
+	rim.AnchorPoint = Vector2.new(0.5, 0.5)
+	rim.Position = UDim2.fromScale(0.5, 0.5)
+	rim.Size = UDim2.fromScale(1, 1)
+	rim.BackgroundTransparency = 1
+	rim.Parent = lens
+	local rimCorner = corner:Clone()
+	rimCorner.Parent = rim
+	local rimStroke = Instance.new("UIStroke")
+	rimStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	rimStroke.Color = Color3.fromRGB(28, 30, 32)
+	rimStroke.Thickness = 10
+	rimStroke.Parent = rim
+	local function reticle(x, y, w, h)
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = UDim2.new(0.5, x, 0.5, y)
+		f.Size = UDim2.new(w[1], w[2], h[1], h[2])
+		f.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+		f.BorderSizePixel = 0
+		f.Parent = lens
+		return f
+	end
+	reticle(0, 0, { 1, 0 }, { 0, 1 }) -- тонкие линии через всё поле
+	reticle(0, 0, { 0, 1 }, { 1, 0 })
+	for _, sgn in ipairs({ -1, 1 }) do -- утолщения от края к центру
+		local f = reticle(0, 0, { 0.32, 0 }, { 0, 4 })
+		f.AnchorPoint = Vector2.new(sgn < 0 and 0 or 1, 0.5)
+		f.Position = UDim2.fromScale(sgn < 0 and 0 or 1, 0.5)
+		local v = reticle(0, 0, { 0, 4 }, { 0.32, 0 })
+		v.AnchorPoint = Vector2.new(0.5, sgn < 0 and 0 or 1)
+		v.Position = UDim2.fromScale(0.5, sgn < 0 and 0 or 1)
+	end
+	for i = 1, 4 do -- деления
+		for _, sgn in ipairs({ -1, 1 }) do
+			reticle(sgn * i * 22, 0, { 0, 2 }, { 0, i == 4 and 12 or 7 })
+			reticle(0, sgn * i * 22, { 0, i == 4 and 12 or 7 }, { 0, 2 })
+		end
+	end
 	-- перекрестие
 	local cross = Instance.new("Frame")
 	cross.Name = "Crosshair"
@@ -130,7 +193,7 @@ local function build()
 	fill.BorderSizePixel = 0
 	fill.Size = UDim2.fromScale(0, 1)
 	fill.Parent = bar
-	ui = { Root = root, Cross = cross, Lines = lines, Dot = dot, Hit = hit, Marks = marks, Ammo = ammo, Count = count, Reserve = reserve, Info = info, Bar = bar, Fill = fill }
+	ui = { Root = root, Scope = scope, Cross = cross, Lines = lines, Dot = dot, Hit = hit, Marks = marks, Ammo = ammo, Count = count, Reserve = reserve, Info = info, Bar = bar, Fill = fill }
 end
 
 local function layoutAmmo()
@@ -156,6 +219,7 @@ local function update()
 		return
 	end
 	local camera = workspace.CurrentCamera
+	ui.Scope.Visible = weapons.IsScoped() and cameraCtl.IsFirstPerson()
 	-- перекрестие
 	local moving = characters.GetState().Sprint
 	local fade = math.max(s.AimAlpha, moving and 1 or 0)

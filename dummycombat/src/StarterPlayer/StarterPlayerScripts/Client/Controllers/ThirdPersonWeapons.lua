@@ -113,6 +113,14 @@ function ThirdPersonWeapons.Pose(character, data, dt, serverTime, withArms)
 			rl = WeaponAnim.Reload(poses, kind, t)
 		end
 	end
+	-- снайперская: после выстрела передёргивают затвор (сервер пишет время выстрела в атрибут Cycling)
+	local cycling = character:GetAttribute("Cycling")
+	if not rl and type(cycling) == "number" and cycling > 0 and poses.Reloads.Cycle then
+		local t = serverTime - cycling
+		if t >= 0 and t < WeaponAnim.Length(poses, "Cycle") then
+			rl = WeaponAnim.Reload(poses, "Cycle", t)
+		end
+	end
 	-- корпус: стойка и наклон за взглядом (на бегу — почти без наклона)
 	local pitch = math.rad(math.clamp(character:GetAttribute("AimPitch") or 0, -80, 80))
 	local bend = pitch * (1 - 0.8 * data.Sprint)

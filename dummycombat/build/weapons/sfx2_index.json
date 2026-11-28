@@ -1,0 +1,68 @@
+{
+ "Length": 11.434,
+ "Sounds": {
+  "Pistol1": {
+   "Start": 0.05,
+   "Stop": 0.8,
+   "Group": "ShotPistol"
+  },
+  "Pistol2": {
+   "Start": 1.15,
+   "Stop": 1.95,
+   "Group": "ShotPistol"
+  },
+  "Smg1": {
+   "Start": 2.3,
+   "Stop": 2.75,
+   "Group": "ShotSMG"
+  },
+  "Smg2": {
+   "Start": 3.1,
+   "Stop": 3.5167,
+   "Group": "ShotSMG"
+  },
+  "Shotgun1": {
+   "Start": 3.8667,
+   "Stop": 5.0667,
+   "Group": "ShotShotgun"
+  },
+  "Shotgun2": {
+   "Start": 5.4167,
+   "Stop": 6.6667,
+   "Group": "ShotShotgun"
+  },
+  "Sniper1": {
+   "Start": 7.0167,
+   "Stop": 8.8167,
+   "Group": "ShotSniper"
+  },
+  "BoltOpen": {
+   "Start": 9.1667,
+   "Stop": 9.5345,
+   "Group": "BoltOpen"
+  },
+  "BoltClose": {
+   "Start": 9.8845,
+   "Stop": 10.2345,
+   "Group": "BoltClose"
+  },
+  "Slide": {
+   "Start": 10.5845,
+   "Stop": 11.0845,
+   "Group": "Slide"
+  }
+ },
+ "Sources": {
+  "pistol_9mm.wav": "https://soundza.com/sound/real-9mm-pistol-shot",
+  "pistol_1911.wav": "https://soundza.com/sound/colt-1911-pistol-shot",
+  "pistol_game.wav": "https://soundza.com/sound/pistol-shot",
+  "gunshot2.wav": "https://soundza.com/sound/gunshot-2",
+  "shotgun_20g.wav": "https://soundza.com/sound/20-gauge-shotgun-shot",
+  "shotgun_crisp.wav": "https://soundza.com/sound/shotgun-shot-crisp",
+  "rifle_405.wav": "https://soundza.com/sound/405-winchester-rifle-shot",
+  "rifle_hp.wav": "https://soundza.com/sound/high-powered-rifle-shot",
+  "bolt_open.wav": "https://soundza.com/sound/quick-gun-cock",
+  "bolt_close.wav": "https://soundza.com/sound/short-gun-cock-click",
+  "slide.wav": "https://soundza.com/sound/metal-slide-whoosh"
+ }
+}

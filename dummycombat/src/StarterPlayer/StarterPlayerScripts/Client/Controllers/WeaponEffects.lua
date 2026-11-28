@@ -23,7 +23,14 @@ local WeaponEffects = { Name = "WeaponEffects" }
 
 local log = Logger.new("Effects")
 local fx = WeaponConfig.Effects
-local groups = WeaponAssets.Sfx.Groups
+-- группа звуков → { список отрезков, id файла-спрайта } (два спрайта: Sfx и Sfx2)
+local groups, groupSprite = {}, {}
+for _, sprite in ipairs({ WeaponAssets.Sfx, WeaponAssets.Sfx2 }) do
+	for name, list in pairs(sprite.Groups) do
+		groups[name] = list
+		groupSprite[name] = sprite.Id
+	end
+end
 
 local folder = nil -- workspace.Effects (только у этого клиента)
 local holes = {}
@@ -81,7 +88,7 @@ function WeaponEffects.PlaySound(group, at, opts)
 	opts = opts or {}
 	local region = list[rng:NextInteger(1, #list)]
 	local s = Instance.new("Sound")
-	s.SoundId = WeaponAssets.Sfx.Id
+	s.SoundId = groupSprite[group]
 	s.PlaybackRegionsEnabled = true
 	s.PlaybackRegion = NumberRange.new(region.Start, region.Stop)
 	s.Volume = opts.Volume or 0.6
@@ -295,12 +302,12 @@ function WeaponEffects.Impact(position, normal, materialName, instance, loud)
 	WeaponEffects.PlaySound(group, position, { Volume = loud and 0.55 or 0.4, MaxDistance = 160 })
 end
 
-function WeaponEffects.Casing(eject, inherit)
+function WeaponEffects.Casing(eject, inherit, weaponName)
 	if not eject then
 		return
 	end
 	local template = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Weapons")
-	template = template and template:FindFirstChild("AK47Casing")
+	template = template and (template:FindFirstChild((weaponName or "AK47") .. "Casing") or template:FindFirstChild("AK47Casing"))
 	if not template then
 		return
 	end
@@ -333,19 +340,34 @@ end
 -------------------------------------------------------------------------------
 -- Выстрелы
 -------------------------------------------------------------------------------
--- Свой выстрел: muzzle и eject — точки на оружии в руках (вид от первого лица), result — луч клиента
-function WeaponEffects.LocalShot(muzzle, eject, endPos, result, inherit)
+-- Звук выстрела оружия weaponName (группа и громкость — WeaponConfig: ShotSound, ShotVolume)
+local function shotSound(weaponName)
+	local def = weaponName and WeaponConfig.Weapons[weaponName]
+	return (def and def.ShotSound) or "Shot", (def and def.ShotVolume) or 1
+end
+WeaponEffects.ShotSound = shotSound
+
+-- Свой выстрел: muzzle и eject — точки на оружии в руках (вид от первого лица); shots — лучи клиента
+-- { { End, Result } } (у дробовика — по одному на дробину); casing = false — гильза не вылетает (затвор
+-- снайперской выбрасывает её при передёргивании)
+function WeaponEffects.LocalShot(muzzle, eject, shots, inherit, weaponName, casing)
 	WeaponEffects.Flash(muzzle)
-	WeaponEffects.PlaySound("Shot", nil, { Volume = 0.55, Pitch = 0.035 })
-	if muzzle then
-		WeaponEffects.Tracer(muzzle.WorldPosition, endPos)
+	local group, volume = shotSound(weaponName)
+	WeaponEffects.PlaySound(group, nil, { Volume = 0.55 * volume, Pitch = 0.035 })
+	for i, shot in ipairs(shots) do
+		if muzzle and (i == 1 or i % 2 == 0) then
+			WeaponEffects.Tracer(muzzle.WorldPosition, shot.End)
+		end
+		local result = shot.Result
+		if result then
+			local model = result.Instance.Parent
+			local isBody = model and model:FindFirstChildOfClass("Humanoid") ~= nil
+			WeaponEffects.Impact(result.Position, result.Normal, isBody and "Body" or result.Material.Name, result.Instance, i <= 2)
+		end
 	end
-	if result then
-		local model = result.Instance.Parent
-		local isBody = model and model:FindFirstChildOfClass("Humanoid") ~= nil
-		WeaponEffects.Impact(result.Position, result.Normal, isBody and "Body" or result.Material.Name, result.Instance, true)
+	if casing ~= false then
+		WeaponEffects.Casing(eject, inherit, weaponName)
 	end
-	WeaponEffects.Casing(eject, inherit)
 end
 
 local function remoteWeapon(shooter)
@@ -358,8 +380,8 @@ local function remoteWeapon(shooter)
 	return gun, character
 end
 
--- Чужой выстрел (с сервера)
-function WeaponEffects.RemoteShot(shooter, origin, endPos, normal, material, kind)
+-- Чужой выстрел (с сервера). extra — концы остальных дробин дробовика (список Vector3) или nil
+function WeaponEffects.RemoteShot(shooter, origin, endPos, normal, material, kind, extra)
 	if typeof(origin) ~= "Vector3" or typeof(endPos) ~= "Vector3" then
 		return
 	end
@@ -368,11 +390,16 @@ function WeaponEffects.RemoteShot(shooter, origin, endPos, normal, material, kin
 	if distance > fx.ShotHearing then
 		return
 	end
-	local gun = remoteWeapon(shooter)
+	local gun, character = remoteWeapon(shooter)
 	local muzzle = gun and WeaponEffects.Rig(gun)
 	local from = muzzle and muzzle.WorldPosition or origin
+	local weaponName = character and character:GetAttribute("Weapon") or nil
+	if weaponName == "" then
+		weaponName = nil
+	end
 	if distance < fx.DistantFrom then
-		WeaponEffects.PlaySound("Shot", from, { Volume = 0.7, MaxDistance = fx.DistantFrom * 1.6, MinDistance = 10 })
+		local group, volume = shotSound(weaponName)
+		WeaponEffects.PlaySound(group, from, { Volume = 0.7 * volume, MaxDistance = fx.DistantFrom * 1.6, MinDistance = 10 })
 	else
 		WeaponEffects.PlaySound("Distant", from, { Volume = 0.6, MaxDistance = fx.ShotHearing, MinDistance = fx.DistantFrom })
 	end
@@ -393,9 +420,34 @@ function WeaponEffects.RemoteShot(shooter, origin, endPos, normal, material, kin
 		end
 		WeaponEffects.Impact(endPos, normal, kind == "Body" and "Body" or (material or "Concrete"), instance, false)
 	end
+	if type(extra) == "table" then
+		-- дробь: короткий луч у каждой точки — что задето (для следа и звука попадания)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { folder }
+		for i, e in ipairs(extra) do
+			if i > 12 then
+				break
+			end
+			if typeof(e) == "Vector3" then
+				if i % 2 == 0 then
+					WeaponEffects.Tracer(from, e)
+				end
+				local dir = (e - origin)
+				if dir.Magnitude > 0.5 then
+					local r = workspace:Raycast(e - dir.Unit * 0.4, dir.Unit * 0.8, params)
+					if r then
+						local model = r.Instance.Parent
+						local isBody = model and model:FindFirstChildOfClass("Humanoid") ~= nil
+						WeaponEffects.Impact(r.Position, r.Normal, isBody and "Body" or r.Material.Name, r.Instance, false)
+					end
+				end
+			end
+		end
+	end
 	local eject = gun and gun.PrimaryPart and gun.PrimaryPart:FindFirstChild("Eject")
-	if eject and distance < 80 then
-		WeaponEffects.Casing(eject)
+	if eject and distance < 80 and not (weaponName and WeaponConfig.Weapons[weaponName] and WeaponConfig.Weapons[weaponName].BoltAction) then
+		WeaponEffects.Casing(eject, nil, weaponName)
 	end
 end
 
@@ -411,11 +463,11 @@ function WeaponEffects.Init(context)
 		folder.Name = "Effects"
 		folder.Parent = workspace
 	end
-	net.On("ShotFired", function(shooter, origin, endPos, normal, material, kind)
+	net.On("ShotFired", function(shooter, origin, endPos, normal, material, kind, extra)
 		if shooter == Players.LocalPlayer then
 			return
 		end
-		WeaponEffects.RemoteShot(shooter, origin, endPos, normal, material, kind)
+		WeaponEffects.RemoteShot(shooter, origin, endPos, normal, material, kind, extra)
 	end)
 end
 
@@ -438,13 +490,19 @@ function WeaponEffects.Start()
 	end)
 	-- звук заранее: первый выстрел не должен молчать, пока файл грузится
 	task.spawn(function()
-		local s = Instance.new("Sound")
-		s.SoundId = WeaponAssets.Sfx.Id
-		local ok, err = pcall(ContentProvider.PreloadAsync, ContentProvider, { s })
+		local list = {}
+		for _, sprite in ipairs({ WeaponAssets.Sfx, WeaponAssets.Sfx2 }) do
+			local s = Instance.new("Sound")
+			s.SoundId = sprite.Id
+			table.insert(list, s)
+		end
+		local ok, err = pcall(ContentProvider.PreloadAsync, ContentProvider, list)
 		if not ok then
 			log:Warn("звуки оружия не загрузились заранее: %s", tostring(err))
 		end
-		s:Destroy()
+		for _, s in ipairs(list) do
+			s:Destroy()
+		end
 	end)
 end
 

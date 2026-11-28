@@ -63,7 +63,9 @@ function Viewmodel.Kick(def, aimAlpha)
 	recoil.UpVel = recoil.UpVel + r.KickUp * 30 * k
 	recoil.RotVel = recoil.RotVel + math.rad(r.KickRotate) * 30 * k
 	recoil.RollVel = recoil.RollVel + (math.random() - 0.5) * 0.6 * k
-	boltCycle = 1
+	if not def.BoltAction then
+		boltCycle = 1 -- затвор (у пистолета — кожух) отходит и возвращается; у снайперской — рукой (поза Cycle)
+	end
 end
 
 function Viewmodel.Destroy()

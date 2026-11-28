@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "tools", "dummy"))
 sys.path.insert(0, HERE)
 import ak47  # noqa: E402
+import guns  # noqa: E402
 import geometry as g  # noqa: E402
 import render  # noqa: E402
 import rig  # noqa: E402
@@ -152,111 +153,250 @@ def arm_ik(side, shoulder, hand_cf, pole):
 
 
 ###############################################################################
-# Оружие: точки (от центра Body) и хваты
+# Оружие: точки (от центра Body) и хваты. Все стволы — из guns.all_models() (AK-47 — из ak47.py).
+# setup(name) выставляет глобальные POINTS, HANDS, VM, TP, RELOADS… для выбранного оружия: на них работают
+# расчёт, превью и запись конфига ниже.
 ###############################################################################
-AK_INFO = {}
-AK_PARTS = ak47.build()
-for _n in ("Body", "Magazine", "ChargingHandle", "Casing"):
-    _lo, _hi = AK_PARTS[_n].bbox()
-    AK_INFO[_n] = (_lo + _hi) / 2
-BODY_C = AK_INFO["Body"]
-POINTS = {k: np.asarray(v, float) - BODY_C for k, v in ak47.POINTS.items()}
-MAG_C = AK_INFO["Magazine"] - BODY_C
-CH_C = AK_INFO["ChargingHandle"] - BODY_C
+MODELS = guns.all_models()
+WEAPONS = ["AK47", "SMG", "Shotgun", "Sniper", "Pistol"]
+_PX = {}
 
-# Хваты — CFrame кисти (центр части) в осях оружия
-HANDS = {
-    # правая: ладонь на правой стороне пистолетной рукояти, пальцы вниз-вперёд вокруг неё
-    "Right": (basis(palm=(-1, 0.05, 0), fingers=(0.0, -0.6, -0.8), side="Right"), POINTS["GripRight"] + np.array([0.15, -0.02, 0.1])),
-    # левая: ладонь снизу на цевье, пальцы обхватывают его справа-сверху
-    "Left": (basis(palm=(0.25, 1, 0.05), fingers=(0.92, 0.2, -0.33), side="Left"), POINTS["GripLeft"] + np.array([-0.06, -0.17, 0.02])),
-    # левая держит магазин спереди-слева (перезарядка)
-    "LeftMag": (basis(palm=(1, 0.1, 0.1), fingers=(0.25, -0.45, -0.86), side="Left"), MAG_C + np.array([-0.17, -0.05, -0.12])),
-    # правая отпускает рукоять и тянет рукоять затвора (она у АК справа): ладонь к ствольной коробке
-    "RightCharge": (basis(palm=(-1, 0.1, 0), fingers=(0.0, -0.35, -0.94), side="Right"), POINTS["ChargingHandle"] + np.array([0.16, -0.02, 0.1])),
+
+def atlas_px(kind):
+    if kind not in _PX:
+        _PX[kind] = np.asarray((ak47.atlas_png() if kind == "ak" else guns.atlas_png())[1], float)
+    return _PX[kind]
+
+
+def centers(parts):
+    out = {}
+    for n in ("Body", "Magazine", "ChargingHandle", "Casing"):
+        lo, hi = parts[n].bbox()
+        out[n] = (lo + hi) / 2
+    return out
+
+
+_AK = centers(MODELS["AK47"][0])
+AK_GRIP = np.asarray(ak47.POINTS["GripRight"], float) - _AK["Body"]
+
+
+def anchored(pose, grip):
+    """Поза AK-47 для другого ствола: тот же поворот, а рукоять (GripRight) — там же, где у AK."""
+    R, p = pose
+    return (R, p + R @ (AK_GRIP - grip))
+
+
+def at_grip(target, grip, rx=0.0, ry=0.0, rz=0.0):
+    """Поза, в которой рукоять grip оказывается в точке target (повороты — как CFrame.Angles)."""
+    R = rig.rotation(rx, ry, rz)
+    return (R, np.asarray(target, float) - R @ grip)
+
+
+# Поза AK-47 — основа (вид от первого лица: в осях камеры)
+AK_VM = {
+    "Hip": cf((0.36, -0.5, -1.22), 0.035, 0.045, 0.06),
+    "Sprint": cf((0.22, -0.72, -1.2), -0.55, 0.62, 0.5),
+    "Reload": cf((0.3, -0.5, -1.35), 0.2, 0.28, -0.5),
+    "Equip": cf((0.5, -1.6, -0.9), -0.9, 0.3, 0.2),
 }
-HANDS = {k: (np.asarray(r), np.asarray(p)) for k, (r, p) in HANDS.items()}
+VM_SHOULDERS = {"Right": np.array([1.1, -1.45, 0.15]), "Left": np.array([-0.5, -1.25, -0.5])}
+VM_POLES = {"Right": np.array([0.8, -1.0, 0.1]), "Left": np.array([-0.7, -1.0, 0.0])}
 
-###############################################################################
-# Вид от первого лица
-###############################################################################
-VM = {
-    "Shoulders": {"Right": np.array([1.1, -1.45, 0.15]), "Left": np.array([-0.5, -1.25, -0.5])},
-    "Poles": {"Right": np.array([0.8, -1.0, 0.1]), "Left": np.array([-0.7, -1.0, 0.0])},
-    # CFrame детали Body относительно камеры
-    "Poses": {
-        "Hip": cf((0.36, -0.5, -1.22), 0.035, 0.045, 0.06),
-        # прицел: целик ровно по центру экрана в 2 studs перед глазом, ось оружия — вдоль взгляда
-        "Aim": cf(-POINTS["SightRear"] + np.array([0, 0, -2.0])),
-        "Sprint": cf((0.22, -0.72, -1.2), -0.55, 0.62, 0.5),
-        "Reload": cf((0.3, -0.5, -1.35), 0.2, 0.28, -0.5),
-        "Equip": cf((0.5, -1.6, -0.9), -0.9, 0.3, 0.2),
-    },
-    "AimFov": 55,
-}
-
-###############################################################################
-# От третьего лица: оружие у плеча, корпус развёрнут («боевая стойка»)
-###############################################################################
-TP = {
-    # поворот UpperTorso вокруг вертикали (влево — минус): левое плечо уходит вперёд к цевью
-    "Twist": -0.55,
-    "Poles": {"Right": np.array([0.7, -1.0, 0.3]), "Left": np.array([-0.35, -1.0, -0.1])},
-    # CFrame Body в осях UpperTorso (с учётом разворота корпуса оружие смотрит прямо вперёд)
-    "Poses": {
-        "Ready": None,
-        "Aim": None,
-        "Sprint": None,
-        "Reload": None,
-    },
+# Характеристики поз по оружию: ход затвора, расстояние прицела от глаза, поле зрения в прицеле
+SPECS = {
+    "AK47": {"Charge": 0.42, "AimDist": 2.0, "AimFov": 55},
+    "SMG": {"Charge": 0.3, "AimDist": 1.3, "AimFov": 58},
+    "Shotgun": {"Charge": 0.34, "AimDist": 1.15, "AimFov": 60},
+    "Sniper": {"Charge": 0.26, "AimDist": 1.05, "AimFov": 20},
+    "Pistol": {"Charge": 0.19, "AimDist": 1.3, "AimFov": 62},
 }
 
 
-def tp_pose(p, rx=0.0, ry=0.0, rz=0.0):
-    # p и углы — в «прямых» осях (корпус не развёрнут); оружие разворачиваем обратно на Twist
-    tw = cf((0, 0, 0), 0, TP["Twist"], 0)
-    return mul(inv(tw), cf(p, rx, ry, rz))
+def rifle_reloads():
+    return {
+        "Tactical": {
+            "Length": 2.5,
+            "Gun": [(0.0, 0.0), (0.3, 1.0), (1.95, 1.0), (2.4, 0.0)],
+            "LeftHand": [(0.0, "Left"), (0.28, "Left"), (0.55, "LeftMag"), (0.66, "LeftMag"), (0.98, "Below"), (1.2, "Below"),
+                         (1.42, "Enter"), (1.6, "LeftMag"), (1.68, "LeftMag"), (1.98, "Left")],
+            "RightHand": [(0.0, "Right")],
+            "MagInHand": (0.62, 1.58),
+            "Sounds": [(0.62, "MagOut"), (1.56, "MagIn")],
+        },
+        "Empty": {
+            "Length": 3.1,
+            "Gun": [(0.0, 0.0), (0.3, 1.0), (1.7, 1.0), (1.95, 0.6), (2.6, 0.6), (3.0, 0.0)],
+            "LeftHand": [(0.0, "Left"), (0.28, "Left"), (0.55, "LeftMag"), (0.66, "LeftMag"), (0.98, "Below"), (1.2, "Below"),
+                         (1.42, "Enter"), (1.6, "LeftMag"), (1.66, "LeftMag"), (1.95, "Left")],
+            "RightHand": [(0.0, "Right"), (1.7, "Right"), (1.98, "RightCharge"), (2.12, "RightChargePulled"), (2.2, "RightChargePulled"),
+                          (2.55, "Right")],
+            "MagInHand": (0.62, 1.58),
+            "Charge": (2.0, 2.12, 2.2),  # начало оттяжки, рукоять в крайнем заднем, отпущена
+            "Sounds": [(0.62, "MagOut"), (1.56, "MagIn"), (2.02, "Charge")],
+        },
+    }
 
 
-TP["Poses"]["Ready"] = tp_pose((0.55, 0.38, -1.38), -0.1, 0.0, 0.0)
-TP["Poses"]["Aim"] = tp_pose((0.36, 0.72, -1.42), 0.0, 0.0, 0.0)
-TP["Poses"]["Sprint"] = tp_pose((0.15, 0.0, -1.05), -0.7, 0.85, 0.3)
-TP["Poses"]["Reload"] = tp_pose((0.4, 0.3, -1.3), 0.25, 0.35, -0.5)
+def scaled(r, k):
+    """Те же ключи перезарядки, но быстрее/медленнее в k раз."""
+    out = {}
+    for kind, v in r.items():
+        w = dict(v)
+        w["Length"] = round(v["Length"] * k, 3)
+        for key in ("Gun", "LeftHand", "RightHand", "Sounds"):
+            w[key] = [(round(t * k, 3), x) for t, x in v[key]]
+        w["MagInHand"] = tuple(round(t * k, 3) for t in v["MagInHand"])
+        if "Charge" in v:
+            w["Charge"] = tuple(round(t * k, 3) for t in v["Charge"])
+        out[kind] = w
+    return out
 
-###############################################################################
-# Перезарядка: ключи времени (с). Gun — вес позы Reload (0 — обычная поза, 1 — наклонена к левой руке),
-# LeftHand — CFrame левой кисти в осях оружия, Mag — где магазин: "Gun" (в оружии) или "Hand" (в левой руке).
-###############################################################################
-BELOW = (basis(palm=(1, 0.2, 0), fingers=(0.2, -0.3, -0.9), side="Left"), MAG_C + np.array([-0.35, -1.25, 0.25]))
-ENTER = (HANDS["LeftMag"][0], HANDS["LeftMag"][1] + np.array([0.0, -0.32, -0.12]))
-RELOADS = {
-    "Tactical": {
-        "Length": 2.5,
-        "Gun": [(0.0, 0.0), (0.3, 1.0), (1.95, 1.0), (2.4, 0.0)],
-        "LeftHand": [(0.0, "Left"), (0.28, "Left"), (0.55, "LeftMag"), (0.66, "LeftMag"), (0.98, "Below"), (1.2, "Below"),
-                     (1.42, "Enter"), (1.6, "LeftMag"), (1.68, "LeftMag"), (1.98, "Left")],
-        "RightHand": [(0.0, "Right")],
-        "MagInHand": (0.62, 1.58),
-        "Sounds": [(0.62, "MagOut"), (1.56, "MagIn")],
-    },
-    "Empty": {
-        "Length": 3.1,
-        "Gun": [(0.0, 0.0), (0.3, 1.0), (1.7, 1.0), (1.95, 0.6), (2.6, 0.6), (3.0, 0.0)],
-        "LeftHand": [(0.0, "Left"), (0.28, "Left"), (0.55, "LeftMag"), (0.66, "LeftMag"), (0.98, "Below"), (1.2, "Below"),
-                     (1.42, "Enter"), (1.6, "LeftMag"), (1.66, "LeftMag"), (1.95, "Left")],
-        "RightHand": [(0.0, "Right"), (1.7, "Right"), (1.98, "RightCharge"), (2.12, "RightChargePulled"), (2.2, "RightChargePulled"),
-                      (2.55, "Right")],
-        "MagInHand": (0.62, 1.58),
-        "Charge": (2.0, 2.12, 2.2),  # начало оттяжки, рукоять в крайнем заднем, отпущена
-        "Sounds": [(0.62, "MagOut"), (1.56, "MagIn"), (2.02, "Charge")],
-    },
-}
-CHARGE_TRAVEL = 0.42  # насколько отходит рукоять затвора назад (studs, +Z оружия)
-HANDS_EXTRA = {
-    "Below": BELOW,
-    "Enter": ENTER,
-    "RightChargePulled": (HANDS["RightCharge"][0], HANDS["RightCharge"][1] + np.array([0, 0, CHARGE_TRAVEL])),
-}
+
+def setup(name):
+    """Выставить глобальные данные поз для оружия name."""
+    global NAME, PARTS_W, ATLAS_KIND, INFO_W, BODY_C, POINTS, MAG_C, CH_C, HANDS, HANDS_EXTRA, VM, TP, RELOADS, CHARGE_TRAVEL
+    NAME = name
+    PARTS_W, pts, ATLAS_KIND = MODELS[name]
+    INFO_W = centers(PARTS_W)
+    BODY_C = INFO_W["Body"]
+    POINTS = {k: np.asarray(v, float) - BODY_C for k, v in pts.items()}
+    MAG_C = INFO_W["Magazine"] - BODY_C
+    CH_C = INFO_W["ChargingHandle"] - BODY_C
+    spec = SPECS[name]
+    CHARGE_TRAVEL = spec["Charge"]
+    grip = POINTS["GripRight"]
+    pistol = name == "Pistol"
+    # Хваты — CFrame кисти (центр части) в осях оружия
+    HANDS = {
+        # правая: ладонь на правой стороне пистолетной рукояти, пальцы вниз-вперёд вокруг неё
+        "Right": (basis(palm=(-1, 0.05, 0), fingers=(0.0, -0.6, -0.8), side="Right"), grip + np.array([0.15, -0.02, 0.1])),
+        # левая: ладонь снизу на цевье, пальцы обхватывают его справа-сверху
+        "Left": (basis(palm=(0.25, 1, 0.05), fingers=(0.92, 0.2, -0.33), side="Left"), POINTS["GripLeft"] + np.array([-0.06, -0.17, 0.02])),
+        # левая держит магазин спереди-слева (перезарядка)
+        "LeftMag": (basis(palm=(1, 0.1, 0.1), fingers=(0.25, -0.45, -0.86), side="Left"), MAG_C + np.array([-0.17, -0.05, -0.12])),
+        # правая отпускает рукоять и тянет рукоять затвора (она справа): ладонь к ствольной коробке
+        "RightCharge": (basis(palm=(-1, 0.1, 0), fingers=(0.0, -0.35, -0.94), side="Right"), POINTS["ChargingHandle"] + np.array([0.16, -0.02, 0.1])),
+    }
+    if name == "Shotgun":
+        HANDS["LeftMag"] = (HANDS["LeftMag"][0], MAG_C + np.array([-0.18, -0.05, -0.12]))
+    below = (basis(palm=(1, 0.2, 0), fingers=(0.2, -0.3, -0.9), side="Left"), MAG_C + np.array([-0.35, -1.25, 0.25]))
+    enter = (HANDS["LeftMag"][0], HANDS["LeftMag"][1] + np.array([0.0, -0.32, -0.12]))
+    if pistol:
+        # обе руки на рукояти: правая держит, левая обхватывает правую снизу-слева
+        HANDS["Right"] = (HANDS["Right"][0], grip + np.array([0.14, -0.02, 0.08]))
+        HANDS["Left"] = (basis(palm=(1, 0.15, 0.1), fingers=(0.3, -0.55, -0.78), side="Left"), grip + np.array([-0.15, -0.07, 0.0]))
+        # магазин из рукояти: левая берёт его за дно снизу
+        HANDS["LeftMag"] = (basis(palm=(0.5, 0.85, 0.0), fingers=(0.35, -0.15, -0.92), side="Left"), MAG_C + np.array([-0.1, -0.3, 0.02]))
+        # затвор-кожух левая передёргивает сверху (ладонь на кожухе, пальцы на правую сторону)
+        HANDS["LeftCharge"] = (basis(palm=(0.15, -1, 0.0), fingers=(1.0, -0.35, 0.1), side="Left"), POINTS["ChargingHandle"] + np.array([-0.03, 0.14, 0.0]))
+        below = (basis(palm=(1, 0.2, 0), fingers=(0.2, -0.3, -0.9), side="Left"), MAG_C + np.array([-0.3, -0.95, 0.25]))
+        enter = (HANDS["LeftMag"][0], HANDS["LeftMag"][1] + np.array([0.0, -0.3, 0.05]))
+    HANDS = {k: (np.asarray(r), np.asarray(p)) for k, (r, p) in HANDS.items()}
+    HANDS_EXTRA = {
+        "Below": below,
+        "Enter": enter,
+        "RightChargePulled": (HANDS["RightCharge"][0], HANDS["RightCharge"][1] + np.array([0, 0, CHARGE_TRAVEL])),
+    }
+    if pistol:
+        HANDS_EXTRA["LeftChargePulled"] = (HANDS["LeftCharge"][0], HANDS["LeftCharge"][1] + np.array([0, 0, CHARGE_TRAVEL]))
+
+    # Вид от первого лица: CFrame детали Body относительно камеры
+    aim = cf(-POINTS["SightRear"] + np.array([0, 0, -spec["AimDist"]]))
+    if pistol:
+        poses = {
+            "Hip": at_grip((0.3, -0.52, -1.5), grip, 0.06, 0.22, 0.1),
+            "Aim": aim,
+            "Sprint": at_grip((0.28, -0.72, -1.05), grip, -0.9, 0.3, 0.15),
+            "Reload": at_grip((0.16, -0.42, -1.2), grip, 0.6, 0.45, -0.3),
+            "Equip": at_grip((0.4, -1.5, -0.8), grip, -0.9, 0.3, 0.2),
+        }
+    else:
+        poses = {k: anchored(v, grip) for k, v in AK_VM.items()}
+        poses["Aim"] = aim
+        poses = {k: poses[k] for k in ("Hip", "Aim", "Sprint", "Reload", "Equip")}
+    VM = {"Shoulders": VM_SHOULDERS, "Poles": VM_POLES, "Poses": poses, "AimFov": spec["AimFov"]}
+
+    # От третьего лица: оружие у плеча, корпус развёрнут («боевая стойка»); в осях UpperTorso
+    if pistol:
+        TP = {"Twist": -0.2, "Poles": {"Right": np.array([0.7, -1.0, 0.3]), "Left": np.array([-0.7, -1.0, 0.2])}}
+
+        def tp(target, rx=0.0, ry=0.0, rz=0.0):
+            tw = cf((0, 0, 0), 0, TP["Twist"], 0)
+            return mul(inv(tw), at_grip(target, grip, rx, ry, rz))
+        TP["Poses"] = {
+            "Ready": tp((0.12, 0.05, -1.3), -0.45, 0.0, 0.0),
+            "Aim": tp((0.05, 0.66, -1.62), 0.0, 0.0, 0.0),
+            "Sprint": tp((0.4, -0.25, -0.75), -1.1, 0.2, 0.1),
+            "Reload": tp((0.1, 0.1, -1.15), 0.45, 0.25, -0.3),
+        }
+    else:
+        TP = {"Twist": -0.55, "Poles": {"Right": np.array([0.7, -1.0, 0.3]), "Left": np.array([-0.35, -1.0, -0.1])}}
+
+        def tp(p, rx=0.0, ry=0.0, rz=0.0):
+            # p и углы — в «прямых» осях (корпус не развёрнут); оружие разворачиваем обратно на Twist
+            tw = cf((0, 0, 0), 0, TP["Twist"], 0)
+            return mul(inv(tw), anchored(cf(p, rx, ry, rz), grip))
+        TP["Poses"] = {
+            "Ready": tp((0.55, 0.38, -1.38), -0.1, 0.0, 0.0),
+            "Aim": tp((0.36, 0.72, -1.42), 0.0, 0.0, 0.0),
+            "Sprint": tp((0.15, 0.0, -1.05), -0.7, 0.85, 0.3),
+            "Reload": tp((0.4, 0.3, -1.3), 0.25, 0.35, -0.5),
+        }
+        if name == "Sniper":
+            # прицел выше, чем у AK: оружие ниже на столько же, чтобы окуляр был у глаза
+            dy = POINTS["SightRear"][1] - POINTS["GripRight"][1] - (0.135 - (-0.27))
+            R, p = TP["Poses"]["Aim"]
+            TP["Poses"]["Aim"] = (R, p - R @ np.array([0, dy, 0]))
+
+    # Перезарядка: ключи времени (с). Gun — вес позы Reload (0 — обычная поза, 1 — наклонена к левой руке),
+    # LeftHand/RightHand — имена хватов, MagInHand — когда магазин в левой руке, Charge — ход затвора
+    if pistol:
+        RELOADS = {
+            "Tactical": {
+                "Length": 1.8,
+                "Gun": [(0.0, 0.0), (0.22, 1.0), (1.4, 1.0), (1.75, 0.0)],
+                "LeftHand": [(0.0, "Left"), (0.2, "Left"), (0.4, "LeftMag"), (0.47, "LeftMag"), (0.72, "Below"), (0.88, "Below"),
+                             (1.06, "Enter"), (1.2, "LeftMag"), (1.26, "LeftMag"), (1.5, "Left")],
+                "RightHand": [(0.0, "Right")],
+                "MagInHand": (0.45, 1.22),
+                "Sounds": [(0.45, "MagOut"), (1.2, "MagIn")],
+            },
+            "Empty": {
+                "Length": 2.35,
+                "Gun": [(0.0, 0.0), (0.22, 1.0), (1.3, 1.0), (1.48, 0.55), (1.95, 0.55), (2.3, 0.0)],
+                "LeftHand": [(0.0, "Left"), (0.2, "Left"), (0.4, "LeftMag"), (0.47, "LeftMag"), (0.72, "Below"), (0.88, "Below"),
+                             (1.06, "Enter"), (1.2, "LeftMag"), (1.26, "LeftMag"), (1.5, "LeftCharge"), (1.62, "LeftChargePulled"),
+                             (1.68, "LeftChargePulled"), (1.75, "LeftCharge"), (2.05, "Left")],
+                "RightHand": [(0.0, "Right")],
+                "MagInHand": (0.45, 1.22),
+                "Charge": (1.5, 1.62, 1.68),
+                "Sounds": [(0.45, "MagOut"), (1.2, "MagIn"), (1.52, "Slide")],
+            },
+        }
+    elif name == "SMG":
+        RELOADS = scaled(rifle_reloads(), 0.85)
+    elif name == "Shotgun":
+        RELOADS = scaled(rifle_reloads(), 1.05)
+    elif name == "Sniper":
+        RELOADS = scaled(rifle_reloads(), 1.05)
+        for r in RELOADS.values():
+            r["Sounds"] = [(t, "BoltOpen" if s == "Charge" else s) for t, s in r["Sounds"]]
+        # передёрнуть затвор после выстрела: правая рука на рукоять, назад, вперёд, на место
+        RELOADS["Cycle"] = {
+            "Length": 0.95,
+            "Gun": [(0.0, 0.0), (0.16, 0.3), (0.72, 0.3), (0.95, 0.0)],
+            "LeftHand": [(0.0, "Left")],
+            "RightHand": [(0.0, "Right"), (0.2, "RightCharge"), (0.36, "RightChargePulled"), (0.46, "RightChargePulled"),
+                          (0.6, "RightCharge"), (0.88, "Right")],
+            "MagInHand": (0.0, 0.0),
+            "Charge": (0.2, 0.36, 0.46, 0.14),  # 4-е число — сколько времени затвор досылают вперёд
+            "Sounds": [(0.22, "BoltOpen"), (0.5, "BoltClose")],
+        }
+    else:
+        RELOADS = rifle_reloads()
+
+
+setup("AK47")
 
 
 def hand_key(name):
@@ -280,13 +420,14 @@ def reload_state(kind, t):
     mag_hand = r["MagInHand"][0] <= t < r["MagInHand"][1]
     charge = 0.0
     if "Charge" in r:
-        c0, c1, c2 = r["Charge"]
+        c0, c1, c2 = r["Charge"][:3]
+        back = r["Charge"][3] if len(r["Charge"]) > 3 else 0.05
         if c0 <= t < c1:
             charge = smooth((t - c0) / (c1 - c0))
         elif c1 <= t < c2:
             charge = 1.0  # держат в крайнем заднем
-        elif c2 <= t < c2 + 0.05:
-            charge = 1.0 - (t - c2) / 0.05  # отпустили: рама влетает вперёд пружиной
+        elif c2 <= t < c2 + back:
+            charge = 1.0 - (t - c2) / back  # отпустили: рама влетает вперёд пружиной (или затвор досылают рукой)
     return w, left, right, mag_hand, charge
 
 
@@ -297,21 +438,21 @@ ARM_PARTS = ["RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "Lef
 
 
 def ak_items(gun_cf, mag_cf=None, charge=0.0, show_mag=True):
-    px = np.asarray(ak47.atlas_png()[1], float) if not hasattr(ak_items, "px") else ak_items.px
-    ak_items.px = px
+    """Детали текущего оружия (setup) в позе gun_cf — для превью."""
+    px = atlas_px(ATLAS_KIND)
     out = []
     for name in ("Body", "Magazine", "ChargingHandle"):
         if name == "Magazine" and not show_mag:
             continue
-        m = AK_PARTS[name]
-        col = px[np.clip((m.uv[:, 1] * ak47.ATLAS).astype(int), 0, ak47.ATLAS - 1), np.clip((m.uv[:, 0] * ak47.ATLAS).astype(int), 0, ak47.ATLAS - 1)]
+        m = PARTS_W[name]
+        col = px[np.clip((m.uv[:, 1] * 1024).astype(int), 0, 1023), np.clip((m.uv[:, 0] * 1024).astype(int), 0, 1023)]
         pos = m.pos - BODY_C
         if name == "ChargingHandle":
             pos = pos + np.array([0, 0, CHARGE_TRAVEL * charge])
         frame = gun_cf
         if name == "Magazine" and mag_cf is not None:
             frame = mag_cf
-            pos = m.pos - AK_INFO["Magazine"]
+            pos = m.pos - INFO_W["Magazine"]
         out.append((pos @ frame[0].T + frame[1], m.nrm @ frame[0].T, col, m.idx))
     return out
 
@@ -359,25 +500,31 @@ def vm_frame(pose_cf, left_cf=None, right_cf=None, mag_cf=None, charge=0.0):
 
 def preview_viewmodel():
     imgs = []
+    suffix = "" if NAME == "AK47" else "_" + NAME.lower()
     for name, fov in (("Hip", 72), ("Aim", VM["AimFov"]), ("Sprint", 78), ("Equip", 72)):
         imgs.append(render.label(view(vm_frame(VM["Poses"][name]), fov), name))
-    for kind, times in (("Tactical", (0.6, 1.0, 1.45, 1.62)), ("Empty", (1.98, 2.15))):
-        for t in times:
+    frames = [("Tactical", RELOADS["Tactical"]["MagInHand"][0] + d) for d in (0.0, 0.38, 0.8)]
+    frames += [("Empty", RELOADS["Empty"]["Charge"][0] + d) for d in (0.0, 0.14)]
+    if "Cycle" in RELOADS:
+        frames += [("Cycle", 0.4)]
+    for kind, t in frames:
+        if True:
             w, left_gun, right_gun, mag_hand, charge = reload_state(kind, t)
             gun = slerp_cf(VM["Poses"]["Hip"], VM["Poses"]["Reload"], w)
             left = mul(gun, left_gun)
             right = mul(gun, right_gun)
             mag = None
             if mag_hand:
-                grab = HANDS["LeftMag"]
+                grab = hand_key("LeftMag")
                 hand_to_mag = mul(inv(grab), cf(MAG_C))
                 mag = mul(left, hand_to_mag)
             imgs.append(render.label(view(vm_frame(gun, left, right, mag, charge), 72), "%s %.2f" % (kind, t)))
-    render.sheet(imgs, 2).save(os.path.join(OUT, "preview_viewmodel.png"))
+    render.sheet(imgs, 2).save(os.path.join(OUT, "preview_viewmodel%s.png" % suffix))
 
 
 def preview_third():
     imgs = []
+    suffix = "" if NAME == "AK47" else "_" + NAME.lower()
     from make_dummy import posed_items
     for name in ("Ready", "Aim", "Sprint", "Reload"):
         # корпус развёрнут на Twist (Waist), голова — обратно вперёд (Neck)
@@ -390,13 +537,13 @@ def preview_third():
         poles = {s: torso[0] @ TP["Poles"][s] for s in ("Right", "Left")}
         left = None
         if name == "Reload":
-            left = mul(gun, HANDS["LeftMag"])
+            left = mul(gun, hand_key("LeftMag"))
         frames = arms_for(gun, sh, poles, left_cf=left)
         body = [it for it, n in zip(posed_items(PARTS, INFO, poses), rig.PART_ORDER) if n not in ARM_PARTS]
         items = body + arm_items(frames) + ak_items(gun) + [render.ground(size=6)]
         for vname, eye in (("сбоку", (6.5, 3.6, -1.0)), ("спереди", (2.8, 4.2, -6.5))):
             imgs.append(render.label(render.render(items, eye, (0, 3.4, -0.6), fov=38, W=420, H=420), "%s, %s" % (name, vname)))
-    render.sheet(imgs, 4).save(os.path.join(OUT, "preview_third.png"))
+    render.sheet(imgs, 4).save(os.path.join(OUT, "preview_third%s.png" % suffix))
 
 
 ###############################################################################
@@ -412,16 +559,9 @@ def lua_v3(v):
     return "Vector3.new(%.4f, %.4f, %.4f)" % tuple(v)
 
 
-def write_config():
-    L = [
-        "-- WeaponPoses: позы оружия и рук (создаётся tools/weapons/viewmodel.py — не править вручную).",
-        "-- Viewmodel: всё в осях камеры (−Z — взгляд). Poses — CFrame детали Body; Shoulders/Poles — точки плеч",
-        "-- и направления локтей для ИК рук. ThirdPerson: в осях UpperTorso; Twist — разворот корпуса (рад).",
-        "-- Hands — CFrame кистей (центр части) в осях оружия. Reloads — ключи перезарядки (см. viewmodel.py).",
-        "return table.freeze({",
-        "\tAK47 = table.freeze({",
-        "\t\tHands = table.freeze({",
-    ]
+def config_block():
+    """Блок WeaponPoses для текущего оружия (setup)."""
+    L = ["\t%s = table.freeze({" % NAME, "\t\tHands = table.freeze({"]
     for k in list(HANDS) + list(HANDS_EXTRA):
         L.append("\t\t\t%s = %s," % (k, lua_cf(hand_key(k))))
     L += ["\t\t}),", "\t\tMagazine = %s," % lua_v3(MAG_C), "\t\tChargeTravel = %.3f," % CHARGE_TRAVEL, "\t\tViewmodel = table.freeze({"]
@@ -443,18 +583,33 @@ def write_config():
         L.append("\t\t\t\tGun = table.freeze({ %s })," % ", ".join("{ %g, %g }" % k for k in r["Gun"]))
         L.append("\t\t\t\tLeftHand = table.freeze({ %s })," % ", ".join("{ %g, \"%s\" }" % k for k in r["LeftHand"]))
         L.append("\t\t\t\tRightHand = table.freeze({ %s })," % ", ".join("{ %g, \"%s\" }" % k for k in r["RightHand"]))
-        L.append("\t\t\t\tMagInHand = { %g, %g }," % r["MagInHand"])
+        L.append("\t\t\t\tMagInHand = { %g, %g }," % tuple(r["MagInHand"]))
         if "Charge" in r:
-            L.append("\t\t\t\tCharge = { %g, %g, %g }," % r["Charge"])
+            L.append("\t\t\t\tCharge = { %s }," % ", ".join("%g" % x for x in r["Charge"]))
         L.append("\t\t\t\tSounds = table.freeze({ %s })," % ", ".join("{ %g, \"%s\" }" % k for k in r["Sounds"]))
         L.append("\t\t\t}),")
     L += ["\t\t}),"]
-    # контрольные значения для теста: ИК правой руки в позе Hip (клиентский расчёт должен совпасть)
+    # контрольные значения для теста: ИК рук в позе Hip (клиентский расчёт должен совпасть)
     frames = arms_for(VM["Poses"]["Hip"], VM["Shoulders"], VM["Poles"])
     L.append("\t\tCheck = table.freeze({")
     for name in ("RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand"):
         L.append("\t\t\t%s = %s," % (name, lua_cf(frames[name])))
-    L += ["\t\t}),", "\t}),", "})"]
+    L += ["\t\t}),", "\t}),"]
+    return L
+
+
+def write_config(blocks):
+    L = [
+        "-- WeaponPoses: позы оружия и рук (создаётся tools/weapons/viewmodel.py — не править вручную).",
+        "-- Viewmodel: всё в осях камеры (−Z — взгляд). Poses — CFrame детали Body; Shoulders/Poles — точки плеч",
+        "-- и направления локтей для ИК рук. ThirdPerson: в осях UpperTorso; Twist — разворот корпуса (рад).",
+        "-- Hands — CFrame кистей (центр части) в осях оружия. Reloads — ключи перезарядки (см. viewmodel.py);",
+        "-- Cycle — передёргивание затвора после выстрела (снайперская винтовка).",
+        "return table.freeze({",
+    ]
+    for b in blocks:
+        L += b
+    L.append("})")
     path = os.path.join(ROOT, "src", "ReplicatedStorage", "Configs", "WeaponPoses.lua")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
@@ -471,13 +626,20 @@ def reach_report():
             wrist = point(mul(pose, hand_key(hk)), d["WristHand"])
             dist = np.linalg.norm(wrist - VM["Shoulders"][side])
             flag = "  <-- не достаёт" if dist > reach else ""
-            print("VM %-6s %-5s плечо-запястье %.2f / %.2f%s" % (pname, side, dist, reach, flag))
+            if flag:
+                print("VM %-6s %-5s плечо-запястье %.2f / %.2f%s" % (pname, side, dist, reach, flag))
 
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    reach_report()
-    write_config()
-    preview_viewmodel()
-    preview_third()
-    print(os.path.join(OUT, "preview_viewmodel.png"))
+    only = sys.argv[1:] or WEAPONS
+    blocks = []
+    for w in WEAPONS:
+        setup(w)
+        print("==", w)
+        reach_report()
+        blocks.append(config_block())
+        if w in only:
+            preview_viewmodel()
+            preview_third()
+    write_config(blocks)
